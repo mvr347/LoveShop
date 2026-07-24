@@ -15,6 +15,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class SellerGui {
 
@@ -39,11 +40,6 @@ public class SellerGui {
         // Slot 0: Player Profile Head
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
-        // Slots 2-7: Control tabs
-        inv.setItem(2, GuiUtils.createCustomHead(GuiUtils.TAB_BUYER_BASE64, "<gold>Скупщик</gold>", List.of("", "<gray>Раздел сдачи предметов</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
-        inv.setItem(3, GuiUtils.createCustomHead(GuiUtils.TAB_SELLER_BASE64, "<green>Барахолка</green>", List.of("", "<gray>Товары недели</gray>", "<green>● Активно</green>")));
-        inv.setItem(4, GuiUtils.createCustomHead(GuiUtils.TAB_AUCTION_BASE64, "<gold>Аукцион</gold>", List.of("", "<gray>Редкие лоты</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
-
         // Slot 53: Close button ALWAYS in slot 53 (Golden Rule 6)
         inv.setItem(53, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
@@ -55,36 +51,38 @@ public class SellerGui {
             37, 38, 39, 40, 41, 42, 43
         };
 
-        plugin.getSellerManager().getAvailableItems().thenAccept(items -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
+        plugin.getSellerManager().getAvailableItems().thenAccept(items ->
+            plugin.getPriceCalculator().calculateSellPrices(items).thenAccept(prices ->
+                Bukkit.getScheduler().runTask(plugin, () -> renderItems(inv, items, prices, contentSlots))
+            )
+        );
+    }
 
-                int idx = 0;
-                for (BuyerItemData itemData : items) {
-                    if (idx >= contentSlots.length) break;
+    private void renderItems(Inventory inv, List<BuyerItemData> items, Map<Integer, Integer> prices, int[] contentSlots) {
+        int idx = 0;
+        for (BuyerItemData itemData : items) {
+            if (idx >= contentSlots.length) break;
 
-                    ItemStack baseItem = ItemStackConverter.itemStackFromBase64(itemData.itemData());
-                    if (baseItem == null) continue;
+            ItemStack baseItem = ItemStackConverter.itemStackFromBase64(itemData.itemData());
+            if (baseItem == null) continue;
 
-                    int price = (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0));
-                    ItemStack displayItem = baseItem.clone();
-                    ItemMeta meta = displayItem.getItemMeta();
-                    if (meta != null) {
-                        List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-                        lore.add(Component.empty());
-                        lore.add(MessageUtils.parse("<gray>Цена: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
-                        lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + itemData.id() + "</dark_gray></gray>"));
-                        lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));
-                        meta.lore(lore);
-                        displayItem.setItemMeta(meta);
-                    }
+            int price = prices.getOrDefault(itemData.id(), itemData.basePrice());
+            ItemStack displayItem = baseItem.clone();
+            ItemMeta meta = displayItem.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+                lore.add(Component.empty());
+                lore.add(MessageUtils.parse("<gray>Цена: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + itemData.id() + "</dark_gray></gray>"));
+                lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));
+                meta.lore(lore);
+                displayItem.setItemMeta(meta);
+            }
 
-                    inv.setItem(contentSlots[idx], displayItem);
-                    idx++;
-                }
+            inv.setItem(contentSlots[idx], displayItem);
+            idx++;
+        }
 
-                player.openInventory(inv);
-            });
-        });
+        player.openInventory(inv);
     }
 }

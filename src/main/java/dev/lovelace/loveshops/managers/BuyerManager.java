@@ -5,6 +5,7 @@ import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -104,57 +105,110 @@ public class BuyerManager {
                 return;
             }
 
-            int finalPrice = priceCalculator.calculateBuyPrice(player, item);
-            int basePrice = priceCalculator.getBasePrice(item);
+            // Must run inventory check on main thread
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                // Find matching item in player's inventory
+                ItemStack matchInInventory = null;
+                int matchSlot = -1;
+                ItemStack[] contents = player.getInventory().getContents();
 
-            // Fetch buyer NPC ID (if any)
-            List<NpcData> buyerNpcs = plugin.getNpcManager().getNpcsByType("buyer");
-            Integer npcId = buyerNpcs.isEmpty() ? null : buyerNpcs.get(0).id();
+                for (int i = 0; i < contents.length; i++) {
+                    ItemStack invItem = contents[i];
+                    if (invItem == null || invItem.getType() == Material.AIR) continue;
+                    if (currencyManager.isCurrencyItem(invItem)) continue;
 
-            String base64Item = ItemStackConverter.itemStackToBase64(item);
-            int quantity = item.getAmount();
-
-            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-                try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-                    conn.setAutoCommit(false);
-
-                    // Insert into buyer_inventory
-                    try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO buyer_inventory (npc_id, player_uuid, item_data, base_price, quantity) VALUES (?, ?, ?, ?, ?)")) {
-                        if (npcId != null) {
-                            ps.setInt(1, npcId);
-                        } else {
-                            ps.setNull(1, java.sql.Types.INTEGER);
-                        }
-                        ps.setString(2, player.getUniqueId().toString());
-                        ps.setString(3, base64Item);
-                        ps.setInt(4, basePrice);
-                        ps.setInt(5, quantity);
-                        ps.executeUpdate();
+                    if (invItem.getType() == item.getType() && invItem.getAmount() >= item.getAmount()) {
+                        matchInInventory = invItem;
+                        matchSlot = i;
+                        break;
                     }
-
-                    // Update price history penalty
-                    trackSubmission(conn, player.getUniqueId(), item.getType().name());
-
-                    conn.commit();
-                    conn.setAutoCommit(true);
-
-                    // Main thread: remove item from player inventory & give coins
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        player.getInventory().removeItem(item);
-                        currencyManager.giveCurrency(player, finalPrice);
-
-                        String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
-                        acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPrice));
-                        MessageUtils.sendMessage(player, acceptMsg);
-
-                        future.complete(true);
-                    });
-
-                } catch (SQLException e) {
-                    plugin.getLogger().severe("Error processing buyer sale: " + e.getMessage());
-                    future.complete(false);
                 }
+
+                if (matchInInventory == null) {
+                    future.complete(false);
+                    return;
+                }
+
+                int finalPrice = priceCalculator.calculateBuyPrice(player, item);
+                int basePrice = priceCalculator.getBasePrice(item);
+
+                // Verify inventory can fit coins after removing item
+                if (!currencyManager.canFitCurrency(player, finalPrice, item)) {
+                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-sell-message", "&cУ вас нет свободного места в инвентаре для получения монет!");
+                    MessageUtils.sendMessage(player, fullMsg);
+                    future.complete(false);
+                    return;
+                }
+
+                final int slotToRemove = matchSlot;
+                final ItemStack targetItem = matchInInventory;
+
+                List<NpcData> buyerNpcs = plugin.getNpcManager().getNpcsByType("buyer");
+                Integer npcId = buyerNpcs.isEmpty() ? null : buyerNpcs.get(0).id();
+
+                String base64Item = ItemStackConverter.itemStackToBase64(item);
+                int quantity = item.getAmount();
+                String itemType = item.getType().name();
+
+                boolean auctioneerEnabled = plugin.getConfig().getBoolean("auctioneer.enabled", true);
+                int auctionThreshold = plugin.getConfig().getInt("auctioneer.price-threshold", 400);
+                String channel = (auctioneerEnabled && basePrice * quantity >= auctionThreshold) ? "auction" : "seller";
+
+                Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                    try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                        conn.setAutoCommit(false);
+
+                        // Insert into buyer_inventory
+                        try (PreparedStatement ps = conn.prepareStatement(
+                            "INSERT INTO buyer_inventory (npc_id, player_uuid, item_data, base_price, quantity, item_type, channel) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                            if (npcId != null) {
+                                ps.setInt(1, npcId);
+                            } else {
+                                ps.setNull(1, java.sql.Types.INTEGER);
+                            }
+                            ps.setString(2, player.getUniqueId().toString());
+                            ps.setString(3, base64Item);
+                            ps.setInt(4, basePrice);
+                            ps.setInt(5, quantity);
+                            ps.setString(6, itemType);
+                            ps.setString(7, channel);
+                            ps.executeUpdate();
+                        }
+
+                        // Update price history penalty
+                        trackSubmission(conn, player.getUniqueId(), itemType);
+
+                        conn.commit();
+
+                        // Main thread: remove item from player inventory & give coins
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            // Re-verify slot still holds item
+                            ItemStack currentSlotItem = player.getInventory().getItem(slotToRemove);
+                            if (currentSlotItem != null && currentSlotItem.getType() == targetItem.getType()) {
+                                int newAmount = currentSlotItem.getAmount() - quantity;
+                                if (newAmount > 0) {
+                                    currentSlotItem.setAmount(newAmount);
+                                } else {
+                                    player.getInventory().setItem(slotToRemove, null);
+                                }
+                            } else {
+                                player.getInventory().removeItem(item);
+                            }
+
+                            currencyManager.giveCurrency(player, finalPrice);
+
+                            String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
+                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPrice));
+                            MessageUtils.sendMessage(player, acceptMsg);
+
+                            future.complete(true);
+                        });
+
+                    } catch (SQLException e) {
+                        plugin.getLogger().severe("Error processing buyer sale: " + e.getMessage());
+                        future.complete(false);
+                    }
+                });
             });
         });
 

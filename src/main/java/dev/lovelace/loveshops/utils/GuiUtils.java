@@ -25,7 +25,7 @@ public class GuiUtils {
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = filler.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text(" "));
+            meta.displayName(Component.text(" ").decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
             filler.setItemMeta(meta);
         }
         return filler;

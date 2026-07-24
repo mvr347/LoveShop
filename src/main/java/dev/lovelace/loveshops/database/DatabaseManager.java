@@ -21,24 +21,22 @@ public class DatabaseManager {
                 plugin.getDataFolder().mkdirs();
             }
             
-            // Connect to SQLite DB
-            connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
-            
-            // Enable WAL mode and Foreign Keys
-            try (Statement stmt = connection.createStatement()) {
+            try (Connection conn = getConnection();
+                 Statement stmt = conn.createStatement()) {
                 stmt.execute("PRAGMA journal_mode=WAL;");
                 stmt.execute("PRAGMA foreign_keys=ON;");
+                stmt.execute("PRAGMA busy_timeout=5000;");
+                createTables(conn);
             }
 
-            createTables();
             plugin.getLogger().info("✓ База данных SQLite успешно подключена.");
         } catch (SQLException e) {
             plugin.getLogger().severe("✗ Ошибка подключения к базе данных: " + e.getMessage());
         }
     }
 
-    private void createTables() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
+    private void createTables(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
             // 1. shops_npcs
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS shops_npcs (
@@ -139,23 +137,39 @@ public class DatabaseManager {
                     last_bid_auction_id INTEGER
                 );
             """);
+
+            // 8. seller_price_state (dynamic flea-market pricing: demand + noise per item type)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS seller_price_state (
+                    item_type TEXT PRIMARY KEY,
+                    demand_count INTEGER DEFAULT 0,
+                    noise_percent REAL DEFAULT 0,
+                    cycle_id INTEGER DEFAULT 0
+                );
+            """);
+
+            addColumnIfMissing(stmt, "buyer_inventory", "item_type", "TEXT");
+            addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
+            addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
+            addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
         }
     }
 
-    public synchronized Connection getConnection() throws SQLException {
-        if (connection == null || connection.isClosed()) {
-            File dbFile = new File(plugin.getDataFolder(), "database.db");
-            connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+    private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {
+        try {
+            stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        } catch (SQLException e) {
+            // Column already exists from a previous run - safe to ignore.
         }
-        return connection;
+    }
+
+    public Connection getConnection() throws SQLException {
+        File dbFile = new File(plugin.getDataFolder(), "database.db");
+        return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000");
     }
 
     public synchronized void close() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("База данных закрыта.");
-            }
-        } catch (SQLException ignored) {}
+        plugin.getLogger().info("База данных закрыта.");
     }
+
 }

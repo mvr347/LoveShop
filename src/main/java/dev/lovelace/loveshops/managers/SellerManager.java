@@ -60,6 +60,13 @@ public class SellerManager {
                 for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
                     plugin.getNpcManager().spawnNpcEntity(npc);
                 }
+                // Spawn auctioneer NPCs (auction runs alongside the flea market)
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+                    plugin.getNpcManager().spawnNpcEntity(npc);
+                }
+                // Move expensive buyer purchases into fresh auction lots, roll a new dynamic-pricing cycle
+                plugin.getAuctionManager().createAuctionsFromPendingItems();
+                plugin.getPriceCalculator().rollSellerPriceCycle();
             } else {
                 // Seller departed (Flea market event ended)
                 for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
@@ -67,6 +74,10 @@ public class SellerManager {
                 }
                 // Despawn seller NPCs
                 for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+                }
+                // Despawn auctioneer NPCs
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
                     plugin.getNpcManager().despawnNpcEntity(npc.uuid());
                 }
                 // Respawn buyer NPCs
@@ -104,21 +115,12 @@ public class SellerManager {
         CompletableFuture<List<BuyerItemData>> future = new CompletableFuture<>();
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             List<BuyerItemData> items = new ArrayList<>();
-            String sql = "SELECT * FROM buyer_inventory WHERE sold_at IS NULL ORDER BY received_at DESC LIMIT 45";
+            String sql = "SELECT * FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' ORDER BY received_at DESC LIMIT 45";
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 ResultSet rs = ps.executeQuery();
                 while (rs.next()) {
-                    items.add(new BuyerItemData(
-                        rs.getInt("id"),
-                        rs.getInt("npc_id"),
-                        UUID.fromString(rs.getString("player_uuid")),
-                        rs.getString("item_data"),
-                        rs.getInt("base_price"),
-                        rs.getInt("quantity"),
-                        rs.getLong("received_at"),
-                        rs.getObject("sold_at") != null ? rs.getLong("sold_at") : null
-                    ));
+                    items.add(mapItem(rs));
                 }
                 future.complete(items);
             } catch (SQLException e) {
@@ -133,96 +135,111 @@ public class SellerManager {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-                conn.setAutoCommit(false);
+            BuyerItemData itemData = null;
+            int finalPrice = 0;
 
-                // 1. Fetch item details
-                String selectSql = "SELECT * FROM buyer_inventory WHERE id = ? AND sold_at IS NULL";
-                BuyerItemData itemData = null;
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                String selectSql = "SELECT * FROM buyer_inventory WHERE id = ? AND sold_at IS NULL AND channel = 'seller'";
                 try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                     ps.setInt(1, itemId);
                     ResultSet rs = ps.executeQuery();
                     if (rs.next()) {
-                        itemData = new BuyerItemData(
-                            rs.getInt("id"),
-                            rs.getInt("npc_id"),
-                            UUID.fromString(rs.getString("player_uuid")),
-                            rs.getString("item_data"),
-                            rs.getInt("base_price"),
-                            rs.getInt("quantity"),
-                            rs.getLong("received_at"),
-                            null
-                        );
+                        itemData = mapItem(rs);
                     }
                 }
 
-                if (itemData == null) {
-                    conn.rollback();
-                    conn.setAutoCommit(true);
+                if (itemData != null) {
+                    finalPrice = plugin.getPriceCalculator().calculateSellPrice(conn, itemData);
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error preparing seller purchase: " + e.getMessage());
+                future.complete(false);
+                return;
+            }
+
+            if (itemData == null) {
+                future.complete(false);
+                return;
+            }
+
+            final BuyerItemData finalItemData = itemData;
+            final int itemPrice = finalPrice;
+            final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalItemData.itemData());
+
+            // Main thread checks: balance + inventory capacity
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (currencyManager.getPlayerBalance(player) < itemPrice) {
+                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
 
-                double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
-                int finalPrice = (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0));
+                if (!currencyManager.canFitItem(player, itemStack, itemPrice)) {
+                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-buy-message", "&cВаш инвентарь заполнен! Освободите место для товара.");
+                    MessageUtils.sendMessage(player, fullMsg);
+                    future.complete(false);
+                    return;
+                }
 
-                // Check player balance on main thread
-                final BuyerItemData finalItemData = itemData;
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (currencyManager.getPlayerBalance(player) < finalPrice) {
-                        MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
-                        future.complete(false);
-                        return;
-                    }
+                // Async execution of update transaction
+                Bukkit.getAsyncScheduler().runNow(plugin, updateTask -> {
+                    try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                        conn.setAutoCommit(false);
+                        String updateSql = "UPDATE buyer_inventory SET sold_at = strftime('%s', 'now') WHERE id = ? AND sold_at IS NULL";
+                        int updated = 0;
 
-                    // Async execution of update transaction
-                    Bukkit.getAsyncScheduler().runNow(plugin, updateTask -> {
-                        try {
-                            String updateSql = "UPDATE buyer_inventory SET sold_at = strftime('%s', 'now') WHERE id = ? AND sold_at IS NULL";
-                            try (PreparedStatement psUpdate = conn.prepareStatement(updateSql)) {
-                                psUpdate.setInt(1, itemId);
-                                int updated = psUpdate.executeUpdate();
-
-                                if (updated > 0) {
-                                    conn.commit();
-                                    conn.setAutoCommit(true);
-
-                                    // Grant item on main thread
-                                    Bukkit.getScheduler().runTask(plugin, () -> {
-                                        currencyManager.removeCurrency(player, finalPrice);
-                                        ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalItemData.itemData());
-                                        if (itemStack != null) {
-                                            player.getInventory().addItem(itemStack);
-                                        }
-                                        MessageUtils.sendMessage(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
-                                        
-                                        // Broadcast GUI update to all open viewers!
-                                        GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
-                                        future.complete(true);
-                                    });
-                                } else {
-                                    conn.rollback();
-                                    conn.setAutoCommit(true);
-                                    Bukkit.getScheduler().runTask(plugin, () -> {
-                                        MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.item-already-sold-message", "&cЭтот предмет уже куплен другим игроком."));
-                                        GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
-                                        future.complete(false);
-                                    });
-                                }
-                            }
-                        } catch (SQLException e) {
-                            plugin.getLogger().severe("Error in seller purchase transaction: " + e.getMessage());
-                            future.complete(false);
+                        try (PreparedStatement psUpdate = conn.prepareStatement(updateSql)) {
+                            psUpdate.setInt(1, itemId);
+                            updated = psUpdate.executeUpdate();
                         }
-                    });
-                });
 
-            } catch (SQLException e) {
-                plugin.getLogger().severe("Error preparing seller purchase: " + e.getMessage());
-                future.complete(false);
-            }
+                        if (updated > 0) {
+                            plugin.getPriceCalculator().trackDemand(conn, finalItemData.itemType());
+                            conn.commit();
+
+                            // Grant item on main thread
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                currencyManager.removeCurrency(player, itemPrice);
+                                if (itemStack != null) {
+                                    player.getInventory().addItem(itemStack);
+                                }
+                                MessageUtils.sendMessage(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
+
+                                // Broadcast GUI update to all open viewers!
+                                GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
+                                future.complete(true);
+                            });
+                        } else {
+                            conn.rollback();
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.item-already-sold-message", "&cЭтот предмет уже куплен другим игроком."));
+                                GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
+                                future.complete(false);
+                            });
+                        }
+                    } catch (SQLException e) {
+                        plugin.getLogger().severe("Error in seller purchase transaction: " + e.getMessage());
+                        future.complete(false);
+                    }
+                });
+            });
         });
 
         return future;
+    }
+
+    private BuyerItemData mapItem(ResultSet rs) throws SQLException {
+        return new BuyerItemData(
+            rs.getInt("id"),
+            rs.getInt("npc_id"),
+            UUID.fromString(rs.getString("player_uuid")),
+            rs.getString("item_data"),
+            rs.getInt("base_price"),
+            rs.getInt("quantity"),
+            rs.getLong("received_at"),
+            rs.getObject("sold_at") != null ? rs.getLong("sold_at") : null,
+            rs.getString("item_type"),
+            rs.getString("channel")
+        );
     }
 }

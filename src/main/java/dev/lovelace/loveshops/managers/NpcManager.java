@@ -124,7 +124,8 @@ public class NpcManager {
             return;
         }
 
-        if (npc.type().equalsIgnoreCase("seller") && !plugin.getSellerManager().isSellerActive()) {
+        if ((npc.type().equalsIgnoreCase("seller") || npc.type().equalsIgnoreCase("auctioneer"))
+            && !plugin.getSellerManager().isSellerActive()) {
             despawnNpcEntity(npc.uuid());
             return;
         }

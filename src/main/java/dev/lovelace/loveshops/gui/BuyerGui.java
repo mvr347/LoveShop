@@ -38,11 +38,6 @@ public class BuyerGui {
         // Slot 0: Player Profile Head
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
-        // Slots 2-7: Control tabs
-        inv.setItem(2, GuiUtils.createCustomHead(GuiUtils.TAB_BUYER_BASE64, "<green>Скупщик</green>", List.of("", "<gray>Раздел сдачи предметов</gray>", "<green>● Активно</green>")));
-        inv.setItem(3, GuiUtils.createCustomHead(GuiUtils.TAB_SELLER_BASE64, "<gold>Барахолка</gold>", List.of("", "<gray>Товары недели</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
-        inv.setItem(4, GuiUtils.createCustomHead(GuiUtils.TAB_AUCTION_BASE64, "<gold>Аукцион</gold>", List.of("", "<gray>Редкие лоты</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
-
         // Slot 26: Close button
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
