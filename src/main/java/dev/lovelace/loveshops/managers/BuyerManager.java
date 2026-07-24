@@ -113,6 +113,11 @@ public class BuyerManager {
 
             String base64Item = ItemStackConverter.itemStackToBase64(item);
             int quantity = item.getAmount();
+            String itemType = item.getType().name();
+
+            boolean auctioneerEnabled = plugin.getConfig().getBoolean("auctioneer.enabled", true);
+            int auctionThreshold = plugin.getConfig().getInt("auctioneer.price-threshold", 400);
+            String channel = (auctioneerEnabled && basePrice * quantity >= auctionThreshold) ? "auction" : "seller";
 
             Bukkit.getAsyncScheduler().runNow(plugin, task -> {
                 try (Connection conn = plugin.getDatabaseManager().getConnection()) {
@@ -120,7 +125,7 @@ public class BuyerManager {
 
                     // Insert into buyer_inventory
                     try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO buyer_inventory (npc_id, player_uuid, item_data, base_price, quantity) VALUES (?, ?, ?, ?, ?)")) {
+                        "INSERT INTO buyer_inventory (npc_id, player_uuid, item_data, base_price, quantity, item_type, channel) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
                         if (npcId != null) {
                             ps.setInt(1, npcId);
                         } else {
@@ -130,6 +135,8 @@ public class BuyerManager {
                         ps.setString(3, base64Item);
                         ps.setInt(4, basePrice);
                         ps.setInt(5, quantity);
+                        ps.setString(6, itemType);
+                        ps.setString(7, channel);
                         ps.executeUpdate();
                     }
 

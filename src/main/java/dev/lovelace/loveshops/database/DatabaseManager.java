@@ -139,6 +139,29 @@ public class DatabaseManager {
                     last_bid_auction_id INTEGER
                 );
             """);
+
+            // 8. seller_price_state (dynamic flea-market pricing: demand + noise per item type)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS seller_price_state (
+                    item_type TEXT PRIMARY KEY,
+                    demand_count INTEGER DEFAULT 0,
+                    noise_percent REAL DEFAULT 0,
+                    cycle_id INTEGER DEFAULT 0
+                );
+            """);
+
+            addColumnIfMissing(stmt, "buyer_inventory", "item_type", "TEXT");
+            addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
+            addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
+            addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
+        }
+    }
+
+    private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {
+        try {
+            stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        } catch (SQLException e) {
+            // Column already exists from a previous run - safe to ignore.
         }
     }
 

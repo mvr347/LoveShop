@@ -41,6 +41,10 @@ public class InventoryClickListener implements Listener {
                 MessageUtils.sendMessage(player, "<red>Торговец-барахолка открыт только по воскресеньям с 10:00 до 18:00!</red>");
                 return;
             }
+            if (npc.type().equalsIgnoreCase("auctioneer") && !plugin.getSellerManager().isSellerActive()) {
+                MessageUtils.sendMessage(player, "<red>Аукционист появляется вместе с барахолкой, по воскресеньям с 10:00 до 18:00!</red>");
+                return;
+            }
             switch (npc.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
@@ -63,15 +67,6 @@ public class InventoryClickListener implements Listener {
 
             if (slot == 26) {
                 player.closeInventory();
-                return;
-            }
-
-            // Tab navigation (Slots 2-4)
-            if (slot == 3) {
-                new SellerGui(plugin, player).open();
-                return;
-            } else if (slot == 4) {
-                new AuctionGui(plugin, player).open();
                 return;
             }
 
@@ -104,15 +99,6 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
-            // Tab navigation (Slots 2-4)
-            if (slot == 2) {
-                new BuyerGui(plugin, player).open();
-                return;
-            } else if (slot == 4) {
-                new AuctionGui(plugin, player).open();
-                return;
-            }
-
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().lore() != null) {
                 int itemId = extractIdFromLore(clicked);
@@ -130,25 +116,22 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
-            // Tab navigation (Slots 2-4)
-            if (slot == 2) {
-                new BuyerGui(plugin, player).open();
-                return;
-            } else if (slot == 3) {
-                new SellerGui(plugin, player).open();
-                return;
-            }
-
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().lore() != null) {
                 int auctionId = extractIdFromLore(clicked);
                 if (auctionId > 0) {
-                    plugin.getAuctionManager().getActiveAuctions().thenAccept(auctions -> {
-                        auctions.stream().filter(a -> a.id() == auctionId).findFirst().ifPresent(auc -> {
-                            int minBid = plugin.getAuctionManager().getMinimumNextBid(auc);
-                            plugin.getAuctionManager().placeBid(player, auctionId, minBid);
+                    boolean buyout = event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_LEFT
+                        || event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT;
+                    if (buyout) {
+                        plugin.getAuctionManager().buyoutAuction(player, auctionId);
+                    } else {
+                        plugin.getAuctionManager().getActiveAuctions().thenAccept(auctions -> {
+                            auctions.stream().filter(a -> a.id() == auctionId).findFirst().ifPresent(auc -> {
+                                int minBid = plugin.getAuctionManager().getMinimumNextBid(auc);
+                                plugin.getAuctionManager().placeBid(player, auctionId, minBid);
+                            });
                         });
-                    });
+                    }
                 }
             }
         }

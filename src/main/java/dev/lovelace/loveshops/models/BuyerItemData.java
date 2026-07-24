@@ -10,7 +10,9 @@ public record BuyerItemData(
     int basePrice,
     int quantity,
     long receivedAt,
-    Long soldAt
+    Long soldAt,
+    String itemType,
+    String channel
 ) {
     public boolean isSold() {
         return soldAt != null && soldAt > 0;
