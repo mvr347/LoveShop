@@ -1,0 +1,90 @@
+# ===== ВАЛЮТА И ИНТЕГРАЦИЯ =====
+currency:
+  type: "itemsadder"                          # 'itemsadder', 'executableitems', or 'vault'
+  currency-item: "coins"                      # ID кастомного предмета
+  currency-display-name: "Монеты"             # Название для сообщений
+
+# ===== СКУПЩИК =====
+buyer:
+  enabled: true
+  base-price-config:
+    type: "config"                            # 'config' или 'nbt'
+    default-price: 100                        # если не найдена в config
+  
+  price-variance:
+    min-percent: -30                          # минимальная вариативность
+    max-percent: 30                           # максимальная вариативность
+  
+  repetition-penalty:
+    enabled: true
+    penalty-per-submit: 5                     # штраф % за каждую сдачу одинакового предмета
+    max-penalty: 50                           # максимум штрафа (%)
+  
+  reputation-bonus:
+    good-status: 20                           # + % к цене
+    bad-status: -50                           # отказ в покупке
+    aggressive-status: -30                    # отказ или сниженная цена
+  
+  messages:
+    reject-bad-reputation:
+      - "Скупщик: Про тебя ходят плохие слухи... Катись своей дорогой!"
+      - "Скупщик: Мне не нравится твоё имя в городе. Уходи."
+      - "Скупщик: С тобой лучше не иметь дел."
+    reject-aggressive:
+      - "Скупщик: Дружок, я не хочу проблем, иди своей дорогой."
+      - "Скупщик: Твой агрессивный тон мне не нравится. Ступай!"
+      - "Скупщик: Спокойнее! Или попросить у меня нечего."
+    accept: "&aСкупщик: Отличный товар! Вот тебе &b{price} &aмонет!"
+    accept-with-bonus: "&aСкупщик: У тебя хорошая репутация! Вот ещё &b{bonus} &aмонет сверху."
+
+# ===== ТОРГОВЕЦ-БАРАХОЛКА =====
+seller:
+  enabled: true
+  arrival-day: "SUNDAY"                       # день недели
+  arrival-time: "10:00"                       # формат HH:MM (по серверному времени)
+  departure-time: "18:00"
+  min-items-to-spawn: 10                      # минимум предметов для прибытия торговца
+  
+  markup-percent: 15                          # наценка на предметы от скупщика (%)
+  messages:
+    arrival:
+      - "&e[Барахолка] &fТорговец приехал! &6Сейчас с 10:00 до 18:00."
+      - "&e[Барахолка] &fВот это новый товар! Приходите покупать!"
+    departure:
+      - "&e[Барахолка] &fТорговец уезжает! Встретимся в следующее воскресенье."
+
+# ===== АУКЦИОН (РЕДКИЕ ПРЕДМЕТЫ) =====
+auctioneer:
+  enabled: true
+  auction-duration-hours: 24                  # длительность аукциона
+  
+  bid-step:
+    type: "percentage"                        # 'percentage' или 'fixed'
+    value: 5                                  # 5% от текущей ставки
+  
+  messages:
+    auction-started: "&6Аукцион! &eПредмет: {item_name} &eна сумму {starting_price}"
+    auction-ended: "&6Аукцион завершён! &eПобедитель: {winner} за {final_price}"
+    bid-placed: "&a✓ Ставка принята: {bid_amount}"
+    bid-outbid: "&c✗ Ваша ставка перебита на {new_amount}"
+
+# ===== ЗАЩИТА И СИСТЕМНЫЕ ПАРАМЕТРЫ =====
+protection:
+  gui-update-on-purchase: true                # обновлять GUI по событию при покупке
+  item-already-sold-message: "&cЭтот предмет уже куплен другим игроком."
+  
+placeholders:
+  enabled: true                               # включить PlaceholderAPI интеграцию
+
+# ===== ПОЗИЦИИ ПРЕДМЕТОВ В CONFIG =====
+prices-config:
+  DIAMOND: 500
+  GOLD_INGOT: 150
+  IRON_INGOT: 50
+  EMERALD: 300
+  NETHERITE_INGOT: 2000
+  COPPER_INGOT: 25
+  AMETHYST_SHARD: 75
+  LAPIS_LAZULI: 40
+  QUARTZ: 35
+  REDSTONE: 20

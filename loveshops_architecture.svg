@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1400 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-size: 28px; font-weight: bold; fill: #1a1a1a; }
+      .section-title { font-size: 16px; font-weight: bold; fill: #fff; }
+      .class-name { font-size: 13px; font-weight: bold; fill: #333; }
+      .method { font-size: 11px; fill: #555; }
+      .label { font-size: 12px; fill: #1a1a1a; font-weight: 500; }
+      .arrow { stroke: #666; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .box { stroke: #333; stroke-width: 2; fill: #e8f4f8; }
+      .box-primary { stroke: #0066cc; stroke-width: 2; fill: #cce5ff; }
+      .box-manager { stroke: #cc6600; stroke-width: 2; fill: #ffe6cc; }
+      .box-db { stroke: #009933; stroke-width: 2; fill: #ccffcc; }
+      .box-api { stroke: #990099; stroke-width: 2; fill: #e6ccff; }
+      .section-bg { fill: #f5f5f5; stroke: #999; stroke-width: 1; stroke-dasharray: 5,5; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#666" />
+    </marker>
+  </defs>
+
+  <!-- Фон -->
+  <rect width="1400" height="900" fill="#fafafa"/>
+
+  <!-- Заголовок -->
+  <text x="700" y="35" text-anchor="middle" class="title">LoveShops — Архитектура</text>
+
+  <!-- ===== СЛОЙ 1: ГЛАВНЫЙ КЛАСС ===== -->
+  <rect x="550" y="60" width="300" height="80" class="box-primary"/>
+  <text x="700" y="85" text-anchor="middle" class="section-title">LoveShops.java</text>
+  <text x="560" y="105" class="method">- DatabaseManager db</text>
+  <text x="560" y="120" class="method">- NpcManager npcManager</text>
+  <text x="560" y="135" class="method">- BuyerManager buyerManager</text>
+
+  <!-- ===== СЛОЙ 2: MANAGERS ===== -->
+  <text x="50" y="200" class="label">MANAGERS LAYER</text>
+  
+  <!-- NpcManager -->
+  <rect x="30" y="220" width="200" height="140" class="box-manager"/>
+  <text x="130" y="245" text-anchor="middle" class="class-name">NpcManager</text>
+  <line x1="30" y1="255" x2="230" y2="255" stroke="#333" stroke-width="1"/>
+  <text x="40" y="270" class="method">+ createNpc()</text>
+  <text x="40" y="285" class="method">+ deleteNpc()</text>
+  <text x="40" y="300" class="method">+ getNpcsBy Type()</text>
+  <text x="40" y="315" class="method">+ getNpcNear()</text>
+  <text x="40" y="330" class="method">+ updateNpc()</text>
+  <text x="40" y="345" class="method">+ spawnNpcEntity()</text>
+
+  <!-- BuyerManager -->
+  <rect x="260" y="220" width="200" height="140" class="box-manager"/>
+  <text x="360" y="245" text-anchor="middle" class="class-name">BuyerManager</text>
+  <line x1="260" y1="255" x2="460" y2="255" stroke="#333" stroke-width="1"/>
+  <text x="270" y="270" class="method">+ canPlayerSell()</text>
+  <text x="270" y="285" class="method">+ buyItem()</text>
+  <text x="270" y="300" class="method">+ calculatePrice()</text>
+  <text x="270" y="315" class="method">+ rejectPlayer()</text>
+  <text x="270" y="330" class="method">+ trackItem()</text>
+  <text x="270" y="345" class="method">+ openGui()</text>
+
+  <!-- SellerManager -->
+  <rect x="490" y="220" width="200" height="140" class="box-manager"/>
+  <text x="590" y="245" text-anchor="middle" class="class-name">SellerManager</text>
+  <line x1="490" y1="255" x2="690" y2="255" stroke="#333" stroke-width="1"/>
+  <text x="500" y="270" class="method">+ spawnSeller()</text>
+  <text x="500" y="285" class="method">+ despawnSeller()</text>
+  <text x="500" y="300" class="method">+ sellItem()</text>
+  <text x="500" y="315" class="method">+ openGui()</text>
+  <text x="500" y="330" class="method">+ broadcastGuiUpdate()</text>
+  <text x="500" y="345" class="method">+ checkSchedule()</text>
+
+  <!-- AuctionManager -->
+  <rect x="720" y="220" width="200" height="140" class="box-manager"/>
+  <text x="820" y="245" text-anchor="middle" class="class-name">AuctionManager</text>
+  <line x1="720" y1="255" x2="920" y2="255" stroke="#333" stroke-width="1"/>
+  <text x="730" y="270" class="method">+ createAuction()</text>
+  <text x="730" y="285" class="method">+ placeBid()</text>
+  <text x="730" y="300" class="method">+ cancelBid()</text>
+  <text x="730" y="315" class="method">+ completeAuction()</text>
+  <text x="730" y="330" class="method">+ getReservedAmount()</text>
+  <text x="730" y="345" class="method">+ openGui()</text>
+
+  <!-- PriceCalculator -->
+  <rect x="950" y="220" width="200" height="140" class="box-manager"/>
+  <text x="1050" y="245" text-anchor="middle" class="class-name">PriceCalculator</text>
+  <line x1="950" y1="255" x2="1150" y2="255" stroke="#333" stroke-width="1"/>
+  <text x="960" y="270" class="method">+ getBasePrice()</text>
+  <text x="960" y="285" class="method">+ getVariance()</text>
+  <text x="960" y="300" class="method">+ getPenaltyPercent()</text>
+  <text x="960" y="315" class="method">+ getReputationBonus()</text>
+  <text x="960" y="330" class="method">+ calculateBuyPrice()</text>
+  <text x="960" y="345" class="method">+ calculateSellPrice()</text>
+
+  <!-- Стрелки от главного класса к managers -->
+  <path d="M 650 140 L 130 220" class="arrow" stroke-dasharray="2,2"/>
+  <path d="M 680 140 L 360 220" class="arrow" stroke-dasharray="2,2"/>
+  <path d="M 720 140 L 590 220" class="arrow" stroke-dasharray="2,2"/>
+  <path d="M 750 140 L 820 220" class="arrow" stroke-dasharray="2,2"/>
+  <path d="M 780 140 L 1050 220" class="arrow" stroke-dasharray="2,2"/>
+
+  <!-- ===== СЛОЙ 3: GUI ===== -->
+  <text x="50" y="430" class="label">GUI LAYER</text>
+
+  <rect x="30" y="450" width="160" height="100" class="box"/>
+  <text x="110" y="475" text-anchor="middle" class="class-name">BuyerGui</text>
+  <line x1="30" y1="485" x2="190" y2="485" stroke="#333" stroke-width="1"/>
+  <text x="40" y="500" class="method">+ open()</text>
+  <text x="40" y="515" class="method">+ buildItems()</text>
+  <text x="40" y="530" class="method">+ paginate()</text>
+
+  <rect x="220" y="450" width="160" height="100" class="box"/>
+  <text x="300" y="475" text-anchor="middle" class="class-name">SellerGui</text>
+  <line x1="220" y1="485" x2="380" y2="485" stroke="#333" stroke-width="1"/>
+  <text x="230" y="500" class="method">+ open()</text>
+  <text x="230" y="515" class="method">+ buildItems()</text>
+  <text x="230" y="530" class="method">+ paginate()</text>
+
+  <rect x="410" y="450" width="160" height="100" class="box"/>
+  <text x="490" y="475" text-anchor="middle" class="class-name">AuctionGui</text>
+  <line x1="410" y1="485" x2="570" y2="485" stroke="#333" stroke-width="1"/>
+  <text x="420" y="500" class="method">+ open()</text>
+  <text x="420" y="515" class="method">+ showLots()</text>
+  <text x="420" y="530" class="method">+ bidInput()</text>
+
+  <rect x="600" y="450" width="180" height="100" class="box"/>
+  <text x="690" y="475" text-anchor="middle" class="class-name">GuiUpdater</text>
+  <line x1="600" y1="485" x2="780" y2="485" stroke="#333" stroke-width="1"/>
+  <text x="610" y="500" class="method">+ broadcastUpdate()</text>
+  <text x="610" y="515" class="method">+ markAsSold()</text>
+  <text x="610" y="530" class="method">+ updateAllViewers()</text>
+
+  <!-- ===== СЛОЙ 4: LISTENER ===== -->
+  <text x="50" y="630" class="label">LISTENER LAYER</text>
+
+  <rect x="30" y="650" width="250" height="100" class="box"/>
+  <text x="155" y="675" text-anchor="middle" class="class-name">InventoryClickListener</text>
+  <line x1="30" y1="685" x2="280" y2="685" stroke="#333" stroke-width="1"/>
+  <text x="40" y="700" class="method">+ onInventoryClick()</text>
+  <text x="40" y="715" class="method">+ handleBuyerClick()</text>
+  <text x="40" y="730" class="method">+ handleSellerClick()</text>
+
+  <rect x="310" y="650" width="250" height="100" class="box"/>
+  <text x="435" y="675" text-anchor="middle" class="class-name">ScheduleListener</text>
+  <line x1="310" y1="685" x2="560" y2="685" stroke="#333" stroke-width="1"/>
+  <text x="320" y="700" class="method">+ scheduleSellerSpawn()</text>
+  <text x="320" y="715" class="method">+ scheduleSellerDespawn()</text>
+  <text x="320" y="730" class="method">+ checkAuctionEnds()</text>
+
+  <!-- ===== СЛОЙ 5: DATABASE ===== -->
+  <text x="50" y="830" class="label">DATABASE LAYER</text>
+
+  <rect x="30" y="850" width="750" height="35" class="box-db"/>
+  <text x="405" y="872" text-anchor="middle" class="class-name">DatabaseManager (SQLite)</text>
+  <text x="50" y="872" class="method">shops_npcs</text>
+  <text x="200" y="872" class="method">buyer_inventory</text>
+  <text x="370" y="872" class="method">auctions</text>
+  <text x="500" y="872" class="method">auction_bids</text>
+  <text x="650" y="872" class="method">reserved_currency</text>
+
+  <!-- ===== ПРАВАЯ СТОРОНА: ВНЕШНИЕ ИНТЕГРАЦИИ ===== -->
+  <text x="1080" y="430" class="label">EXTERNAL INTEGRATIONS</text>
+
+  <rect x="1040" y="450" width="160" height="100" class="box-api"/>
+  <text x="1120" y="475" text-anchor="middle" class="class-name">LoveBehavior API</text>
+  <line x1="1040" y1="485" x2="1200" y2="485" stroke="#333" stroke-width="1"/>
+  <text x="1050" y="500" class="method">getReputation()</text>
+  <text x="1050" y="515" class="method">getReputationLevel()</text>
+  <text x="1050" y="530" class="method">onReputationChange()</text>
+
+  <rect x="1040" y="580" width="160" height="80" class="box-api"/>
+  <text x="1120" y="605" text-anchor="middle" class="class-name">PlaceholderAPI</text>
+  <line x1="1040" y1="615" x2="1200" y2="615" stroke="#333" stroke-width="1"/>
+  <text x="1050" y="630" class="method">registerPlaceholders()</text>
+  <text x="1050" y="645" class="method">expandString()</text>
+
+  <rect x="1040" y="690" width="160" height="80" class="box-api"/>
+  <text x="1120" y="715" text-anchor="middle" class="class-name">ItemsAdder API</text>
+  <line x1="1040" y1="725" x2="1200" y2="725" stroke="#333" stroke-width="1"/>
+  <text x="1050" y="740" class="method">getCurrencyItem()</text>
+  <text x="1050" y="755" class="method">transferCurrency()</text>
+
+  <!-- Стрелки к интеграциям -->
+  <path d="M 950 300 L 1040 480" class="arrow" stroke="#990099"/>
+  <path d="M 1100 360 L 1100 450" class="arrow" stroke="#990099"/>
+
+  <!-- ===== ЛЕГЕНДА ===== -->
+  <text x="50" y="795" class="label">LEGEND:</text>
+  <rect x="150" y="785" width="15" height="15" class="box-primary"/>
+  <text x="175" y="796" class="method">Main Plugin</text>
+  
+  <rect x="380" y="785" width="15" height="15" class="box-manager"/>
+  <text x="405" y="796" class="method">Business Logic</text>
+  
+  <rect x="600" y="785" width="15" height="15" class="box"/>
+  <text x="625" y="796" class="method">GUI / Listeners</text>
+  
+  <rect x="820" y="785" width="15" height="15" class="box-db"/>
+  <text x="845" y="796" class="method">Persistence</text>
+  
+  <rect x="1050" y="785" width="15" height="15" class="box-api"/>
+  <text x="1075" y="796" class="method">External API</text>
+</svg>

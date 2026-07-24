@@ -1,0 +1,39 @@
+name: LoveShops
+version: 1.0.0
+main: dev.lovelace.loveshops.LoveShops
+api-version: '1.21'
+description: Advanced trading system with NPC merchants (Buyer, Seller, Auctioneer)
+author: Lovelace
+
+softdepend:
+  - LoveBehavior
+  - PlaceholderAPI
+  - ItemsAdder
+  - ExecutableItems
+  - Citizens
+
+commands:
+  loveshops:
+    description: LoveShops main administration and trading command
+    aliases: [shops, loveshop, lshops, lshop, buyer, seller, auction, auctioneer]
+    usage: /loveshops <subcommand>
+
+permissions:
+  loveshops.admin:
+    description: Access to all LoveShops admin commands
+    default: op
+  loveshops.admin.create:
+    description: Create NPC merchant
+    default: op
+  loveshops.admin.delete:
+    description: Delete NPC merchant
+    default: op
+  loveshops.admin.buyer:
+    description: Set player buyer status override
+    default: op
+  loveshops.admin.reload:
+    description: Reload plugin configuration
+    default: op
+  loveshops.admin.open:
+    description: Open GUI menu for specified player
+    default: op

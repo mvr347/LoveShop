@@ -1,0 +1,30 @@
+prefix: "<gradient:#FF5555:#FFAA00>[LoveShops]</gradient> "
+
+commands:
+  no-permission: "<red>У вас нет прав для выполнения этой команды!</red>"
+  only-players: "<red>Эта команда предназначена только для игроков.</red>"
+  unknown-subcommand: "<red>Неизвестная подкоманда. Используйте /loveshops help</red>"
+  reload-success: "<green>Конфигурация и локализация плагина успешно перезагружены!</green>"
+  npc-created: "<green>NPC типа <gold>{type}</gold> с именем <gold>{name}</gold> успешно создан!</green>"
+  npc-deleted: "<green>NPC <gold>{name}</gold> был удалён.</green>"
+  npc-not-looking: "<red>Вы должны смотреть на NPC для его удаления!</red>"
+  buyer-status-set: "<green>Статус скупщика для игрока <gold>{player}</gold> установлен в <gold>{status}</gold>!</green>"
+  invalid-status: "<red>Неверный статус! Допустимые значения: default, good, bad, aggressive</red>"
+
+gui:
+  buyer:
+    title: "Скупщик предметов"
+  seller:
+    title: "Барахолка (Товары недели)"
+  auction:
+    title: "Аукцион редких предметов"
+  sold-item: "<red>Уже куплено</red>"
+  item-bought: "<green>Вы успешно купили предмет!</green>"
+  bid-success: "<green>Ваша ставка <gold>{amount}</gold> монет успешно принята!</green>"
+  bid-error-low: "<red>Ставка должна быть не менее <gold>{min_bid}</gold> монет!</red>"
+  bid-error-balance: "<red>У вас недостаточно средств на балансе!</red>"
+
+placeholders:
+  seller-arriving-soon: "Скоро приедет"
+  seller-not-active: "Закрыто"
+  seller-active: "Открыто"
