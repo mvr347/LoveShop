@@ -60,6 +60,13 @@ public class SellerManager {
                 for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
                     plugin.getNpcManager().spawnNpcEntity(npc);
                 }
+                // Spawn auctioneer NPCs (auction runs alongside the flea market)
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+                    plugin.getNpcManager().spawnNpcEntity(npc);
+                }
+                // Move expensive buyer purchases into fresh auction lots, roll a new dynamic-pricing cycle
+                plugin.getAuctionManager().createAuctionsFromPendingItems();
+                plugin.getPriceCalculator().rollSellerPriceCycle();
             } else {
                 // Seller departed (Flea market event ended)
                 for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
@@ -67,6 +74,10 @@ public class SellerManager {
                 }
                 // Despawn seller NPCs
                 for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+                }
+                // Despawn auctioneer NPCs
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
                     plugin.getNpcManager().despawnNpcEntity(npc.uuid());
                 }
                 // Respawn buyer NPCs
@@ -104,21 +115,12 @@ public class SellerManager {
         CompletableFuture<List<BuyerItemData>> future = new CompletableFuture<>();
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             List<BuyerItemData> items = new ArrayList<>();
-            String sql = "SELECT * FROM buyer_inventory WHERE sold_at IS NULL ORDER BY received_at DESC LIMIT 45";
+            String sql = "SELECT * FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' ORDER BY received_at DESC LIMIT 45";
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 ResultSet rs = ps.executeQuery();
                 while (rs.next()) {
-                    items.add(new BuyerItemData(
-                        rs.getInt("id"),
-                        rs.getInt("npc_id"),
-                        UUID.fromString(rs.getString("player_uuid")),
-                        rs.getString("item_data"),
-                        rs.getInt("base_price"),
-                        rs.getInt("quantity"),
-                        rs.getLong("received_at"),
-                        rs.getObject("sold_at") != null ? rs.getLong("sold_at") : null
-                    ));
+                    items.add(mapItem(rs));
                 }
                 future.complete(items);
             } catch (SQLException e) {
@@ -137,22 +139,13 @@ public class SellerManager {
                 conn.setAutoCommit(false);
 
                 // 1. Fetch item details
-                String selectSql = "SELECT * FROM buyer_inventory WHERE id = ? AND sold_at IS NULL";
+                String selectSql = "SELECT * FROM buyer_inventory WHERE id = ? AND sold_at IS NULL AND channel = 'seller'";
                 BuyerItemData itemData = null;
                 try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                     ps.setInt(1, itemId);
                     ResultSet rs = ps.executeQuery();
                     if (rs.next()) {
-                        itemData = new BuyerItemData(
-                            rs.getInt("id"),
-                            rs.getInt("npc_id"),
-                            UUID.fromString(rs.getString("player_uuid")),
-                            rs.getString("item_data"),
-                            rs.getInt("base_price"),
-                            rs.getInt("quantity"),
-                            rs.getLong("received_at"),
-                            null
-                        );
+                        itemData = mapItem(rs);
                     }
                 }
 
@@ -163,8 +156,7 @@ public class SellerManager {
                     return;
                 }
 
-                double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
-                int finalPrice = (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0));
+                int finalPrice = plugin.getPriceCalculator().calculateSellPrice(conn, itemData);
 
                 // Check player balance on main thread
                 final BuyerItemData finalItemData = itemData;
@@ -184,6 +176,7 @@ public class SellerManager {
                                 int updated = psUpdate.executeUpdate();
 
                                 if (updated > 0) {
+                                    plugin.getPriceCalculator().trackDemand(conn, finalItemData.itemType());
                                     conn.commit();
                                     conn.setAutoCommit(true);
 
@@ -224,5 +217,20 @@ public class SellerManager {
         });
 
         return future;
+    }
+
+    private BuyerItemData mapItem(ResultSet rs) throws SQLException {
+        return new BuyerItemData(
+            rs.getInt("id"),
+            rs.getInt("npc_id"),
+            UUID.fromString(rs.getString("player_uuid")),
+            rs.getString("item_data"),
+            rs.getInt("base_price"),
+            rs.getInt("quantity"),
+            rs.getLong("received_at"),
+            rs.getObject("sold_at") != null ? rs.getLong("sold_at") : null,
+            rs.getString("item_type"),
+            rs.getString("channel")
+        );
     }
 }

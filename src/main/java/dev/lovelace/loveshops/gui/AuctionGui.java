@@ -40,9 +40,7 @@ public class AuctionGui {
         // Slot 0: Player Profile Head
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
-        // Slots 2-7: Control tabs
-        inv.setItem(2, GuiUtils.createCustomHead(GuiUtils.TAB_BUYER_BASE64, "<gold>Скупщик</gold>", List.of("", "<gray>Раздел сдачи предметов</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
-        inv.setItem(3, GuiUtils.createCustomHead(GuiUtils.TAB_SELLER_BASE64, "<gold>Барахолка</gold>", List.of("", "<gray>Товары недели</gray>", "<green>ЛКМ </green><gray>— перейти</gray>")));
+        // Slot 4: Shop identity icon (decorative only, no navigation to other shops)
         inv.setItem(4, GuiUtils.createCustomHead(GuiUtils.TAB_AUCTION_BASE64, "<green>Аукцион</green>", List.of("", "<gray>Редкие лоты</gray>", "<green>● Активно</green>")));
 
         // Slot 26: Close button
@@ -73,8 +71,14 @@ public class AuctionGui {
                         lore.add(MessageUtils.parse("<gray>Текущая ставка: <gold>" + auction.currentHighestBid() + " монет</gold></gray>"));
                         lore.add(MessageUtils.parse("<gray>Минимальный шаг: <yellow>" + minNextBid + " монет</yellow></gray>"));
                         lore.add(MessageUtils.parse("<gray>До конца: <green>" + TimeUtils.formatRemainingTime(remaining) + "</green></gray>"));
+                        if (auction.buyoutPrice() > 0) {
+                            lore.add(MessageUtils.parse("<gray>Выкуп: <light_purple>" + auction.buyoutPrice() + " монет</light_purple></gray>"));
+                        }
                         lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + auction.id() + "</dark_gray></gray>"));
                         lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— сделать ставку</gray>"));
+                        if (auction.buyoutPrice() > 0) {
+                            lore.add(MessageUtils.parse("<light_purple>Shift+ЛКМ </light_purple><gray>— выкупить сразу</gray>"));
+                        }
                         meta.lore(lore);
                         displayItem.setItemMeta(meta);
                     }

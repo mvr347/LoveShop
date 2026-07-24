@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.managers;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.models.BuyerItemData;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -9,8 +10,12 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class PriceCalculator {
 
@@ -92,5 +97,108 @@ public class PriceCalculator {
 
         int singleUnitPrice = (int) Math.round(basePrice * Math.max(0.1, multiplier));
         return Math.max(1, singleUnitPrice * item.getAmount());
+    }
+
+    // ===== Flea market (seller) dynamic pricing: markup + demand + supply + per-cycle noise =====
+
+    public CompletableFuture<Map<Integer, Integer>> calculateSellPrices(List<BuyerItemData> items) {
+        CompletableFuture<Map<Integer, Integer>> future = new CompletableFuture<>();
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            Map<Integer, Integer> prices = new HashMap<>();
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                for (BuyerItemData item : items) {
+                    prices.put(item.id(), calculateSellPrice(conn, item));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Error calculating seller prices: " + e.getMessage());
+            }
+            future.complete(prices);
+        });
+        return future;
+    }
+
+    public int calculateSellPrice(Connection conn, BuyerItemData itemData) throws SQLException {
+        double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
+
+        if (!plugin.getConfig().getBoolean("seller.dynamic-pricing.enabled", true) || itemData.itemType() == null) {
+            return Math.max(1, (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0)));
+        }
+
+        double demandWeight = plugin.getConfig().getDouble("seller.dynamic-pricing.demand-weight-percent", 3.0);
+        double supplyWeight = plugin.getConfig().getDouble("seller.dynamic-pricing.supply-weight-percent", 2.0);
+        double minMultiplier = plugin.getConfig().getDouble("seller.dynamic-pricing.min-multiplier", 0.3);
+
+        int demandCount = 0;
+        double noisePercent = 0.0;
+        try (PreparedStatement ps = conn.prepareStatement(
+            "SELECT demand_count, noise_percent FROM seller_price_state WHERE item_type = ?")) {
+            ps.setString(1, itemData.itemType());
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                demandCount = rs.getInt("demand_count");
+                noisePercent = rs.getDouble("noise_percent");
+            }
+        }
+
+        int supplyCount;
+        try (PreparedStatement ps = conn.prepareStatement(
+            "SELECT COUNT(*) AS cnt FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' AND item_type = ?")) {
+            ps.setString(1, itemData.itemType());
+            ResultSet rs = ps.executeQuery();
+            supplyCount = rs.next() ? rs.getInt("cnt") : 0;
+        }
+
+        double multiplier = 1.0 + (markup / 100.0);
+        multiplier *= (1.0 + (demandCount * demandWeight) / 100.0);
+        multiplier *= Math.max(minMultiplier, 1.0 - (supplyCount * supplyWeight) / 100.0);
+        multiplier *= (1.0 + noisePercent / 100.0);
+        multiplier = Math.max(minMultiplier, multiplier);
+
+        return Math.max(1, (int) Math.round(itemData.basePrice() * multiplier));
+    }
+
+    public void trackDemand(Connection conn, String itemType) throws SQLException {
+        if (itemType == null) return;
+        String sql = """
+            INSERT INTO seller_price_state (item_type, demand_count, noise_percent, cycle_id)
+            VALUES (?, 1, 0, 0)
+            ON CONFLICT(item_type) DO UPDATE SET demand_count = demand_count + 1
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, itemType);
+            ps.executeUpdate();
+        }
+    }
+
+    public void rollSellerPriceCycle() {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            double noiseMin = plugin.getConfig().getDouble("seller.dynamic-pricing.noise-min-percent", -10.0);
+            double noiseMax = plugin.getConfig().getDouble("seller.dynamic-pricing.noise-max-percent", 10.0);
+            long cycleId = System.currentTimeMillis() / 1000;
+
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement select = conn.prepareStatement(
+                     "SELECT DISTINCT item_type FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' AND item_type IS NOT NULL")) {
+                ResultSet rs = select.executeQuery();
+                String upsertSql = """
+                    INSERT INTO seller_price_state (item_type, demand_count, noise_percent, cycle_id)
+                    VALUES (?, 0, ?, ?)
+                    ON CONFLICT(item_type) DO UPDATE SET demand_count = 0, noise_percent = EXCLUDED.noise_percent, cycle_id = EXCLUDED.cycle_id
+                """;
+                try (PreparedStatement upsert = conn.prepareStatement(upsertSql)) {
+                    while (rs.next()) {
+                        String itemType = rs.getString("item_type");
+                        double noise = noiseMin + (noiseMax - noiseMin) * random.nextDouble();
+                        upsert.setString(1, itemType);
+                        upsert.setDouble(2, noise);
+                        upsert.setLong(3, cycleId);
+                        upsert.addBatch();
+                    }
+                    upsert.executeBatch();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Error rolling seller price cycle: " + e.getMessage());
+            }
+        });
     }
 }

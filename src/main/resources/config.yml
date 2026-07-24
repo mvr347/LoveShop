@@ -45,7 +45,16 @@ seller:
   departure-time: "18:00"
   min-items-to-spawn: 10                      # минимум предметов для прибытия торговца
   
-  markup-percent: 15                          # наценка на предметы от скупщика (%)
+  markup-percent: 15                          # базовая наценка на предметы от скупщика (%)
+
+  dynamic-pricing:
+    enabled: true
+    demand-weight-percent: 3                  # + % к цене за каждую покупку предмета этого типа в текущем цикле
+    supply-weight-percent: 2                  # - % к цене за каждую единицу этого типа сейчас в наличии
+    noise-min-percent: -10                    # случайный шум цикла (мин)
+    noise-max-percent: 10                     # случайный шум цикла (макс)
+    min-multiplier: 0.3                       # минимальный итоговый множитель цены
+
   messages:
     arrival:
       - "&e[Барахолка] &fТорговец приехал! &6Сейчас с 10:00 до 18:00."
@@ -57,11 +66,13 @@ seller:
 auctioneer:
   enabled: true
   auction-duration-hours: 24                  # длительность аукциона
-  
+  price-threshold: 400                        # цена скупки, начиная с которой предмет уходит на аукцион, а не на барахолку
+  buyout-multiplier: 2.5                      # цена мгновенного выкупа = стартовая цена * множитель
+
   bid-step:
     type: "percentage"                        # 'percentage' или 'fixed'
     value: 5                                  # 5% от текущей ставки
-  
+
   messages:
     auction-started: "&6Аукцион! &eПредмет: {item_name} &eна сумму {starting_price}"
     auction-ended: "&6Аукцион завершён! &eПобедитель: {winner} за {final_price}"

@@ -13,7 +13,8 @@ public record AuctionData(
     long endsAt,
     String status,
     UUID winnerUuid,
-    Long completedAt
+    Long completedAt,
+    int buyoutPrice
 ) {
     public boolean isActive() {
         return "active".equalsIgnoreCase(status) && System.currentTimeMillis() / 1000 < endsAt;

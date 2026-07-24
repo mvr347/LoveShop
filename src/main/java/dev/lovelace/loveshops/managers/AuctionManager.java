@@ -39,11 +39,13 @@ public class AuctionManager {
         long now = System.currentTimeMillis() / 1000;
         int hours = plugin.getConfig().getInt("auctioneer.auction-duration-hours", 24);
         long endsAt = now + (hours * 3600L);
+        double buyoutMultiplier = plugin.getConfig().getDouble("auctioneer.buyout-multiplier", 2.5);
+        int buyoutPrice = (int) Math.round(startingPrice * buyoutMultiplier);
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             String sql = """
-                INSERT INTO auctions (auctioneer_npc_id, item_data, starting_price, current_highest_bid, starts_at, ends_at, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'active')
+                INSERT INTO auctions (auctioneer_npc_id, item_data, starting_price, current_highest_bid, starts_at, ends_at, status, buyout_price)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
             """;
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
@@ -57,6 +59,7 @@ public class AuctionManager {
                 ps.setInt(4, startingPrice);
                 ps.setLong(5, now);
                 ps.setLong(6, endsAt);
+                ps.setInt(7, buyoutPrice);
                 ps.executeUpdate();
 
                 ResultSet rs = ps.getGeneratedKeys();
@@ -68,6 +71,43 @@ public class AuctionManager {
             }
         });
         return future;
+    }
+
+    /**
+     * Moves buyer purchases routed to the "auction" channel (expensive items, see
+     * BuyerManager.processSale) into fresh auction lots. Called when the flea market opens.
+     */
+    public void createAuctionsFromPendingItems() {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            String selectSql = "SELECT id, item_data, base_price FROM buyer_inventory " +
+                "WHERE channel = 'auction' AND sold_at IS NULL AND auctioned_at IS NULL";
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement select = conn.prepareStatement(selectSql)) {
+                ResultSet rs = select.executeQuery();
+                while (rs.next()) {
+                    int buyerItemId = rs.getInt("id");
+                    ItemStack item = ItemStackConverter.itemStackFromBase64(rs.getString("item_data"));
+                    int basePrice = rs.getInt("base_price");
+                    if (item == null) continue;
+
+                    createAuction(item, basePrice).thenAccept(auctionId -> {
+                        if (auctionId <= 0) return;
+                        Bukkit.getAsyncScheduler().runNow(plugin, markTask -> {
+                            try (Connection markConn = plugin.getDatabaseManager().getConnection();
+                                 PreparedStatement mark = markConn.prepareStatement(
+                                     "UPDATE buyer_inventory SET auctioned_at = strftime('%s', 'now') WHERE id = ?")) {
+                                mark.setInt(1, buyerItemId);
+                                mark.executeUpdate();
+                            } catch (SQLException e) {
+                                plugin.getLogger().severe("Error marking item as auctioned: " + e.getMessage());
+                            }
+                        });
+                    });
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error creating auctions from pending items: " + e.getMessage());
+            }
+        });
     }
 
     public CompletableFuture<List<AuctionData>> getActiveAuctions() {
@@ -216,6 +256,87 @@ public class AuctionManager {
         return future;
     }
 
+    public CompletableFuture<Boolean> buyoutAuction(Player buyer, int auctionId) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                conn.setAutoCommit(false);
+
+                String selSql = "SELECT * FROM auctions WHERE id = ? AND status = 'active'";
+                AuctionData auction = null;
+                try (PreparedStatement ps = conn.prepareStatement(selSql)) {
+                    ps.setInt(1, auctionId);
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) {
+                        auction = mapAuction(rs);
+                    }
+                }
+
+                if (auction == null || auction.buyoutPrice() <= 0) {
+                    conn.rollback();
+                    conn.setAutoCommit(true);
+                    future.complete(false);
+                    return;
+                }
+
+                final AuctionData finalAuction = auction;
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (currencyManager.getPlayerBalance(buyer) < finalAuction.buyoutPrice()) {
+                        MessageUtils.sendMessage(buyer, "&cНедостаточно средств для выкупа!");
+                        future.complete(false);
+                        return;
+                    }
+
+                    Bukkit.getAsyncScheduler().runNow(plugin, buyoutTask -> {
+                        try {
+                            String upSql = "UPDATE auctions SET status = 'completed', winner_uuid = ?, current_highest_bid = ?, completed_at = strftime('%s', 'now') WHERE id = ? AND status = 'active'";
+                            int updated;
+                            try (PreparedStatement ps = conn.prepareStatement(upSql)) {
+                                ps.setString(1, buyer.getUniqueId().toString());
+                                ps.setInt(2, finalAuction.buyoutPrice());
+                                ps.setInt(3, auctionId);
+                                updated = ps.executeUpdate();
+                            }
+
+                            if (updated == 0) {
+                                conn.rollback();
+                                conn.setAutoCommit(true);
+                                Bukkit.getScheduler().runTask(plugin, () -> future.complete(false));
+                                return;
+                            }
+
+                            if (finalAuction.highestBidderUuid() != null) {
+                                String clrSql = "UPDATE reserved_currency SET reserved_amount = 0 WHERE player_uuid = ?";
+                                try (PreparedStatement psClr = conn.prepareStatement(clrSql)) {
+                                    psClr.setString(1, finalAuction.highestBidderUuid().toString());
+                                    psClr.executeUpdate();
+                                }
+                            }
+
+                            conn.commit();
+                            conn.setAutoCommit(true);
+
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                deliverAuctionWin(buyer, ItemStackConverter.itemStackFromBase64(finalAuction.itemData()), finalAuction.buyoutPrice());
+                                MessageUtils.sendMessage(buyer, "&6Лот выкуплен за " + finalAuction.buyoutPrice() + " монет!");
+                                future.complete(true);
+                            });
+                        } catch (SQLException e) {
+                            plugin.getLogger().severe("Error buying out auction: " + e.getMessage());
+                            future.complete(false);
+                        }
+                    });
+                });
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error initiating buyout: " + e.getMessage());
+                future.complete(false);
+            }
+        });
+
+        return future;
+    }
+
     public void checkAndCompleteAuctions() {
         long now = System.currentTimeMillis() / 1000;
         String sql = "SELECT * FROM auctions WHERE status = 'active' AND ends_at <= ?";
@@ -261,11 +382,7 @@ public class AuctionManager {
                     Player winner = Bukkit.getPlayer(auction.highestBidderUuid());
                     if (winner != null && winner.isOnline()) {
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            currencyManager.removeCurrency(winner, auction.currentHighestBid());
-                            ItemStack item = ItemStackConverter.itemStackFromBase64(auction.itemData());
-                            if (item != null) {
-                                winner.getInventory().addItem(item);
-                            }
+                            deliverAuctionWin(winner, ItemStackConverter.itemStackFromBase64(auction.itemData()), auction.currentHighestBid());
                             MessageUtils.sendMessage(winner, "&6Поздравляем! Вы выиграли аукцион за " + auction.currentHighestBid() + " монет!");
                         });
                     }
@@ -275,6 +392,13 @@ public class AuctionManager {
                 plugin.getLogger().severe("Error completing auction #" + auction.id() + ": " + e.getMessage());
             }
         });
+    }
+
+    private void deliverAuctionWin(Player winner, ItemStack item, int price) {
+        currencyManager.removeCurrency(winner, price);
+        if (item != null) {
+            winner.getInventory().addItem(item);
+        }
     }
 
     private AuctionData mapAuction(ResultSet rs) throws SQLException {
@@ -289,7 +413,8 @@ public class AuctionManager {
             rs.getLong("ends_at"),
             rs.getString("status"),
             rs.getString("winner_uuid") != null ? UUID.fromString(rs.getString("winner_uuid")) : null,
-            rs.getObject("completed_at") != null ? rs.getLong("completed_at") : null
+            rs.getObject("completed_at") != null ? rs.getLong("completed_at") : null,
+            rs.getInt("buyout_price")
         );
     }
 }
