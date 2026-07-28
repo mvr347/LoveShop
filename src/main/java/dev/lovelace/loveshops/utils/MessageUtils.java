@@ -27,4 +27,9 @@ public final class MessageUtils {
             sender.sendMessage(parse(message));
         }
     }
+
+    public static String escapeTags(String input) {
+        if (input == null || input.isEmpty()) return input;
+        return MINI_MESSAGE.escapeTags(input);
+    }
 }
