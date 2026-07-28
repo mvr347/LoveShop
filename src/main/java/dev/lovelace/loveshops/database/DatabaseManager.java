@@ -4,9 +4,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.sql.*;
+import java.util.regex.Pattern;
 
 public class DatabaseManager {
 
+    private static final Pattern VALID_IDENTIFIER = Pattern.compile("^[a-z_][a-z0-9_]*$", Pattern.CASE_INSENSITIVE);
     private final JavaPlugin plugin;
     private Connection connection;
 
@@ -156,6 +158,10 @@ public class DatabaseManager {
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {
+        if (!VALID_IDENTIFIER.matcher(table).matches() || !VALID_IDENTIFIER.matcher(column).matches()) {
+            plugin.getLogger().warning("Invalid table or column name: " + table + ", " + column);
+            return;
+        }
         try {
             stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
         } catch (SQLException e) {
