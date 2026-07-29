@@ -61,6 +61,7 @@ seller:
     noise-min-percent: -10                    # случайный шум цикла (мин)
     noise-max-percent: 10                     # случайный шум цикла (макс)
     min-multiplier: 0.3                       # минимальный итоговый множитель цены
+    trend-threshold-percent: 5                # на сколько цена должна уйти от спокойной, чтобы в меню показать тренд
 
   messages:
     arrival:
@@ -75,6 +76,11 @@ auctioneer:
   auction-duration-hours: 24                  # длительность аукциона
   price-threshold: 400                        # цена скупки, начиная с которой предмет уходит на аукцион, а не на барахолку
   buyout-multiplier: 2.5                      # цена мгновенного выкупа = стартовая цена * множитель
+
+  anti-snipe:
+    enabled: true
+    threshold-seconds: 30                     # ставка позже этого времени до конца продлевает аукцион
+    extension-seconds: 30                     # на сколько продлевать от момента ставки
 
   bid-step:
     type: "percentage"                        # 'percentage' или 'fixed'
