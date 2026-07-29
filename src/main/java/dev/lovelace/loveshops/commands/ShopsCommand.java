@@ -39,7 +39,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
             if (args.length >= 1 && (sender.hasPermission("loveshops.admin.open") || sender.hasPermission("loveshops.admin"))) {
                 target = Bukkit.getPlayer(args[0]);
                 if (target == null || !target.isOnline()) {
-                    sender.sendMessage(MessageUtils.parse("<red>Игрок " + args[0] + " не найден или не в сети!</red>"));
+                    sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[0]) + " не найден или не в сети!</red>"));
                     return true;
                 }
             } else if (sender instanceof Player player) {
@@ -83,7 +83,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                     }
                     target = Bukkit.getPlayer(args[2]);
                     if (target == null || !target.isOnline()) {
-                        sender.sendMessage(MessageUtils.parse("<red>Игрок " + args[2] + " не найден или не в сети!</red>"));
+                        sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[2]) + " не найден или не в сети!</red>"));
                         return true;
                     }
                 } else {
