@@ -3,8 +3,10 @@ package dev.lovelace.loveshops.managers;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.BuyerItemData;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -28,12 +30,38 @@ public class PriceCalculator {
 
     public int getBasePrice(ItemStack item) {
         if (item == null) return 0;
+
+        // Клановые артефакты ценятся не по материалу, а по типу: иначе боевой рог
+        // ушёл бы на барахолку по цене обычного предмета того же материала.
+        String artifactType = artifactTypeOf(item);
+        if (artifactType != null) {
+            int artifactPrice = plugin.getConfig().getInt("prices-config.artifacts." + artifactType, -1);
+            if (artifactPrice > 0) {
+                return artifactPrice;
+            }
+            return plugin.getConfig().getInt("prices-config.artifacts.default-price", 2500);
+        }
+
         String materialName = item.getType().name();
         int configuredPrice = plugin.getConfig().getInt("prices-config." + materialName, -1);
         if (configuredPrice > 0) {
             return configuredPrice;
         }
         return plugin.getConfig().getInt("buyer.base-price-config.default-price", 100);
+    }
+
+    /**
+     * Тип кланового артефакта, если предмет им является. Читается прямо из метки,
+     * которую ставит LoveClans, — так связка работает без зависимости на его классы
+     * и молча выключается, если плагин кланов на сервере не стоит.
+     */
+    public String artifactTypeOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        NamespacedKey key = new NamespacedKey("loveclans", "artifact");
+        return item.getItemMeta().getPersistentDataContainer()
+                .get(key, PersistentDataType.STRING);
     }
 
     public double getRandomVariancePercent() {

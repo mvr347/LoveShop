@@ -106,6 +106,13 @@ placeholders:
 
 # ===== ПОЗИЦИИ ПРЕДМЕТОВ В CONFIG =====
 prices-config:
+  # Клановые артефакты LoveClans: цена по типу, а не по материалу.
+  # Выше порога аукциона (auctioneer.price-threshold), поэтому артефакт уходит
+  # на торги, а не на барахолку.
+  artifacts:
+    default-price: 2500
+    WAR_HORN: 3000
+    AEGIS_BANNER: 3500
   DIAMOND: 500
   GOLD_INGOT: 150
   IRON_INGOT: 50
