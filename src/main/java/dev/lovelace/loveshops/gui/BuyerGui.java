@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.managers.PriceCalculator;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
@@ -14,6 +15,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class BuyerGui {
 
@@ -45,6 +47,11 @@ public class BuyerGui {
         int[] contentSlots = new int[]{10, 11, 12, 13, 14, 15, 16};
         int slotIdx = 0;
 
+        // Штраф за повторную сдачу копится в базе, но игроку никогда не показывался:
+        // цена просто падала от захода к заходу. Берём всю историю одним запросом.
+        Map<String, PriceCalculator.SubmissionHistory> history =
+            plugin.getPriceCalculator().getSubmissionHistory(player.getUniqueId());
+
         for (ItemStack item : player.getInventory().getContents()) {
             if (item == null || item.getType() == Material.AIR) continue;
             if (plugin.getCurrencyManager().isCurrencyItem(item)) continue;
@@ -57,6 +64,13 @@ public class BuyerGui {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
                 lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+
+                PriceCalculator.SubmissionHistory submitted = history.get(item.getType().name());
+                if (submitted != null && submitted.penaltyPercent() > 0) {
+                    lore.add(MessageUtils.parse("<red>Вы сдавали это " + submitted.submitCount()
+                        + " раз — цена снижена на " + Math.round(submitted.penaltyPercent()) + "%</red>"));
+                }
+
                 lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— продать скупщику</gray>"));
                 meta.lore(lore);
                 displayItem.setItemMeta(meta);

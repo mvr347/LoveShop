@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.managers.PriceCalculator;
 import dev.lovelace.loveshops.models.BuyerItemData;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
@@ -73,6 +74,7 @@ public class SellerGui {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
                 lore.add(MessageUtils.parse("<gray>Цена: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                lore.add(MessageUtils.parse(trendLine(itemData.basePrice(), price)));
                 lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + itemData.id() + "</dark_gray></gray>"));
                 lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));
                 meta.lore(lore);
@@ -84,5 +86,18 @@ public class SellerGui {
         }
 
         player.openInventory(inv);
+    }
+
+    /**
+     * Строка тренда для лота. Спрос, предложение и шум цикла уже влияли на цену,
+     * но игрок видел только итоговое число и не понимал, дорого сейчас или дёшево.
+     */
+    private String trendLine(int basePrice, int price) {
+        PriceCalculator.PriceTrend trend = plugin.getPriceCalculator().getTrend(basePrice, price);
+        return switch (trend) {
+            case RISING -> "<gray>Спрос: <red>▲ цена растёт</red></gray>";
+            case FALLING -> "<gray>Спрос: <green>▼ цена падает</green></gray>";
+            case STABLE -> "<gray>Спрос: <yellow>— цена спокойна</yellow></gray>";
+        };
     }
 }

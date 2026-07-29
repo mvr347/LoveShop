@@ -189,6 +189,29 @@ public class AuctionManager {
         }
     }
 
+    /**
+     * Новое время окончания с учётом анти-снайпа. Если до конца осталось меньше
+     * порога, аукцион продлевается на настроенное время от текущего момента.
+     * Возвращает прежнее время, когда продлевать нечего.
+     */
+    private long extendedEndTime(AuctionData auction) {
+        if (!plugin.getConfig().getBoolean("auctioneer.anti-snipe.enabled", true)) {
+            return auction.endsAt();
+        }
+
+        long thresholdSeconds = plugin.getConfig().getLong("auctioneer.anti-snipe.threshold-seconds", 30);
+        long extensionSeconds = plugin.getConfig().getLong("auctioneer.anti-snipe.extension-seconds", 30);
+        if (thresholdSeconds <= 0 || extensionSeconds <= 0) {
+            return auction.endsAt();
+        }
+
+        long now = System.currentTimeMillis() / 1000;
+        if (auction.endsAt() - now > thresholdSeconds) {
+            return auction.endsAt();
+        }
+        return now + extensionSeconds;
+    }
+
     public CompletableFuture<Boolean> placeBid(Player bidder, int auctionId, int bidAmount) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
 
@@ -258,12 +281,22 @@ public class AuctionManager {
                             psRes.executeUpdate();
                         }
 
-                        // 3. Update auction record
-                        String upAucSql = "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ? WHERE id = ?";
+                        // 3. Update auction record. Ставка в последние секунды продлевает
+                        // аукцион: иначе лот забирает не тот, кто дал больше, а тот, кто
+                        // успел кликнуть последним.
+                        long extendedEndsAt = extendedEndTime(finalAuction);
+                        String upAucSql = extendedEndsAt > finalAuction.endsAt()
+                            ? "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ?, ends_at = ? WHERE id = ?"
+                            : "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ? WHERE id = ?";
                         try (PreparedStatement psUpAuc = conn.prepareStatement(upAucSql)) {
                             psUpAuc.setInt(1, bidAmount);
                             psUpAuc.setString(2, bidder.getUniqueId().toString());
-                            psUpAuc.setInt(3, auctionId);
+                            if (extendedEndsAt > finalAuction.endsAt()) {
+                                psUpAuc.setLong(3, extendedEndsAt);
+                                psUpAuc.setInt(4, auctionId);
+                            } else {
+                                psUpAuc.setInt(3, auctionId);
+                            }
                             psUpAuc.executeUpdate();
                         }
 
@@ -278,8 +311,13 @@ public class AuctionManager {
 
                         conn.commit();
 
+                        final boolean extended = extendedEndsAt > finalAuction.endsAt();
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             MessageUtils.sendMessage(bidder, "&a✓ Ставка принята: " + bidAmount + " монет!");
+                            if (extended) {
+                                long addedSeconds = extendedEndsAt - System.currentTimeMillis() / 1000;
+                                MessageUtils.sendMessage(bidder, "&eСтавка в последние секунды — аукцион продлён на " + Math.max(0, addedSeconds) + " сек.");
+                            }
                             Bukkit.getPluginManager().callEvent(new AuctionBidPlacedEvent(bidder, finalAuction, bidAmount));
                             future.complete(true);
                         });

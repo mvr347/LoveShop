@@ -3,8 +3,10 @@ package dev.lovelace.loveshops.managers;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.BuyerItemData;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -28,12 +30,38 @@ public class PriceCalculator {
 
     public int getBasePrice(ItemStack item) {
         if (item == null) return 0;
+
+        // Клановые артефакты ценятся не по материалу, а по типу: иначе боевой рог
+        // ушёл бы на барахолку по цене обычного предмета того же материала.
+        String artifactType = artifactTypeOf(item);
+        if (artifactType != null) {
+            int artifactPrice = plugin.getConfig().getInt("prices-config.artifacts." + artifactType, -1);
+            if (artifactPrice > 0) {
+                return artifactPrice;
+            }
+            return plugin.getConfig().getInt("prices-config.artifacts.default-price", 2500);
+        }
+
         String materialName = item.getType().name();
         int configuredPrice = plugin.getConfig().getInt("prices-config." + materialName, -1);
         if (configuredPrice > 0) {
             return configuredPrice;
         }
         return plugin.getConfig().getInt("buyer.base-price-config.default-price", 100);
+    }
+
+    /**
+     * Тип кланового артефакта, если предмет им является. Читается прямо из метки,
+     * которую ставит LoveClans, — так связка работает без зависимости на его классы
+     * и молча выключается, если плагин кланов на сервере не стоит.
+     */
+    public String artifactTypeOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        NamespacedKey key = new NamespacedKey("loveclans", "artifact");
+        return item.getItemMeta().getPersistentDataContainer()
+                .get(key, PersistentDataType.STRING);
     }
 
     public double getRandomVariancePercent() {
@@ -59,6 +87,58 @@ public class PriceCalculator {
             plugin.getLogger().warning("Error reading price penalty: " + e.getMessage());
         }
         return 0.0;
+    }
+
+    /** История сдачи одного типа предмета: сколько раз сдавали и на сколько за это срезана цена. */
+    public record SubmissionHistory(int submitCount, double penaltyPercent) {}
+
+    /**
+     * Вся история сдачи предмета игроком одним запросом — для меню скупщика,
+     * где иначе пришлось бы дёргать базу на каждый предмет в инвентаре.
+     */
+    public Map<String, SubmissionHistory> getSubmissionHistory(UUID playerUuid) {
+        Map<String, SubmissionHistory> history = new HashMap<>();
+        if (!plugin.getConfig().getBoolean("buyer.repetition-penalty.enabled", true)) {
+            return history;
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                 "SELECT item_type, submit_count, price_penalty_percent FROM buyer_prices_history WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                history.put(rs.getString("item_type"),
+                    new SubmissionHistory(rs.getInt("submit_count"), rs.getDouble("price_penalty_percent")));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Error reading submission history: " + e.getMessage());
+        }
+        return history;
+    }
+
+    /** Куда движется цена лота относительно спокойной цены без спроса, предложения и шума. */
+    public enum PriceTrend { RISING, FALLING, STABLE }
+
+    /** Цена лота без динамики — только базовая цена и наценка барахолки. */
+    public int getNeutralSellPrice(int basePrice) {
+        double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
+        return Math.max(1, (int) Math.round(basePrice * (1.0 + markup / 100.0)));
+    }
+
+    /**
+     * Тренд цены лота. Спрос, предложение и шум цикла уже собираются в базе,
+     * но игрок их не видел — цена просто менялась между заходами в меню.
+     */
+    public PriceTrend getTrend(int basePrice, int currentPrice) {
+        int neutral = getNeutralSellPrice(basePrice);
+        if (neutral <= 0) return PriceTrend.STABLE;
+
+        double thresholdPercent = plugin.getConfig().getDouble("seller.dynamic-pricing.trend-threshold-percent", 5.0);
+        double deltaPercent = (currentPrice - neutral) * 100.0 / neutral;
+
+        if (deltaPercent > thresholdPercent) return PriceTrend.RISING;
+        if (deltaPercent < -thresholdPercent) return PriceTrend.FALLING;
+        return PriceTrend.STABLE;
     }
 
     public int getReputationBonusPercent(Player player) {
