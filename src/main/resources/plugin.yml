@@ -9,8 +9,8 @@ softdepend:
   - LoveBehavior
   - PlaceholderAPI
   - ItemsAdder
-  - ExecutableItems
   - Citizens
+  - LoveCore
 
 commands:
   loveshops:

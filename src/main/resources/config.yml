@@ -1,14 +1,6 @@
-# ===== ВАЛЮТА И ИНТЕГРАЦИЯ =====
-currency:
-  type: "itemsadder"                          # 'itemsadder', 'executableitems', or 'vault'
-  currency-item: "copper_coin"                # ID фоллбек кастомного предмета
-  currency-display-name: "Монеты"             # Название для сообщений
-  itemsadder-coins:
-    copper_coin: 1
-    iron_coin: 10
-    gold_coin: 100
-    diamond_coin: 1000
-    netherite_coin: 10000
+# ===== ВАЛЮТА =====
+# Валюта — общая для всей экосистемы, настраивается в LoveCore (economy.denominations
+# в его config.yml), а не здесь. LoveShops требует LoveCore и без него не включится.
 
 
 # ===== СКУПЩИК =====
@@ -97,8 +89,6 @@ protection:
   gui-update-on-purchase: true                # обновлять GUI по событию при покупке
   item-already-sold-message: "&cЭтот предмет уже куплен другим игроком."
   insufficient-funds: "&cНедостаточно средств!"
-  inventory-full-sell-message: "&cУ вас нет свободного места в инвентаре для получения монет!"
-  inventory-full-buy-message: "&cВаш инвентарь заполнен! Освободите место для товара."
 
   
 placeholders:
