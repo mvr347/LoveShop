@@ -44,6 +44,12 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>com.github.mvr347.LoveCore</groupId>
+            <artifactId>lovecore-api</artifactId>
+            <version>fe15e0144e</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.47.0.0</version>

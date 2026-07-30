@@ -141,25 +141,35 @@ public class PriceCalculator {
         return PriceTrend.STABLE;
     }
 
+    /**
+     * Надбавка или штраф к цене скупки по репутации игрока. Раньше здесь была рефлексия на
+     * {@code dev.lovelace.lovebehavior.api.LoveBehaviorAPI.getReputation(UUID)} — пакета с таким
+     * именем в LoveBehavior нет и не было (реальный — {@code me.lovelace.lovebehavior.api}), так
+     * что интеграция не срабатывала никогда, и всё, кроме «good», давало ровно ноль.
+     *
+     * <p>{@code ReputationOracle} ядра возвращает пять ступеней вместо одной строки: bad-status
+     * из конфига (раньше не использовался вовсе) теперь тоже применяется.</p>
+     */
     public int getReputationBonusPercent(Player player) {
-        // Soft integration with LoveBehavior API if available
-        int defaultGood = plugin.getConfig().getInt("buyer.reputation-bonus.good-status", 20);
-        
-        try {
-            Class<?> apiClass = Class.forName("dev.lovelace.lovebehavior.api.LoveBehaviorAPI");
-            Object apiInstance = Bukkit.getServicesManager().load(apiClass);
-            if (apiInstance != null) {
-                // Call getReputation(UUID) reflectively
-                var method = apiClass.getMethod("getReputation", UUID.class);
-                Object repStatus = method.invoke(apiInstance, player.getUniqueId());
-                if ("good".equalsIgnoreCase(String.valueOf(repStatus))) {
-                    return defaultGood;
-                }
-            }
-        } catch (Exception ignored) {
-            // LoveBehavior not installed or different API structure
+        if (Bukkit.getPluginManager().getPlugin("LoveCore") == null) {
+            return 0;
         }
-        return 0;
+        try {
+            return dev.lovelace.lovecore.api.LoveCore
+                    .service(dev.lovelace.lovecore.api.social.ReputationOracle.class)
+                    .map(oracle -> reputationBonusFor(oracle.tier(player.getUniqueId())))
+                    .orElse(0);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private int reputationBonusFor(dev.lovelace.lovecore.api.social.ReputationOracle.Tier tier) {
+        return switch (tier) {
+            case RESPECTED, GOOD -> plugin.getConfig().getInt("buyer.reputation-bonus.good-status", 20);
+            case BAD, OUTCAST -> plugin.getConfig().getInt("buyer.reputation-bonus.bad-status", -50);
+            case NEUTRAL -> 0;
+        };
     }
 
     public int calculateBuyPrice(Player player, ItemStack item) {
