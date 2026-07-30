@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.events.AuctionBidPlacedEvent;
 import dev.lovelace.loveshops.models.AuctionData;
@@ -23,11 +24,9 @@ import java.util.concurrent.CompletableFuture;
 public class AuctionManager {
 
     private final LoveShops plugin;
-    private final CurrencyManager currencyManager;
 
-    public AuctionManager(LoveShops plugin, CurrencyManager currencyManager) {
+    public AuctionManager(LoveShops plugin) {
         this.plugin = plugin;
-        this.currencyManager = currencyManager;
     }
 
     public CompletableFuture<Integer> createAuction(ItemStack item, int startingPrice) {
@@ -248,7 +247,8 @@ public class AuctionManager {
 
             final AuctionData finalAuction = auction;
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (currencyManager.getPlayerBalance(bidder) < bidAmount) {
+                LoveEconomy economy = plugin.getEconomy().orElse(null);
+                if (economy == null || economy.balance(bidder) < bidAmount) {
                     MessageUtils.sendMessage(bidder, "&cНедостаточно средств на балансе!");
                     future.complete(false);
                     return;
@@ -362,15 +362,8 @@ public class AuctionManager {
             final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalAuction.itemData());
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (currencyManager.getPlayerBalance(buyer) < finalAuction.buyoutPrice()) {
+                if (!plugin.getEconomy().map(e -> e.has(buyer, finalAuction.buyoutPrice())).orElse(false)) {
                     MessageUtils.sendMessage(buyer, "&cНедостаточно средств для выкупа!");
-                    future.complete(false);
-                    return;
-                }
-
-                if (!currencyManager.canFitItem(buyer, itemStack, finalAuction.buyoutPrice())) {
-                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-buy-message", "&cВаш инвентарь заполнен! Освободите место для товара.");
-                    MessageUtils.sendMessage(buyer, fullMsg);
                     future.complete(false);
                     return;
                 }
@@ -477,7 +470,7 @@ public class AuctionManager {
     }
 
     private void deliverAuctionWin(Player winner, ItemStack item, int price) {
-        currencyManager.removeCurrency(winner, price);
+        plugin.getEconomy().ifPresent(economy -> economy.charge(winner, price));
         if (item != null) {
             Map<Integer, ItemStack> leftover = winner.getInventory().addItem(item);
             if (!leftover.isEmpty()) {

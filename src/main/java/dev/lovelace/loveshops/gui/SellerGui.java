@@ -73,7 +73,7 @@ public class SellerGui {
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                lore.add(MessageUtils.parse("<gray>Цена: <gold>" + price + " " + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
                 lore.add(MessageUtils.parse(trendLine(itemData.basePrice(), price)));
                 lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + itemData.id() + "</dark_gray></gray>"));
                 lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));

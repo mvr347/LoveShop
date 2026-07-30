@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.GuiUpdater;
 import dev.lovelace.loveshops.models.BuyerItemData;
@@ -22,13 +23,11 @@ import java.util.concurrent.CompletableFuture;
 public class SellerManager {
 
     private final LoveShops plugin;
-    private final CurrencyManager currencyManager;
     private boolean active = false;
     private Boolean forceActiveOverride = null;
 
-    public SellerManager(LoveShops plugin, CurrencyManager currencyManager) {
+    public SellerManager(LoveShops plugin) {
         this.plugin = plugin;
-        this.currencyManager = currencyManager;
     }
 
     public boolean isSellerActive() {
@@ -166,17 +165,12 @@ public class SellerManager {
             final int itemPrice = finalPrice;
             final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalItemData.itemData());
 
-            // Main thread checks: balance + inventory capacity
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (currencyManager.getPlayerBalance(player) < itemPrice) {
-                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
-                    future.complete(false);
-                    return;
-                }
+            LoveEconomy economy = plugin.getEconomy().orElse(null);
 
-                if (!currencyManager.canFitItem(player, itemStack, itemPrice)) {
-                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-buy-message", "&cВаш инвентарь заполнен! Освободите место для товара.");
-                    MessageUtils.sendMessage(player, fullMsg);
+            // Main thread check: balance
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (economy == null || !economy.has(player, itemPrice)) {
+                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
@@ -199,9 +193,11 @@ public class SellerManager {
 
                             // Grant item on main thread
                             Bukkit.getScheduler().runTask(plugin, () -> {
-                                currencyManager.removeCurrency(player, itemPrice);
+                                economy.charge(player, itemPrice);
                                 if (itemStack != null) {
-                                    player.getInventory().addItem(itemStack);
+                                    for (ItemStack extra : player.getInventory().addItem(itemStack).values()) {
+                                        player.getWorld().dropItemNaturally(player.getLocation(), extra);
+                                    }
                                 }
                                 MessageUtils.sendMessage(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
 

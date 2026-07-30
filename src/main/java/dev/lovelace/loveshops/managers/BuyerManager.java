@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
@@ -22,13 +23,11 @@ public class BuyerManager {
 
     private final LoveShops plugin;
     private final PriceCalculator priceCalculator;
-    private final CurrencyManager currencyManager;
     private final Random random = new Random();
 
-    public BuyerManager(LoveShops plugin, PriceCalculator priceCalculator, CurrencyManager currencyManager) {
+    public BuyerManager(LoveShops plugin, PriceCalculator priceCalculator) {
         this.plugin = plugin;
         this.priceCalculator = priceCalculator;
-        this.currencyManager = currencyManager;
     }
 
     public CompletableFuture<String> getPlayerStatus(UUID playerUuid) {
@@ -105,8 +104,15 @@ public class BuyerManager {
                 return;
             }
 
+            LoveEconomy economy = plugin.getEconomy().orElse(null);
+
             // Must run inventory check on main thread
             Bukkit.getScheduler().runTask(plugin, () -> {
+                if (economy == null) {
+                    future.complete(false);
+                    return;
+                }
+
                 // Find matching item in player's inventory
                 ItemStack matchInInventory = null;
                 int matchSlot = -1;
@@ -115,7 +121,7 @@ public class BuyerManager {
                 for (int i = 0; i < contents.length; i++) {
                     ItemStack invItem = contents[i];
                     if (invItem == null || invItem.getType() == Material.AIR) continue;
-                    if (currencyManager.isCurrencyItem(invItem)) continue;
+                    if (economy.isCoin(invItem)) continue;
 
                     if (invItem.getType() == item.getType() && invItem.getAmount() >= item.getAmount()) {
                         matchInInventory = invItem;
@@ -131,14 +137,6 @@ public class BuyerManager {
 
                 int finalPrice = priceCalculator.calculateBuyPrice(player, item);
                 int basePrice = priceCalculator.getBasePrice(item);
-
-                // Verify inventory can fit coins after removing item
-                if (!currencyManager.canFitCurrency(player, finalPrice, item)) {
-                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-sell-message", "&cУ вас нет свободного места в инвентаре для получения монет!");
-                    MessageUtils.sendMessage(player, fullMsg);
-                    future.complete(false);
-                    return;
-                }
 
                 final int slotToRemove = matchSlot;
                 final ItemStack targetItem = matchInInventory;
@@ -195,7 +193,7 @@ public class BuyerManager {
                                 player.getInventory().removeItem(item);
                             }
 
-                            currencyManager.giveCurrency(player, finalPrice);
+                            economy.give(player, finalPrice);
 
                             String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
                             acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPrice));

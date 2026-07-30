@@ -54,7 +54,7 @@ public class BuyerGui {
 
         for (ItemStack item : player.getInventory().getContents()) {
             if (item == null || item.getType() == Material.AIR) continue;
-            if (plugin.getCurrencyManager().isCurrencyItem(item)) continue;
+            if (plugin.getEconomy().map(e -> e.isCoin(item)).orElse(false)) continue;
             if (slotIdx >= contentSlots.length) break;
 
             int price = plugin.getPriceCalculator().calculateBuyPrice(player, item);
@@ -63,7 +63,7 @@ public class BuyerGui {
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
 
                 PriceCalculator.SubmissionHistory submitted = history.get(item.getType().name());
                 if (submitted != null && submitted.penaltyPercent() > 0) {
