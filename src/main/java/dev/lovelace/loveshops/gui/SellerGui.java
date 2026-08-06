@@ -3,6 +3,7 @@ package dev.lovelace.loveshops.gui;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.managers.PriceCalculator;
 import dev.lovelace.loveshops.models.BuyerItemData;
+import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
 import dev.lovelace.loveshops.utils.MessageUtils;
@@ -42,7 +43,7 @@ public class SellerGui {
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         // Slot 53: Close button ALWAYS in slot 53 (Golden Rule 6)
-        inv.setItem(53, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+        inv.setItem(53, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
         // Working Area content slots (Golden Rule 5):
         // Row 2: 19-25, Row 3: 28-34, Row 4: 37-43 (21 slots total)

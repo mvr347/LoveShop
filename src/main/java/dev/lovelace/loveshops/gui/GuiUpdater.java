@@ -15,8 +15,6 @@ import java.util.List;
 
 public final class GuiUpdater {
 
-    public static final String RED_SKULL_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2VkMWFiYTczZjYzOWY0YmM0MmJkNDgxOTZjNzE1MTk3YmUyNzEyYzNiOTYyYzk3ZWJmOWU5ZWQ4ZWZhMDI1In19fQ==";
-
     private GuiUpdater() {}
 
     public static void broadcastSellerGuiUpdate(LoveShops plugin, int soldItemId) {
