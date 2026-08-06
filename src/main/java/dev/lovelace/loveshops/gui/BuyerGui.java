@@ -2,6 +2,7 @@ package dev.lovelace.loveshops.gui;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.managers.PriceCalculator;
+import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
@@ -41,7 +42,7 @@ public class BuyerGui {
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         // Slot 26: Close button
-        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+        inv.setItem(26, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
         // Content slots: 10-16 (7 slots)
         int[] contentSlots = new int[]{10, 11, 12, 13, 14, 15, 16};

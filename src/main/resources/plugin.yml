@@ -15,8 +15,11 @@ softdepend:
 commands:
   loveshops:
     description: LoveShops main administration and trading command
-    aliases: [shops, loveshop, lshops, lshop, buyer, seller, auction, auctioneer]
+    aliases: [shops, шоп, loveshop, lshops, lshop, buyer, seller, auction, auctioneer]
     usage: /loveshops <subcommand>
+  loveshopsadmin:
+    description: Административные команды LoveShops (reload, npc, buyer, seller)
+    usage: /loveshopsadmin <subcommand>
 
 permissions:
   loveshops.admin:
@@ -30,6 +33,9 @@ permissions:
     default: op
   loveshops.admin.buyer:
     description: Set player buyer status override
+    default: op
+  loveshops.admin.seller:
+    description: Force-control the Seller (Барахолка) event schedule
     default: op
   loveshops.admin.reload:
     description: Reload plugin configuration

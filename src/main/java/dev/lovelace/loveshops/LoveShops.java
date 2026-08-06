@@ -7,6 +7,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.lovelace.loveshops.api.LoveShopsAPI;
 import dev.lovelace.loveshops.api.LoveShopsAPIImpl;
+import dev.lovelace.loveshops.commands.LoveShopsAdminCommand;
 import dev.lovelace.loveshops.commands.ShopsCommand;
 import dev.lovelace.loveshops.database.DatabaseManager;
 import dev.lovelace.loveshops.listeners.InventoryClickListener;
@@ -56,12 +57,19 @@ public final class LoveShops extends JavaPlugin {
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
-        for (String cmdName : java.util.List.of("loveshops", "shops", "loveshop", "lshops", "lshop", "buyer", "seller", "auction", "auctioneer")) {
+        for (String cmdName : java.util.List.of("loveshops", "shops", "шоп", "loveshop", "lshops", "lshop", "buyer", "seller", "auction", "auctioneer")) {
             var cmd = getCommand(cmdName);
             if (cmd != null) {
                 cmd.setExecutor(shopsCmd);
                 cmd.setTabCompleter(shopsCmd);
             }
+        }
+
+        LoveShopsAdminCommand adminCmd = new LoveShopsAdminCommand(this);
+        var adminCommand = getCommand("loveshopsadmin");
+        if (adminCommand != null) {
+            adminCommand.setExecutor(adminCmd);
+            adminCommand.setTabCompleter(adminCmd);
         }
 
         // 5. Register Listeners

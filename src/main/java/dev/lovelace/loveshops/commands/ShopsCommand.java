@@ -4,11 +4,8 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
-import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -19,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 public class ShopsCommand implements CommandExecutor, TabCompleter {
 
@@ -106,148 +103,41 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(MessageUtils.parse("<green>Меню " + menuType + " успешно открыто для " + target.getName() + "!</green>"));
                 }
             }
-            case "reload" -> {
-                if (!sender.hasPermission("loveshops.admin.reload") && !sender.hasPermission("loveshops.admin")) {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                    return true;
-                }
-                plugin.reloadConfig();
-                plugin.getLangManager().loadLang();
-                sender.sendMessage(plugin.getLangManager().getMessage("commands.reload-success", "<green>Конфигурация перезагружена!</green>"));
-            }
-            case "npc" -> {
-                if (!sender.hasPermission("loveshops.admin")) {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                    return true;
-                }
-                if (args.length >= 2 && args[1].equalsIgnoreCase("create")) {
-                    if (!(sender instanceof Player player)) {
-                        sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
-                        return true;
-                    }
-                    if (!player.hasPermission("loveshops.admin.create") && !player.hasPermission("loveshops.admin")) {
-                        player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                        return true;
-                    }
-                    if (args.length < 4) {
-                        player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops npc create <buyer|seller|auctioneer> <Имя></yellow>"));
-                        return true;
-                    }
-                    String type = args[2].toLowerCase();
-                    if (!List.of("buyer", "seller", "auctioneer").contains(type)) {
-                        player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: buyer, seller, auctioneer</red>"));
-                        return true;
-                    }
-                    String name = String.join(" ", List.of(args).subList(3, args.length));
-                    Location loc = player.getLocation();
-
-                    plugin.getNpcManager().createNpc(type, name, loc, player.getName()).thenAccept(npc -> {
-                        player.sendMessage(plugin.getLangManager().getMessage("commands.npc-created", "<green>NPC создан!</green>",
-                            java.util.Map.of("type", type, "name", name)));
-                    });
-                } else if (args.length >= 2 && args[1].equalsIgnoreCase("delete")) {
-                    if (!(sender instanceof Player player)) {
-                        sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
-                        return true;
-                    }
-                    if (!player.hasPermission("loveshops.admin.delete") && !player.hasPermission("loveshops.admin")) {
-                        player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                        return true;
-                    }
-                    Optional<NpcData> nearNpc = plugin.getNpcManager().getNpcNear(player.getLocation(), 4.0);
-                    if (nearNpc.isEmpty()) {
-                        player.sendMessage(plugin.getLangManager().getMessage("commands.npc-not-looking", "<red>Рядом не найден NPC!</red>"));
-                        return true;
-                    }
-                    NpcData target = nearNpc.get();
-                    plugin.getNpcManager().deleteNpc(target.uuid()).thenAccept(success -> {
-                        if (success) {
-                            player.sendMessage(plugin.getLangManager().getMessage("commands.npc-deleted", "<green>NPC удалён!</green>",
-                                java.util.Map.of("name", target.name())));
-                        }
-                    });
-                } else if (args.length >= 2 && args[1].equalsIgnoreCase("list")) {
-                    var npcs = plugin.getNpcManager().getAllNpcs();
-                    if (npcs.isEmpty()) {
-                        sender.sendMessage(MessageUtils.parse("<yellow>В базе данных нет созданных NPC.</yellow>"));
-                        return true;
-                    }
-                    sender.sendMessage(MessageUtils.parse("<gold>=== Список NPC LoveShops (" + npcs.size() + ") ===</gold>"));
-                    for (var npc : npcs) {
-                        String locStr = String.format("%s [%.1f, %.1f, %.1f]", npc.world(), npc.x(), npc.y(), npc.z());
-                        sender.sendMessage(MessageUtils.parse("<yellow># " + npc.id() + "</yellow> | <green>" + npc.type() + "</green> | <white>" + npc.name() + "</white> | <gray>" + locStr + "</gray>"));
-                    }
-                } else {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops npc <create|delete|list> ...</yellow>"));
-                }
-            }
-            case "buyer" -> {
-                if (!sender.hasPermission("loveshops.admin.buyer") && !sender.hasPermission("loveshops.admin")) {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                    return true;
-                }
-                if (args.length < 3) {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops buyer <игрок> <default|good|bad|aggressive> [сообщение]</yellow>"));
-                    return true;
-                }
-                String targetName = args[1];
-                String status = args[2].toLowerCase();
-                if (!List.of("default", "good", "bad", "aggressive").contains(status)) {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.invalid-status", "<red>Неверный статус!</red>"));
-                    return true;
-                }
-                String customMsg = args.length >= 4 ? String.join(" ", List.of(args).subList(3, args.length)) : null;
-
-                OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(targetName);
-                plugin.getBuyerManager().setPlayerStatus(targetPlayer.getUniqueId(), status, sender.getName(), customMsg).thenRun(() -> {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.buyer-status-set", "<green>Статус установлен!</green>",
-                        java.util.Map.of("player", targetName, "status", status)));
-                });
-            }
-            case "seller", "event" -> {
-                if (!sender.hasPermission("loveshops.admin.seller") && !sender.hasPermission("loveshops.admin")) {
-                    sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-                    return true;
-                }
-                if (args.length < 2) {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops seller <start|stop|reset></yellow>"));
-                    return true;
-                }
-                String action = args[1].toLowerCase();
-                switch (action) {
-                    case "start" -> {
-                        plugin.getSellerManager().forceStartSeller();
-                        sender.sendMessage(MessageUtils.parse("<green>Событие \"Барахолка\" запущенно принудительно!</green>"));
-                    }
-                    case "stop" -> {
-                        plugin.getSellerManager().forceStopSeller();
-                        sender.sendMessage(MessageUtils.parse("<red>Событие \"Барахолка\" остановлено принудительно!</red>"));
-                    }
-                    case "reset" -> {
-                        plugin.getSellerManager().resetSellerOverride();
-                        sender.sendMessage(MessageUtils.parse("<yellow>Принудительный режим сброшен. Используется автоматическое расписание.</yellow>"));
-                    }
-                    default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops seller <start|stop|reset></yellow>"));
-                }
-            }
+            // Админ-подкоманды (reload, npc, buyer-статус, seller/event) переехали под единую
+            // /loveshopsadmin — здесь остаются только редиректы, чтобы команда не «молчала»
+            // для тех, кто по привычке набирает /loveshops reload и т.п.
+            case "reload" -> redirectToAdmin(sender, "/loveshopsadmin reload", "loveshops.admin.reload");
+            case "npc" -> redirectToAdmin(sender, "/loveshopsadmin npc", "loveshops.admin");
+            case "buyer" -> redirectToAdmin(sender, "/loveshopsadmin buyer", "loveshops.admin.buyer");
+            case "seller", "event" -> redirectToAdmin(sender, "/loveshopsadmin seller", "loveshops.admin.seller");
             default -> sendHelp(sender);
         }
 
         return true;
     }
 
-    private void sendHelp(CommandSender sender) {
-        sender.sendMessage(MessageUtils.parse("<gradient:#FF5555:#FFAA00>=== LoveShops Команды ===</gradient>"));
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> - Открыть меню"));
-        if (sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> - Открыть меню игроку (из игры/консоли)"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc create <type> <name></gold> - Создать NPC-торговца"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc delete</gold> - Удалить ближнего NPC"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc list</gold> - Просмотреть список всех NPC и их точные координаты"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops seller <start|stop|reset></gold> - Управление событием барахолки"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops buyer <player> <status> [msg]</gold> - Изменить статус игрока у скупщика"));
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops reload</gold> - Перезагрузить конфиг"));
+    /**
+     * Показывает подсказку о переезде старой admin-подкоманды под {@code /loveshopsadmin}
+     * тем, у кого были на неё права, и обычное "нет прав" — остальным, чтобы поведение
+     * не отличалось от того, что было раньше.
+     */
+    private void redirectToAdmin(CommandSender sender, String newCommand, String specificPermission) {
+        if (sender.hasPermission(specificPermission) || sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.admin-moved",
+                "<yellow>Эта команда переехала: используйте <gold>{command}</gold>.</yellow>", Map.of("command", newCommand)));
+        } else {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
         }
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/buyer, /seller, /auction</gold> <gray>- Быстрые алиасы для открытия меню</gray>"));
+        if (sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"));
+        }
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-footer", "<dark_gray>=========================================</dark_gray>"));
     }
 
     @Override
@@ -272,16 +162,6 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
             completions.addAll(List.of("buyer", "seller", "auctioneer"));
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
-            completions.addAll(List.of("create", "delete", "list"));
-        } else if (args.length == 3 && args[0].equalsIgnoreCase("npc") && args[1].equalsIgnoreCase("create")) {
-            completions.addAll(List.of("buyer", "seller", "auctioneer"));
-        } else if (args.length == 2 && (args[0].equalsIgnoreCase("seller") || args[0].equalsIgnoreCase("event"))) {
-            completions.addAll(List.of("start", "stop", "reset"));
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("buyer")) {
-            completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
-        } else if (args.length == 3 && args[0].equalsIgnoreCase("buyer")) {
-            completions.addAll(List.of("default", "good", "bad", "aggressive"));
         }
         return completions.stream().filter(s -> s.toLowerCase().startsWith(args[args.length - 1].toLowerCase())).toList();
     }

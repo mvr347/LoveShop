@@ -10,6 +10,22 @@ commands:
   npc-not-looking: "<red>Вы должны смотреть на NPC для его удаления!</red>"
   buyer-status-set: "<green>Статус скупщика для игрока <gold>{player}</gold> установлен в <gold>{status}</gold>!</green>"
   invalid-status: "<red>Неверный статус! Допустимые значения: default, good, bad, aggressive</red>"
+  # Единый тидy-формат для всех help-выводов плагина: разделитель, список
+  # "<gold>/команда аргументы</gold> <gray>- описание</gray>", разделитель.
+  admin-moved: "<yellow>Эта команда переехала: используйте <gold>{command}</gold>.</yellow>"
+  help-header: "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"
+  help-open: "<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"
+  help-aliases: "<gold>/buyer, /seller, /auction</gold> <gray>- Быстрые алиасы для открытия меню</gray>"
+  help-admin: "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"
+  help-footer: "<dark_gray>=========================================</dark_gray>"
+
+admin:
+  help-header: "<dark_gray>========== <gold>LoveShops Admin</gold> ==========</dark_gray>"
+  help-reload: "<gold>/loveshopsadmin reload</gold> <gray>- Перезагрузить конфигурацию и локализацию</gray>"
+  help-npc: "<gold>/loveshopsadmin npc <create|delete|list></gold> <gray>- Управление NPC-торговцами</gray>"
+  help-buyer: "<gold>/loveshopsadmin buyer <игрок> <статус> [сообщение]</gold> <gray>- Статус игрока у скупщика</gray>"
+  help-seller: "<gold>/loveshopsadmin seller <start|stop|reset></gold> <gray>- Управление событием барахолки</gray>"
+  help-footer: "<dark_gray>=========================================</dark_gray>"
 
 gui:
   buyer:
