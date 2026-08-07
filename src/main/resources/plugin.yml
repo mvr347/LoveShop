@@ -1,7 +1,7 @@
 name: LoveShops
 version: 1.0.0
 main: dev.lovelace.loveshops.LoveShops
-api-version: '1.21'
+api-version: '26.2'
 description: Advanced trading system with NPC merchants (Buyer, Seller, Auctioneer)
 author: Lovelace
 
