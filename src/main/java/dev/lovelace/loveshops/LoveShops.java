@@ -3,6 +3,7 @@ package dev.lovelace.loveshops;
 import dev.lovelace.lovecore.api.LoveCore;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import org.bukkit.plugin.ServicePriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.lovelace.loveshops.api.LoveShopsAPI;
@@ -100,6 +101,7 @@ public final class LoveShops extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        HandlerList.unregisterAll(this);
         if (npcManager != null) {
             npcManager.despawnAllNpcs();
         }
