@@ -5,12 +5,16 @@ import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemRarity;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -32,11 +36,12 @@ import java.util.Optional;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "buyer", "seller", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "buyer", "seller", "price", "rarity", "forbidden", "allowed", "help");
     private static final List<String> NPC_ACTIONS = List.of("create", "delete", "list");
     private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer");
     private static final List<String> BUYER_STATUSES = List.of("default", "good", "bad", "aggressive");
     private static final List<String> SELLER_ACTIONS = List.of("start", "stop", "reset");
+    private static final List<String> RARITY_TIERS = List.of("common", "uncommon", "rare", "epic");
 
     private final LoveShops plugin;
 
@@ -62,9 +67,108 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             case "npc" -> handleNpc(sender, args);
             case "buyer" -> handleBuyer(sender, args);
             case "seller", "event" -> handleSeller(sender, args);
+            case "price" -> handlePrice(sender, args);
+            case "rarity" -> handleRarity(sender, args);
+            case "forbidden" -> handleForbid(sender);
+            case "allowed" -> handleAllow(sender);
             default -> sendHelp(sender);
         }
         return true;
+    }
+
+    /**
+     * Общая проверка для price/rarity/forbidden/allowed: право доступа + предмет в руке.
+     * Все четыре команды бессмысленны без предмета, поэтому пустая рука — ошибка, а не
+     * тихий no-op.
+     *
+     * @return предмет в руке, или {@code null} (сообщение об ошибке уже отправлено)
+     */
+    @Nullable
+    private ItemStack requireHeldItem(CommandSender sender, String permission) {
+        if (!sender.hasPermission(permission) && !sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return null;
+        }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            return null;
+        }
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (hand.getType().isAir()) {
+            sender.sendMessage(MessageUtils.parse("<red>Держите предмет в руке!</red>"));
+            return null;
+        }
+        return hand;
+    }
+
+    private void handlePrice(CommandSender sender, String[] args) {
+        ItemStack hand = requireHeldItem(sender, "loveshops.admin.price");
+        if (hand == null) return;
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin price <цена></yellow>"));
+            return;
+        }
+        int price;
+        try {
+            price = Integer.parseInt(args[1]);
+        } catch (NumberFormatException e) {
+            sender.sendMessage(MessageUtils.parse("<red>Цена должна быть целым числом!</red>"));
+            return;
+        }
+        if (price < 0) {
+            sender.sendMessage(MessageUtils.parse("<red>Цена не может быть отрицательной!</red>"));
+            return;
+        }
+        String material = hand.getType().name();
+        plugin.getPricesManager().setItemPrice(material, price);
+        sender.sendMessage(MessageUtils.parse("<green>Цена " + material + " установлена: <gold>" + price + "</gold></green>"));
+    }
+
+    private void handleRarity(CommandSender sender, String[] args) {
+        ItemStack hand = requireHeldItem(sender, "loveshops.admin.rarity");
+        if (hand == null) return;
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin rarity <common|uncommon|rare|epic></yellow>"));
+            return;
+        }
+        ItemRarity tier;
+        try {
+            tier = ItemRarity.valueOf(args[1].toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(MessageUtils.parse("<red>Неизвестная редкость! Доступные: common, uncommon, rare, epic</red>"));
+            return;
+        }
+
+        ItemMeta meta = hand.getItemMeta();
+        meta.setRarity(tier);
+        hand.setItemMeta(meta);
+
+        String material = hand.getType().name();
+        boolean meetsThreshold = plugin.getPriceCalculator().rarityMeetsThreshold(tier);
+        plugin.getPricesManager().setRareFlag(material, meetsThreshold);
+
+        sender.sendMessage(MessageUtils.parse("<green>Редкость " + material + " установлена: <gold>" + tier.name().toLowerCase(Locale.ROOT) + "</gold>"
+                + (meetsThreshold ? " <gray>(теперь уходит на аукцион)</gray>" : " <gray>(теперь НЕ уходит на аукцион)</gray>") + "</green>"));
+    }
+
+    private void handleForbid(CommandSender sender) {
+        ItemStack hand = requireHeldItem(sender, "loveshops.admin.forbidden");
+        if (hand == null) return;
+        Material material = hand.getType();
+        boolean added = plugin.getForbiddenManager().forbid(material);
+        sender.sendMessage(MessageUtils.parse(added
+                ? "<green>Предмет <gold>" + material + "</gold> запрещён к продаже!</green>"
+                : "<yellow>Этот предмет уже запрещён к продаже.</yellow>"));
+    }
+
+    private void handleAllow(CommandSender sender) {
+        ItemStack hand = requireHeldItem(sender, "loveshops.admin.forbidden");
+        if (hand == null) return;
+        Material material = hand.getType();
+        boolean removed = plugin.getForbiddenManager().allow(material);
+        sender.sendMessage(MessageUtils.parse(removed
+                ? "<green>Предмет <gold>" + material + "</gold> снова разрешён к продаже!</green>"
+                : "<yellow>Этот предмет не был запрещён.</yellow>"));
     }
 
     private boolean hasAnyAdminAccess(CommandSender sender) {
@@ -73,7 +177,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                 || sender.hasPermission("loveshops.admin.create")
                 || sender.hasPermission("loveshops.admin.delete")
                 || sender.hasPermission("loveshops.admin.buyer")
-                || sender.hasPermission("loveshops.admin.seller");
+                || sender.hasPermission("loveshops.admin.seller")
+                || sender.hasPermission("loveshops.admin.price")
+                || sender.hasPermission("loveshops.admin.rarity")
+                || sender.hasPermission("loveshops.admin.forbidden");
     }
 
     private void handleReload(CommandSender sender) {
@@ -83,6 +190,8 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         plugin.reloadConfig();
         plugin.getLangManager().loadLang();
+        plugin.getPricesManager().load();
+        plugin.getForbiddenManager().load();
         sender.sendMessage(plugin.getLangManager().getMessage("commands.reload-success", "<green>Конфигурация перезагружена!</green>"));
     }
 
@@ -210,6 +319,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|delete|list></gold> <gray>- Управление NPC-торговцами</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-buyer", "<gold>/loveshopsadmin buyer <игрок> <статус> [сообщение]</gold> <gray>- Статус игрока у скупщика</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-seller", "<gold>/loveshopsadmin seller <start|stop|reset></gold> <gray>- Управление барахолкой</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-price", "<gold>/loveshopsadmin price <цена></gold> <gray>- Цена предмета в руке</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-rarity", "<gold>/loveshopsadmin rarity <common|uncommon|rare|epic></gold> <gray>- Редкость предмета в руке</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-forbidden", "<gold>/loveshopsadmin forbidden</gold> <gray>- Запретить продажу предмета в руке</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-allowed", "<gold>/loveshopsadmin allowed</gold> <gray>- Разрешить продажу предмета в руке</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-footer", "<dark_gray>=========================================</dark_gray>"));
     }
 
@@ -237,6 +350,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("seller") || args[0].equalsIgnoreCase("event"))) {
             return StringUtil.copyPartialMatches(args[1], SELLER_ACTIONS, new ArrayList<>());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("rarity")) {
+            return StringUtil.copyPartialMatches(args[1], RARITY_TIERS, new ArrayList<>());
         }
         return Collections.emptyList();
     }

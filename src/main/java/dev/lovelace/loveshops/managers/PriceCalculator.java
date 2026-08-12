@@ -43,11 +43,20 @@ public class PriceCalculator {
         }
 
         String materialName = item.getType().name();
-        int configuredPrice = plugin.getConfig().getInt("prices-config." + materialName, -1);
+
+        // Редкий предмет с явно заданной ценой (см. prices.yml — rare.<материал>.price)
+        // перебивает и обычную цену, и цену по формуле: если админ вручную задал цену
+        // лота для этого материала, значит так и надо.
+        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(materialName);
+        if (override.isPresent() && override.get().price() != null) {
+            return override.get().price();
+        }
+
+        int configuredPrice = plugin.getPricesManager().getCommonPrice(materialName, -1);
         if (configuredPrice > 0) {
             return configuredPrice;
         }
-        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 100);
+        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 75);
     }
 
     /**
@@ -62,6 +71,53 @@ public class PriceCalculator {
         NamespacedKey key = new NamespacedKey("loveclans", "artifact");
         return item.getItemMeta().getPersistentDataContainer()
                 .get(key, PersistentDataType.STRING);
+    }
+
+    /**
+     * Rare/enchanted items get routed to the Auctioneer instead of a flat per-material buyout
+     * — see BuyerManager#processSale. Two independent signals: an explicit item rarity
+     * (org.bukkit.inventory.ItemRarity, available since this project's Paper API 26.2 — the
+     * purple/gold-ish vanilla tooltip colors) at or above the configured minimum, or any
+     * enchantment on the item (covers enchanted gear that vanilla doesn't always tag with a
+     * distinct rarity component).
+     */
+    public boolean isRareItem(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+
+        // Ручная метка (prices.yml — rare.<материал>.rare) перебивает автоматическое
+        // определение в обе стороны: true — принудительно на аукцион, даже если авто-проверка
+        // ниже ничего не заметила; false — принудительно исключить, даже если предмет
+        // зачарован или несёт компонент редкости (например, авто-проверка ошиблась).
+        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(item.getType().name());
+        if (override.isPresent()) {
+            return override.get().rare();
+        }
+
+        if (!item.hasItemMeta()) {
+            return false;
+        }
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta.hasEnchants()) {
+            return true;
+        }
+        if (meta.hasRarity()) {
+            return rarityMeetsThreshold(meta.getRarity());
+        }
+        return false;
+    }
+
+    /** Достигает ли редкость configured-порога (auctioneer.min-rarity, по умолчанию RARE). */
+    public boolean rarityMeetsThreshold(org.bukkit.inventory.ItemRarity rarity) {
+        String minRarityName = plugin.getConfig().getString("auctioneer.min-rarity", "RARE");
+        try {
+            org.bukkit.inventory.ItemRarity minRarity = org.bukkit.inventory.ItemRarity.valueOf(minRarityName.toUpperCase(java.util.Locale.ROOT));
+            return rarity.ordinal() >= minRarity.ordinal();
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("Некорректное значение auctioneer.min-rarity: " + minRarityName);
+            return false;
+        }
     }
 
     public double getRandomVariancePercent() {

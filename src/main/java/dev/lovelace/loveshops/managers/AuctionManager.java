@@ -31,6 +31,15 @@ public class AuctionManager {
 
     public CompletableFuture<Integer> createAuction(ItemStack item, int startingPrice) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
+
+        // Повторная проверка форбида здесь (не только в BuyerManager.processSale) —
+        // единственный способ покрыть внешние вызовы вроде LoveBrew's LoveShopBridge,
+        // которые обращаются к аукциону напрямую, минуя processSale.
+        if (plugin.getForbiddenManager().isForbidden(item)) {
+            future.completeExceptionally(new IllegalStateException("Этот предмет запрещено продавать: " + item.getType()));
+            return future;
+        }
+
         String base64Item = ItemStackConverter.itemStackToBase64(item);
 
         List<NpcData> npcs = plugin.getNpcManager().getNpcsByType("auctioneer");

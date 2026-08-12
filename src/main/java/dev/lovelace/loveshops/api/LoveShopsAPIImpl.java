@@ -64,4 +64,9 @@ public class LoveShopsAPIImpl implements LoveShopsAPI {
     public List<NpcData> getAllNpcs() {
         return new ArrayList<>(plugin.getNpcManager().getAllNpcs());
     }
+
+    @Override
+    public CompletableFuture<Integer> createExternalAuction(ItemStack item, int startingPrice) {
+        return plugin.getAuctionManager().createAuction(item, startingPrice);
+    }
 }

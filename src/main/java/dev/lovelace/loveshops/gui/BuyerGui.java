@@ -33,8 +33,11 @@ public class BuyerGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(TITLE).color(NamedTextColor.GOLD));
 
+        // gui-gen-5: боковые стенки рабочей зоны (9, 17) всегда пустые — стекла в
+        // рабочей зоне не бывает никогда, даже на позициях без контента (RULE 6).
         ItemStack filler = GuiUtils.createFiller();
         for (int i = 0; i < 27; i++) {
+            if (i == 9 || i == 17) continue;
             inv.setItem(i, filler);
         }
 

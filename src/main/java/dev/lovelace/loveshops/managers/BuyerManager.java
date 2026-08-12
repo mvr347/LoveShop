@@ -97,6 +97,15 @@ public class BuyerManager {
             return future;
         }
 
+        // Единая точка входа для скупщика, барахолки (channel='seller') и аукциона по
+        // порогу цены — запрет здесь перекрывает все три канала разом. AuctionManager
+        // проверяет это же ещё раз на своей стороне для внешних вызовов (например, из LoveBrew).
+        if (plugin.getForbiddenManager().isForbidden(item)) {
+            player.sendMessage(MessageUtils.parse("<red>Этот предмет запрещено продавать!</red>"));
+            future.complete(false);
+            return future;
+        }
+
         getPlayerStatus(player.getUniqueId()).thenAccept(status -> {
             if ("bad".equalsIgnoreCase(status) || "aggressive".equalsIgnoreCase(status)) {
                 Bukkit.getScheduler().runTask(plugin, () -> rejectPlayer(player, status));
@@ -150,7 +159,8 @@ public class BuyerManager {
 
                 boolean auctioneerEnabled = plugin.getConfig().getBoolean("auctioneer.enabled", true);
                 int auctionThreshold = plugin.getConfig().getInt("auctioneer.price-threshold", 400);
-                String channel = (auctioneerEnabled && basePrice * quantity >= auctionThreshold) ? "auction" : "seller";
+                boolean isRare = plugin.getConfig().getBoolean("auctioneer.route-rare-items", true) && priceCalculator.isRareItem(item);
+                String channel = (auctioneerEnabled && (isRare || basePrice * quantity >= auctionThreshold)) ? "auction" : "seller";
 
                 Bukkit.getAsyncScheduler().runNow(plugin, task -> {
                     try (Connection conn = plugin.getDatabaseManager().getConnection()) {
