@@ -203,10 +203,13 @@ public class BuyerManager {
                                 player.getInventory().removeItem(item);
                             }
 
-                            economy.give(player, finalPrice);
+                            long taxedPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                                    .map(tax -> tax.applyToPayout(player.getUniqueId(), finalPrice))
+                                    .orElse((long) finalPrice);
+                            economy.give(player, taxedPrice);
 
                             String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
-                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPrice));
+                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(taxedPrice));
                             MessageUtils.sendMessage(player, acceptMsg);
 
                             future.complete(true);

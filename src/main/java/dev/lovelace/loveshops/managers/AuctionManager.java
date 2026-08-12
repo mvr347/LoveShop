@@ -371,7 +371,8 @@ public class AuctionManager {
             final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalAuction.itemData());
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!plugin.getEconomy().map(e -> e.has(buyer, finalAuction.buyoutPrice())).orElse(false)) {
+                long taxedBuyout = taxedAuctionPrice(buyer, finalAuction.buyoutPrice());
+                if (!plugin.getEconomy().map(e -> e.has(buyer, taxedBuyout)).orElse(false)) {
                     MessageUtils.sendMessage(buyer, "&cНедостаточно средств для выкупа!");
                     future.complete(false);
                     return;
@@ -478,8 +479,15 @@ public class AuctionManager {
         });
     }
 
+    /** Цена выкупа/победы в аукционе с учётом единого налога LoveCore (или без изменений, если налог недоступен). */
+    private long taxedAuctionPrice(Player player, int price) {
+        return dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                .map(tax -> tax.applyToCost(player.getUniqueId(), price))
+                .orElse((long) price);
+    }
+
     private void deliverAuctionWin(Player winner, ItemStack item, int price) {
-        plugin.getEconomy().ifPresent(economy -> economy.charge(winner, price));
+        plugin.getEconomy().ifPresent(economy -> economy.charge(winner, taxedAuctionPrice(winner, price)));
         if (item != null) {
             Map<Integer, ItemStack> leftover = winner.getInventory().addItem(item);
             if (!leftover.isEmpty()) {
