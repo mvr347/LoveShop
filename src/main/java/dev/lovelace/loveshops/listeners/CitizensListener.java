@@ -48,11 +48,18 @@ public class CitizensListener implements Listener {
                 return;
             }
 
+            var dialogue = plugin.getNpcDialogueManager();
+            var mood = dialogue.moodOf(player.getUniqueId());
+            if (dialogue.tryReject(player, mood)) {
+                return;
+            }
+
             switch (npcData.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
             }
+            dialogue.maybeSayAmbient(player, mood);
         }
     }
 }
