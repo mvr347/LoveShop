@@ -48,7 +48,12 @@ public class NpcDialogueManager {
         }).orElse(Mood.NEUTRAL);
     }
 
-    /** Пытается отказать в обслуживании по настроению. Возвращает true, если отказано (GUI открывать не надо). */
+    /**
+     * Пытается отказать в обслуживании по настроению. Возвращает true, если отказано (GUI
+     * открывать не надо) — только если реально нашлась фраза для показа игроку: пустой список
+     * (например, старый config.yml без новых ключей) не должен молча блокировать GUI без
+     * объяснения причины.
+     */
     public boolean tryReject(Player player, Mood mood) {
         if (!plugin.getConfig().getBoolean("npc-dialogue.reject.enabled", true)) {
             return false;
@@ -61,8 +66,7 @@ public class NpcDialogueManager {
         if (key == null) {
             return false;
         }
-        say(player, key);
-        return true;
+        return say(player, key);
     }
 
     /** С настроенным шансом говорит фразу под настроение, не блокируя взаимодействие. */
@@ -85,10 +89,13 @@ public class NpcDialogueManager {
         }
     }
 
-    private void say(Player player, String configPath) {
+    /** @return true, если фраза реально была отправлена (список в конфиге не пуст). */
+    private boolean say(Player player, String configPath) {
         List<String> messages = plugin.getConfig().getStringList(configPath);
-        if (!messages.isEmpty()) {
-            MessageUtils.sendMessage(player, messages.get(random.nextInt(messages.size())));
+        if (messages.isEmpty()) {
+            return false;
         }
+        MessageUtils.sendMessage(player, messages.get(random.nextInt(messages.size())));
+        return true;
     }
 }
