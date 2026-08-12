@@ -64,6 +64,34 @@ public class PriceCalculator {
                 .get(key, PersistentDataType.STRING);
     }
 
+    /**
+     * Rare/enchanted items get routed to the Auctioneer instead of a flat per-material buyout
+     * — see BuyerManager#processSale. Two independent signals: an explicit item rarity
+     * (org.bukkit.inventory.ItemRarity, available since this project's Paper API 26.2 — the
+     * purple/gold-ish vanilla tooltip colors) at or above the configured minimum, or any
+     * enchantment on the item (covers enchanted gear that vanilla doesn't always tag with a
+     * distinct rarity component).
+     */
+    public boolean isRareItem(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+            return false;
+        }
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta.hasEnchants()) {
+            return true;
+        }
+        if (meta.hasRarity()) {
+            String minRarityName = plugin.getConfig().getString("auctioneer.min-rarity", "RARE");
+            try {
+                org.bukkit.inventory.ItemRarity minRarity = org.bukkit.inventory.ItemRarity.valueOf(minRarityName.toUpperCase(java.util.Locale.ROOT));
+                return meta.getRarity().ordinal() >= minRarity.ordinal();
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Некорректное значение auctioneer.min-rarity: " + minRarityName);
+            }
+        }
+        return false;
+    }
+
     public double getRandomVariancePercent() {
         double min = plugin.getConfig().getDouble("buyer.price-variance.min-percent", -30.0);
         double max = plugin.getConfig().getDouble("buyer.price-variance.max-percent", 30.0);

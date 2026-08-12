@@ -150,7 +150,8 @@ public class BuyerManager {
 
                 boolean auctioneerEnabled = plugin.getConfig().getBoolean("auctioneer.enabled", true);
                 int auctionThreshold = plugin.getConfig().getInt("auctioneer.price-threshold", 400);
-                String channel = (auctioneerEnabled && basePrice * quantity >= auctionThreshold) ? "auction" : "seller";
+                boolean isRare = plugin.getConfig().getBoolean("auctioneer.route-rare-items", true) && priceCalculator.isRareItem(item);
+                String channel = (auctioneerEnabled && (isRare || basePrice * quantity >= auctionThreshold)) ? "auction" : "seller";
 
                 Bukkit.getAsyncScheduler().runNow(plugin, task -> {
                     try (Connection conn = plugin.getDatabaseManager().getConnection()) {
