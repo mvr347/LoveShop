@@ -97,6 +97,15 @@ public class BuyerManager {
             return future;
         }
 
+        // Единая точка входа для скупщика, барахолки (channel='seller') и аукциона по
+        // порогу цены — запрет здесь перекрывает все три канала разом. AuctionManager
+        // проверяет это же ещё раз на своей стороне для внешних вызовов (например, из LoveBrew).
+        if (plugin.getForbiddenManager().isForbidden(item)) {
+            player.sendMessage(MessageUtils.parse("<red>Этот предмет запрещено продавать!</red>"));
+            future.complete(false);
+            return future;
+        }
+
         getPlayerStatus(player.getUniqueId()).thenAccept(status -> {
             if ("bad".equalsIgnoreCase(status) || "aggressive".equalsIgnoreCase(status)) {
                 Bukkit.getScheduler().runTask(plugin, () -> rejectPlayer(player, status));

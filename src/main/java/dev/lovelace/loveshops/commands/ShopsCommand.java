@@ -28,12 +28,19 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        // Открытие магазина по команде теперь только для админов (NPC остаются
+        // единственной точкой входа для обычных игроков) — и специально БЕЗ сообщения
+        // об отказе: команда должна выглядеть так, будто её не существует.
+        if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
+            return true;
+        }
+
         String cmdLabel = label.toLowerCase();
 
         // Direct alias handling (/buyer, /seller, /auction, /auctioneer)
         if (cmdLabel.equals("buyer") || cmdLabel.equals("seller") || cmdLabel.equals("auction") || cmdLabel.equals("auctioneer")) {
             Player target = null;
-            if (args.length >= 1 && (sender.hasPermission("loveshops.admin.open") || sender.hasPermission("loveshops.admin"))) {
+            if (args.length >= 1) {
                 target = Bukkit.getPlayer(args[0]);
                 if (target == null || !target.isOnline()) {
                     sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[0]) + " не найден или не в сети!</red>"));
@@ -74,10 +81,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 Player target = null;
 
                 if (args.length >= 3) {
-                    if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
-                        sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав открывать меню другим игрокам!</red>"));
-                        return true;
-                    }
+                    // Право на open уже проверено при входе в onCommand — здесь достаточно
+                    // просто разрешить указывать любого игрока.
                     target = Bukkit.getPlayer(args[2]);
                     if (target == null || !target.isOnline()) {
                         sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[2]) + " не найден или не в сети!</red>"));
@@ -142,11 +147,17 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        // Та же тихая маскировка, что и в onCommand — команда не должна даже предлагать
+        // автодополнение тем, кому не положено ей пользоваться.
+        if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
+            return List.of();
+        }
+
         List<String> completions = new ArrayList<>();
         String cmdLabel = label.toLowerCase();
 
         if (List.of("buyer", "seller", "auction", "auctioneer").contains(cmdLabel)) {
-            if (args.length == 1 && (sender.hasPermission("loveshops.admin.open") || sender.hasPermission("loveshops.admin"))) {
+            if (args.length == 1) {
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase())).toList();
             }

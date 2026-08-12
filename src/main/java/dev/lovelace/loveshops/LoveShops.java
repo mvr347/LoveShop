@@ -24,6 +24,8 @@ public final class LoveShops extends JavaPlugin {
     private DatabaseManager databaseManager;
     private LangManager langManager;
     private PriceCalculator priceCalculator;
+    private PricesManager pricesManager;
+    private ForbiddenManager forbiddenManager;
     private NpcManager npcManager;
     private BuyerManager buyerManager;
     private SellerManager sellerManager;
@@ -50,6 +52,10 @@ public final class LoveShops extends JavaPlugin {
         this.databaseManager.initialize();
 
         // 3. Core Services & Managers
+        this.pricesManager = new PricesManager(this);
+        this.pricesManager.load();
+        this.forbiddenManager = new ForbiddenManager(this);
+        this.forbiddenManager.load();
         this.priceCalculator = new PriceCalculator(this);
         this.npcManager = new NpcManager(this);
         this.buyerManager = new BuyerManager(this, priceCalculator);
@@ -115,6 +121,8 @@ public final class LoveShops extends JavaPlugin {
     public DatabaseManager getDatabaseManager() { return databaseManager; }
     public LangManager getLangManager() { return langManager; }
     public PriceCalculator getPriceCalculator() { return priceCalculator; }
+    public PricesManager getPricesManager() { return pricesManager; }
+    public ForbiddenManager getForbiddenManager() { return forbiddenManager; }
     public NpcManager getNpcManager() { return npcManager; }
     public BuyerManager getBuyerManager() { return buyerManager; }
     public SellerManager getSellerManager() { return sellerManager; }

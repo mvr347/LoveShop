@@ -109,21 +109,12 @@ placeholders:
 # действует до множителей variance/reputation-bonus/repetition-penalty ниже, так что
 # соотношение между ними и итоговый разброс цены не меняются — меняется только база.
 # Проверьте эти значения в игре и подправьте под свою экономику при необходимости.
+# Обычные и редкие предметы теперь в отдельном файле prices.yml — см. common/rare там.
+# Здесь остаются только клановые артефакты LoveClans: цена по типу, а не по материалу,
+# им отдельный список не нужен. Выше порога аукциона (auctioneer.price-threshold),
+# поэтому артефакт уходит на торги, а не на барахолку.
 prices-config:
-  # Клановые артефакты LoveClans: цена по типу, а не по материалу.
-  # Выше порога аукциона (auctioneer.price-threshold), поэтому артефакт уходит
-  # на торги, а не на барахолку.
   artifacts:
     default-price: 1875
     WAR_HORN: 2250
     AEGIS_BANNER: 2625
-  DIAMOND: 375
-  GOLD_INGOT: 112
-  IRON_INGOT: 38
-  EMERALD: 225
-  NETHERITE_INGOT: 1500
-  COPPER_INGOT: 19
-  AMETHYST_SHARD: 56
-  LAPIS_LAZULI: 30
-  QUARTZ: 26
-  REDSTONE: 15

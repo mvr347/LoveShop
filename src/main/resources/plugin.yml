@@ -19,7 +19,8 @@ commands:
     aliases: [shops, шоп, loveshop, lshops, lshop, buyer, seller, auction, auctioneer]
     usage: /loveshops <subcommand>
   loveshopsadmin:
-    description: Административные команды LoveShops (reload, npc, buyer, seller)
+    description: Административные команды LoveShops (reload, npc, buyer, seller, price, rarity, forbidden, allowed)
+    aliases: [lssa]
     usage: /loveshopsadmin <subcommand>
 
 permissions:
@@ -42,5 +43,14 @@ permissions:
     description: Reload plugin configuration
     default: op
   loveshops.admin.open:
-    description: Open GUI menu for specified player
+    description: Open shop GUI menus by command (self or for another player) — without it, the command produces no output at all
+    default: op
+  loveshops.admin.price:
+    description: Set the price of the item held in hand
+    default: op
+  loveshops.admin.rarity:
+    description: Set the rarity of the item held in hand
+    default: op
+  loveshops.admin.forbidden:
+    description: Forbid/allow selling the item held in hand
     default: op
