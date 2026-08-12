@@ -162,13 +162,16 @@ public class SellerManager {
             }
 
             final BuyerItemData finalItemData = itemData;
-            final int itemPrice = finalPrice;
             final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalItemData.itemData());
+            final int basePrice = finalPrice;
 
             LoveEconomy economy = plugin.getEconomy().orElse(null);
 
             // Main thread check: balance
             Bukkit.getScheduler().runTask(plugin, () -> {
+                final long itemPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                        .map(tax -> tax.applyToCost(player.getUniqueId(), basePrice))
+                        .orElse((long) basePrice);
                 if (economy == null || !economy.has(player, itemPrice)) {
                     MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
