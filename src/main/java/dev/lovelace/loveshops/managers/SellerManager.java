@@ -196,7 +196,27 @@ public class SellerManager {
 
                             // Grant item on main thread
                             Bukkit.getScheduler().runTask(plugin, () -> {
-                                economy.charge(player, itemPrice);
+                                // charge() can fail here even though has() passed on the earlier
+                                // check above (physical-coin economy, balance can change during
+                                // the async round-trip we just made). Ignoring that used to hand
+                                // the item out for free; now a failed charge un-sells the row so
+                                // the item isn't lost and isn't given away unpaid.
+                                if (!economy.charge(player, itemPrice)) {
+                                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                                    Bukkit.getAsyncScheduler().runNow(plugin, revertTask -> {
+                                        try (Connection revertConn = plugin.getDatabaseManager().getConnection();
+                                             PreparedStatement psRevert = revertConn.prepareStatement(
+                                                 "UPDATE buyer_inventory SET sold_at = NULL WHERE id = ?")) {
+                                            psRevert.setInt(1, itemId);
+                                            psRevert.executeUpdate();
+                                        } catch (SQLException e) {
+                                            plugin.getLogger().severe("Error reverting failed seller purchase #" + itemId + ": " + e.getMessage());
+                                        }
+                                        GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
+                                    });
+                                    future.complete(false);
+                                    return;
+                                }
                                 if (itemStack != null) {
                                     for (ItemStack extra : player.getInventory().addItem(itemStack).values()) {
                                         player.getWorld().dropItemNaturally(player.getLocation(), extra);

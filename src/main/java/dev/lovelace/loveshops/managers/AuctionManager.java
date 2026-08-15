@@ -293,20 +293,41 @@ public class AuctionManager {
                         // 3. Update auction record. Ставка в последние секунды продлевает
                         // аукцион: иначе лот забирает не тот, кто дал больше, а тот, кто
                         // успел кликнуть последним.
+                        //
+                        // Проверка bidAmount >= minNextBid выше сделана по снимку аукциона,
+                        // прочитанному ДО этого момента — за время двух прыжков на главный
+                        // поток и обратно другая ставка могла успеть примениться первой.
+                        // WHERE current_highest_bid = ? — это compare-and-swap поверх того же
+                        // снимка: если кто-то уже перебил ставку, обновление затронет 0 строк
+                        // вместо того, чтобы вслепую перезаписать более высокую ставку более
+                        // низкой (и увести "текущего лидера" на игрока, который на самом деле
+                        // предложил меньше).
                         long extendedEndsAt = extendedEndTime(finalAuction);
                         String upAucSql = extendedEndsAt > finalAuction.endsAt()
-                            ? "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ?, ends_at = ? WHERE id = ?"
-                            : "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ? WHERE id = ?";
+                            ? "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ?, ends_at = ? WHERE id = ? AND status = 'active' AND current_highest_bid = ?"
+                            : "UPDATE auctions SET current_highest_bid = ?, highest_bidder_uuid = ? WHERE id = ? AND status = 'active' AND current_highest_bid = ?";
+                        int auctionRowsUpdated;
                         try (PreparedStatement psUpAuc = conn.prepareStatement(upAucSql)) {
                             psUpAuc.setInt(1, bidAmount);
                             psUpAuc.setString(2, bidder.getUniqueId().toString());
                             if (extendedEndsAt > finalAuction.endsAt()) {
                                 psUpAuc.setLong(3, extendedEndsAt);
                                 psUpAuc.setInt(4, auctionId);
+                                psUpAuc.setInt(5, finalAuction.currentHighestBid());
                             } else {
                                 psUpAuc.setInt(3, auctionId);
+                                psUpAuc.setInt(4, finalAuction.currentHighestBid());
                             }
-                            psUpAuc.executeUpdate();
+                            auctionRowsUpdated = psUpAuc.executeUpdate();
+                        }
+
+                        if (auctionRowsUpdated == 0) {
+                            conn.rollback();
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                MessageUtils.sendMessage(bidder, "&cВас опередили! Кто-то поставил ставку в то же мгновение — попробуйте снова.");
+                                future.complete(false);
+                            });
+                            return;
                         }
 
                         // 4. Log bid history
@@ -408,8 +429,17 @@ public class AuctionManager {
                         conn.commit();
 
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            deliverAuctionWin(buyer, itemStack, finalAuction.buyoutPrice());
-                            MessageUtils.sendMessage(buyer, "&6Лот выкуплен за " + finalAuction.buyoutPrice() + " монет!");
+                            // has() выше и charge() здесь разделены прыжком на асинхронный
+                            // поток и обратно — баланс мог измениться. attemptDeliver
+                            // проверяет заново и не выдаёт лот бесплатно, если денег вдруг
+                            // не хватило: статус лота уже 'completed', так что при неудаче
+                            // выдача останется в очереди и будет повторена deliverPendingWins.
+                            boolean delivered = attemptDeliver(finalAuction.id(), buyer, itemStack, finalAuction.buyoutPrice());
+                            if (delivered) {
+                                MessageUtils.sendMessage(buyer, "&6Лот выкуплен за " + finalAuction.buyoutPrice() + " монет!");
+                            } else {
+                                MessageUtils.sendMessage(buyer, "&cВыкуп оформлен, но списать монеты не удалось — предмет будет выдан, как только на балансе появится нужная сумма.");
+                            }
                             future.complete(true);
                         });
                     } catch (SQLException e) {
@@ -462,19 +492,89 @@ public class AuctionManager {
 
                 conn.commit();
 
-                // Main thread: deliver item to winner if online
+                // Если победитель сейчас онлайн — пробуем выдать сразу; если нет (или не
+                // хватило денег прямо сейчас), delivered_at останется NULL и лот подберёт
+                // либо периодическая deliverPendingWins(), либо вход игрока в игру — раньше
+                // предмет без онлайн-победителя в этот момент терялся навсегда.
                 if (auction.highestBidderUuid() != null) {
                     Player winner = Bukkit.getPlayer(auction.highestBidderUuid());
                     if (winner != null && winner.isOnline()) {
+                        ItemStack item = ItemStackConverter.itemStackFromBase64(auction.itemData());
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            deliverAuctionWin(winner, ItemStackConverter.itemStackFromBase64(auction.itemData()), auction.currentHighestBid());
-                            MessageUtils.sendMessage(winner, "&6Поздравляем! Вы выиграли аукцион за " + auction.currentHighestBid() + " монет!");
+                            boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
+                            if (delivered) {
+                                MessageUtils.sendMessage(winner, "&6Поздравляем! Вы выиграли аукцион за " + auction.currentHighestBid() + " монет!");
+                            }
                         });
                     }
                 }
 
             } catch (SQLException e) {
                 plugin.getLogger().severe("Error completing auction #" + auction.id() + ": " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Подбирает завершённые аукционы, чьи победители ещё не получили лот (например, были
+     * офлайн в момент завершения или не хватило денег на тот момент), и выдаёт их тем, кто
+     * сейчас в сети. Вызывается периодически из {@code ScheduleListener} и при входе игрока.
+     */
+    public void deliverPendingWins() {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            List<AuctionData> pending = new ArrayList<>();
+            String sql = "SELECT * FROM auctions WHERE status = 'completed' AND winner_uuid IS NOT NULL AND delivered_at IS NULL";
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    pending.add(mapAuction(rs));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Error fetching pending auction deliveries: " + e.getMessage());
+                return;
+            }
+
+            for (AuctionData auction : pending) {
+                Player winner = Bukkit.getPlayer(auction.winnerUuid());
+                if (winner == null || !winner.isOnline()) continue;
+                ItemStack item = ItemStackConverter.itemStackFromBase64(auction.itemData());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
+                    if (delivered) {
+                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + auction.currentHighestBid() + " монет)!");
+                    }
+                });
+            }
+        });
+    }
+
+    /** Отдельную выдачу конкретному игроку — используется при входе в игру ({@code ScheduleListener}). */
+    public void deliverPendingWinsFor(Player winner) {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            List<AuctionData> pending = new ArrayList<>();
+            String sql = "SELECT * FROM auctions WHERE status = 'completed' AND winner_uuid = ? AND delivered_at IS NULL";
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, winner.getUniqueId().toString());
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    pending.add(mapAuction(rs));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Error fetching pending auction deliveries for " + winner.getName() + ": " + e.getMessage());
+                return;
+            }
+
+            for (AuctionData auction : pending) {
+                ItemStack item = ItemStackConverter.itemStackFromBase64(auction.itemData());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!winner.isOnline()) return;
+                    boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
+                    if (delivered) {
+                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + auction.currentHighestBid() + " монет)!");
+                    }
+                });
             }
         });
     }
@@ -486,8 +586,26 @@ public class AuctionManager {
                 .orElse((long) price);
     }
 
-    private void deliverAuctionWin(Player winner, ItemStack item, int price) {
-        plugin.getEconomy().ifPresent(economy -> economy.charge(winner, taxedAuctionPrice(winner, price)));
+    /**
+     * Списывает деньги и выдаёт лот победителю, только если оплата действительно прошла —
+     * {@code economy.charge} возвращает {@code false} без изменений в инвентаре, если монет
+     * не хватило (физическая валюта LoveCore, баланс мог измениться асинхронно с момента
+     * последней проверки). Раньше результат charge() игнорировался и предмет выдавался
+     * безусловно — тем самым игрок мог получить лот бесплатно. При неудаче delivered_at не
+     * проставляется, и выдача будет повторена позже без повторного списания (проверяем и
+     * списываем заново, а не полагаемся на уже потраченный расчёт).
+     *
+     * @return {@code true}, если лот выдан и монеты списаны
+     */
+    private boolean attemptDeliver(int auctionId, Player winner, ItemStack item, int price) {
+        LoveEconomy economy = plugin.getEconomy().orElse(null);
+        if (economy == null) return false;
+
+        long taxedPrice = taxedAuctionPrice(winner, price);
+        if (!economy.charge(winner, taxedPrice)) {
+            return false;
+        }
+
         if (item != null) {
             Map<Integer, ItemStack> leftover = winner.getInventory().addItem(item);
             if (!leftover.isEmpty()) {
@@ -496,6 +614,22 @@ public class AuctionManager {
                 }
             }
         }
+
+        markDelivered(auctionId);
+        return true;
+    }
+
+    private void markDelivered(int auctionId) {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE auctions SET delivered_at = strftime('%s', 'now') WHERE id = ?")) {
+                ps.setInt(1, auctionId);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error marking auction #" + auctionId + " as delivered: " + e.getMessage());
+            }
+        });
     }
 
     private AuctionData mapAuction(ResultSet rs) throws SQLException {
