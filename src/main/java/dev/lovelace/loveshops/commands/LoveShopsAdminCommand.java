@@ -38,7 +38,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "buyer", "seller", "price", "rarity", "forbidden", "allowed", "help");
     private static final List<String> NPC_ACTIONS = List.of("create", "delete", "list");
-    private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer");
+    private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer", "warmerchant");
     private static final List<String> BUYER_STATUSES = List.of("default", "good", "bad", "aggressive");
     private static final List<String> SELLER_ACTIONS = List.of("start", "stop", "reset");
     private static final List<String> RARITY_TIERS = List.of("common", "uncommon", "rare", "epic");
@@ -210,12 +210,12 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                 return;
             }
             if (args.length < 4) {
-                player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc create <buyer|seller|auctioneer> <Имя></yellow>"));
+                player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc create <buyer|seller|auctioneer|warmerchant> <Имя></yellow>"));
                 return;
             }
             String type = args[2].toLowerCase(Locale.ROOT);
             if (!NPC_TYPES.contains(type)) {
-                player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: buyer, seller, auctioneer</red>"));
+                player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: buyer, seller, auctioneer, warmerchant</red>"));
                 return;
             }
             String name = String.join(" ", List.of(args).subList(3, args.length));

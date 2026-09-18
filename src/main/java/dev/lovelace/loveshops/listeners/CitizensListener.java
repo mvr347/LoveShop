@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
+import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.citizensnpcs.api.event.NPCRightClickEvent;
@@ -45,6 +46,17 @@ public class CitizensListener implements Listener {
             Player player = event.getClicker();
             if (npcData.type().equalsIgnoreCase("seller") && !plugin.getSellerManager().isSellerActive()) {
                 MessageUtils.sendMessage(player, "<red>Торговец-барахолка открыт только по воскресеньям с 10:00 до 18:00!</red>");
+                return;
+            }
+
+            if (npcData.type().equalsIgnoreCase("warmerchant")) {
+                // Отдельный гейт по стилю игры вместо обычной вежливость/агрессия mood-проверки
+                // ниже - этот НПС наоборот открыт ТОЛЬКО агрессивным, а не закрыт для них.
+                if (!plugin.getWarMerchantManager().isEligible(player.getUniqueId())) {
+                    MessageUtils.sendMessage(player, plugin.getWarMerchantManager().randomDenyMessage());
+                    return;
+                }
+                new WarMerchantGui(plugin, player).open();
                 return;
             }
 
