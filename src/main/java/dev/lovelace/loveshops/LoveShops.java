@@ -31,6 +31,7 @@ public final class LoveShops extends JavaPlugin {
     private SellerManager sellerManager;
     private AuctionManager auctionManager;
     private NpcDialogueManager npcDialogueManager;
+    private WarMerchantManager warMerchantManager;
 
     @Override
     public void onEnable() {
@@ -63,6 +64,7 @@ public final class LoveShops extends JavaPlugin {
         this.sellerManager = new SellerManager(this);
         this.auctionManager = new AuctionManager(this);
         this.npcDialogueManager = new NpcDialogueManager(this);
+        this.warMerchantManager = new WarMerchantManager(this);
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
@@ -130,6 +132,7 @@ public final class LoveShops extends JavaPlugin {
     public SellerManager getSellerManager() { return sellerManager; }
     public AuctionManager getAuctionManager() { return auctionManager; }
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
+    public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
 
     /**
      * Служба валюты ядра. LoveCore проверен обязательным в {@link #onEnable}, поэтому пусто
