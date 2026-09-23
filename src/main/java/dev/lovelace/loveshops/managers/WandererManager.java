@@ -37,6 +37,16 @@ public class WandererManager {
     private Boolean forceActiveOverride = null;
     private final Map<UUID, WandererDeal> dealCache = new ConcurrentHashMap<>();
 
+    // Гвард от повторного входа в buyDealItem, тот же паттерн, что и
+    // BuyerManager.processingSales: getPlayerDeal() читает состояние из БД асинхронно,
+    // а сама покупка ещё раз прыгает на главный поток и обратно в БД. Без гварда два
+    // быстрых клика по одному товару (или клик, повторённый до того как GUI успел
+    // перерисоваться) запускают buyDealItem дважды параллельно — оба читают ОДИН и тот же
+    // "ещё не куплен" снимок сделки до того, как первый успевает записать items_json,
+    // и оба списывают деньги и выдают предмет: лимитированный товар Странника продаётся
+    // дважды. Один "в процессе" слот на игрока за раз.
+    private final Set<UUID> processingPurchases = ConcurrentHashMap.newKeySet();
+
     public WandererManager(LoveShops plugin) {
         this.plugin = plugin;
     }
@@ -423,8 +433,18 @@ public class WandererManager {
 
     public CompletableFuture<Boolean> buyDealItem(Player player, String dealItemId) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
+        UUID playerUuid = player.getUniqueId();
 
-        getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
+        if (!processingPurchases.add(playerUuid)) {
+            // Уже есть покупка в процессе у этого игрока — второй (параллельный или
+            // просто слишком быстрый) клик игнорируем вместо того, чтобы дать ему тоже
+            // дойти до выдачи предмета (см. комментарий у processingPurchases).
+            future.complete(false);
+            return future;
+        }
+        future.whenComplete((result, error) -> processingPurchases.remove(playerUuid));
+
+        getPlayerDeal(playerUuid).thenAccept(optDeal -> {
             if (optDeal.isEmpty()) {
                 future.complete(false);
                 return;
