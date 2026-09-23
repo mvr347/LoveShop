@@ -73,11 +73,18 @@ public class AuctionGui {
                     if (meta != null) {
                         List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                         lore.add(Component.empty());
-                        lore.add(MessageUtils.parse("<gray>Текущая ставка: <gold>" + auction.currentHighestBid() + " монет</gold></gray>"));
-                        lore.add(MessageUtils.parse("<gray>Минимальный шаг: <yellow>" + minNextBid + " монет</yellow></gray>"));
+                        String icon = MessageUtils.currencyIcon();
+                        lore.add(MessageUtils.parse(player, "<gray>Текущая ставка: <gold>" + icon + auction.currentHighestBid() + " монет</gold></gray>"));
+                        if (auction.highestBidderUuid() != null) {
+                            String leaderName = Bukkit.getOfflinePlayer(auction.highestBidderUuid()).getName();
+                            lore.add(MessageUtils.parse("<gray>Лидирует: <aqua>" + (leaderName != null ? leaderName : "Неизвестный игрок") + "</aqua></gray>"));
+                        } else {
+                            lore.add(MessageUtils.parse("<gray>Ставок пока нет</gray>"));
+                        }
+                        lore.add(MessageUtils.parse(player, "<gray>Минимальный шаг: <yellow>" + icon + minNextBid + " монет</yellow></gray>"));
                         lore.add(MessageUtils.parse("<gray>До конца: <green>" + TimeUtils.formatRemainingTime(remaining) + "</green></gray>"));
                         if (auction.buyoutPrice() > 0) {
-                            lore.add(MessageUtils.parse("<gray>Выкуп: <light_purple>" + auction.buyoutPrice() + " монет</light_purple></gray>"));
+                            lore.add(MessageUtils.parse(player, "<gray>Выкуп: <light_purple>" + icon + auction.buyoutPrice() + " монет</light_purple></gray>"));
                         }
                         lore.add(MessageUtils.parse("<gray>ID Лота: <dark_gray>#" + auction.id() + "</dark_gray></gray>"));
                         lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— сделать ставку</gray>"));

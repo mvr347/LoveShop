@@ -9,6 +9,8 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.WandererDeal;
 import dev.lovelace.loveshops.models.WandererDealItem;
 import dev.lovelace.loveshops.models.WandererItemConfig;
+import dev.lovelace.loveshops.models.WandererItemQuality;
+import dev.lovelace.loveshops.models.WandererRequestCategory;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import dev.lovelace.loveshops.utils.TimeUtils;
@@ -22,6 +24,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +42,14 @@ public class WandererManager {
     private Boolean forceActiveOverride = null;
     private final Map<UUID, WandererDeal> dealCache = new ConcurrentHashMap<>();
 
+    // Randomized arrival schedule (см. isTodayArrivalDay) - персистится, чтобы "не два дня
+    // подряд" переживало рестарт сервера, а не пересчитывалось с чистого листа. decision
+    // кэшируется на день, чтобы не переигрывать бросок кубика на каждый вызов
+    // isWandererActive() (checkWandererStatus дёргает его раз в 30с).
+    private LocalDate lastArrivalDate;
+    private LocalDate cachedDecisionDate;
+    private boolean cachedTodayIsArrivalDay;
+
     // Гвард от повторного входа в buyDealItem, тот же паттерн, что и
     // BuyerManager.processingSales: getPlayerDeal() читает состояние из БД асинхронно,
     // а сама покупка ещё раз прыгает на главный поток и обратно в БД. Без гварда два
@@ -49,11 +62,87 @@ public class WandererManager {
 
     public WandererManager(LoveShops plugin) {
         this.plugin = plugin;
+        loadScheduleState();
     }
 
     // ==========================================
     // SCHEDULE & ACTIVE STATE
     // ==========================================
+
+    private void loadScheduleState() {
+        // Blocking on purpose - runs once, synchronously, from the constructor during
+        // LoveShops#onEnable, same idiom DatabaseManager.initialize() already uses there
+        // (local SQLite, negligible cost at startup).
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT last_arrival_date FROM wanderer_schedule_state WHERE id = 1")) {
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                String raw = rs.getString("last_arrival_date");
+                if (raw != null) {
+                    try {
+                        lastArrivalDate = LocalDate.parse(raw);
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Не удалось загрузить состояние расписания Странника: " + e.getMessage());
+        }
+    }
+
+    private void persistLastArrivalDate(LocalDate date) {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            String sql = """
+                INSERT INTO wanderer_schedule_state (id, last_arrival_date) VALUES (1, ?)
+                ON CONFLICT(id) DO UPDATE SET last_arrival_date = EXCLUDED.last_arrival_date
+            """;
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, date.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Не удалось сохранить дату визита Странника: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Random arrival days instead of a fixed weekly list, with one hard rule: never two days
+     * in a row (track {@link #lastArrivalDate} and exclude "today" from the roll whenever
+     * yesterday was already an arrival day). The decision is made once per calendar day and
+     * cached — {@link #isWandererActive()} (and therefore this) is polled every ~30s by
+     * {@code ScheduleListener}.
+     */
+    private boolean isTodayArrivalDay() {
+        LocalDate today = LocalDate.now();
+        if (today.equals(cachedDecisionDate)) {
+            return cachedTodayIsArrivalDay;
+        }
+
+        boolean decision;
+        if (today.equals(lastArrivalDate)) {
+            // Already rolled "yes" for today earlier (e.g. before a restart mid-day) - stay
+            // consistent instead of re-rolling and possibly flipping to "no" partway through
+            // the day the Wanderer already arrived on.
+            decision = true;
+        } else if (today.minusDays(1).equals(lastArrivalDate)) {
+            // Никогда два дня подряд.
+            decision = false;
+        } else {
+            double arrivalsPerWeek = plugin.getConfig().getDouble("wanderer.schedule.arrivals-per-week", 3.0);
+            double probability = Math.max(0.0, Math.min(1.0, arrivalsPerWeek / 7.0));
+            decision = random.nextDouble() < probability;
+        }
+
+        cachedDecisionDate = today;
+        cachedTodayIsArrivalDay = decision;
+
+        if (decision && !today.equals(lastArrivalDate)) {
+            lastArrivalDate = today;
+            persistLastArrivalDate(today);
+        }
+
+        return decision;
+    }
 
     public boolean isWandererActive() {
         if (forceActiveOverride != null) {
@@ -62,26 +151,33 @@ public class WandererManager {
         if (!plugin.getConfig().getBoolean("wanderer.enabled", true)) {
             return false;
         }
-
-        List<String> days = plugin.getConfig().getStringList("wanderer.schedule.days");
-        if (days.isEmpty()) {
-            days = List.of("TUESDAY", "THURSDAY", "SATURDAY");
+        if (!isTodayArrivalDay()) {
+            return false;
         }
+
         String arrivalTime = plugin.getConfig().getString("wanderer.schedule.arrival-time", "10:00");
         String departureTime = plugin.getConfig().getString("wanderer.schedule.departure-time", "22:00");
-
-        return TimeUtils.isScheduleTimeWindow(days, arrivalTime, departureTime);
+        return TimeUtils.isScheduleTimeWindow(List.of(LocalDate.now().getDayOfWeek().name()), arrivalTime, departureTime);
     }
 
     public void checkWandererStatus() {
+        // Всё ниже — Bukkit.broadcast/getOnlinePlayers/NPC spawn — только с главного потока;
+        // ScheduleListener дёргает этот метод прямо с Bukkit.getAsyncScheduler(), тот же
+        // самогвард, что и в SellerManager.checkSellerStatus.
+        if (!Bukkit.isPrimaryThread()) {
+            Bukkit.getScheduler().runTask(plugin, this::checkWandererStatus);
+            return;
+        }
+
         boolean nowActive = isWandererActive();
         if (nowActive != active) {
             this.active = nowActive;
             if (nowActive) {
-                // Wanderer arrived!
-                for (String msg : plugin.getConfig().getStringList("wanderer.messages.arrival")) {
-                    Bukkit.broadcast(MessageUtils.parse(msg));
-                }
+                // Странник пришёл - НИКАКОГО общего оповещения (убрано по требованию: раньше
+                // здесь был Bukkit.broadcast по wanderer.messages.arrival). Вместо этого —
+                // приватный, предвзятый по стилю игры "визит" отдельным игрокам, см.
+                // sendTargetedVisitNotices().
+                sendTargetedVisitNotices();
                 for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {
                     plugin.getNpcManager().spawnNpcEntity(npc);
                 }
@@ -94,6 +190,42 @@ public class WandererManager {
                     plugin.getNpcManager().despawnNpcEntity(npc.uuid());
                 }
             }
+        }
+    }
+
+    /**
+     * Replaces the removed server-wide "Странник пришёл" broadcast: instead of announcing to
+     * everyone, the Wanderer quietly "visits" (privately messages) a biased subset of online
+     * players. Prefers players whose LoveBehavior playstyle is classified as NOT aggressive
+     * (LoveCore.BehaviorLevels#playstyleLevel above {@code aggressive-threshold} - see
+     * BehaviorLevels: 0 = maximally aggressive, MAX_LEVEL = maximally kind); a "конфликтный"
+     * (aggressive) player still gets a chance ({@code aggressive-consider-chance}), just a
+     * reduced one. This is a targeting/visibility bias only — it does NOT gate whether a
+     * player can actually trade with the Wanderer once they walk up (that's
+     * {@link #isPlayerEligible}, a separate, pre-existing mechanic) and is unrelated to the
+     * "aggressive playstyle unlocks secret deals" buff LoveBehavior implements on its own side.
+     */
+    private void sendTargetedVisitNotices() {
+        if (!plugin.getConfig().getBoolean("wanderer.visit-targeting.enabled", true)) {
+            return;
+        }
+
+        int aggressiveThreshold = plugin.getConfig().getInt("wanderer.visit-targeting.aggressive-threshold", 2);
+        double aggressiveConsiderChance = plugin.getConfig().getDouble("wanderer.visit-targeting.aggressive-consider-chance", 0.5);
+
+        List<String> messages = plugin.getConfig().getStringList("wanderer.visit-targeting.messages");
+        if (messages.isEmpty()) {
+            messages = List.of("<dark_purple>[Странник]</dark_purple> <white>Кто-то тихо стучит в дверь твоего дома... Таинственный Странник заглянул в город и ищет встречи именно с тобой.</white>");
+        }
+
+        Optional<BehaviorLevels> levels = LoveCore.service(BehaviorLevels.class);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            boolean aggressive = levels.map(l -> l.playstyleLevel(player.getUniqueId()) <= aggressiveThreshold).orElse(false);
+            boolean visited = !aggressive || random.nextDouble() < aggressiveConsiderChance;
+            if (!visited) continue;
+
+            String chosen = messages.get(random.nextInt(messages.size()));
+            MessageUtils.sendMessage(player, chosen);
         }
     }
 
@@ -120,11 +252,26 @@ public class WandererManager {
         return forceActiveOverride;
     }
 
+    /**
+     * With a randomized day-by-day schedule (see {@link #isTodayArrivalDay}) future arrival
+     * days genuinely aren't decided yet, so this can only speak to today at best - it no
+     * longer promises a specific future date the way the old fixed weekly list did.
+     */
     public String getNextArrivalText() {
-        List<String> days = plugin.getConfig().getStringList("wanderer.schedule.days");
-        if (days.isEmpty()) days = List.of("TUESDAY", "THURSDAY", "SATURDAY");
         String arrivalTime = plugin.getConfig().getString("wanderer.schedule.arrival-time", "10:00");
-        return TimeUtils.getNextScheduleArrivalText(days, arrivalTime);
+        if (isTodayArrivalDay()) {
+            LocalTime start = LocalTime.parse(arrivalTime, DateTimeFormatter.ofPattern("HH:mm"));
+            if (LocalTime.now().isBefore(start)) {
+                return "Сегодня в " + arrivalTime;
+            }
+            String departureTime = plugin.getConfig().getString("wanderer.schedule.departure-time", "22:00");
+            LocalTime end = LocalTime.parse(departureTime, DateTimeFormatter.ofPattern("HH:mm"));
+            if (!LocalTime.now().isAfter(end)) {
+                return "Уже в городе!";
+            }
+        }
+        double arrivalsPerWeek = plugin.getConfig().getDouble("wanderer.schedule.arrivals-per-week", 3.0);
+        return "Расписание случайное (~" + arrivalsPerWeek + " раз(а) в неделю) — загляните завтра в " + arrivalTime;
     }
 
     // ==========================================
@@ -253,8 +400,9 @@ public class WandererManager {
                 int weight = map.get("weight") != null ? Integer.parseInt(String.valueOf(map.get("weight"))) : 10;
                 Integer customModelData = map.containsKey("custom-model-data") ? Integer.parseInt(String.valueOf(map.get("custom-model-data"))) : null;
                 String itemsAdderId = map.containsKey("itemsadder-id") ? String.valueOf(map.get("itemsadder-id")) : null;
+                String category = map.get("category") != null ? String.valueOf(map.get("category")) : null;
 
-                pool.add(new WandererItemConfig(id, material, name, lore, enchants, price, amount, weight, customModelData, itemsAdderId));
+                pool.add(new WandererItemConfig(id, material, name, lore, enchants, price, amount, weight, customModelData, itemsAdderId, category));
             } catch (Exception e) {
                 plugin.getLogger().warning("Ошибка парсинга предмета из пула Странника: " + e.getMessage());
             }
@@ -264,8 +412,33 @@ public class WandererManager {
     }
 
     public List<WandererDealItem> rollRandomItems(int minItems, int maxItems) {
+        return rollRandomItems(minItems, maxItems, null);
+    }
+
+    /**
+     * @param requestedCategory when non-null, only pool entries tagged with this category are
+     *                          eligible (paid personal request — see {@code wanderer.deal.personal-request}).
+     *                          Falls back to the full pool (with a warning) if that category is
+     *                          empty in {@code wanderer.items-pool}, so a misconfigured category
+     *                          never silently hands back zero items after the player already paid.
+     */
+    public List<WandererDealItem> rollRandomItems(int minItems, int maxItems, WandererRequestCategory requestedCategory) {
         List<WandererItemConfig> pool = loadItemPool();
         if (pool.isEmpty()) return Collections.emptyList();
+
+        if (requestedCategory != null) {
+            List<WandererItemConfig> filtered = pool.stream()
+                .filter(item -> item.resolvedCategory() == requestedCategory)
+                .toList();
+            if (filtered.isEmpty()) {
+                plugin.getLogger().warning("Странник: в wanderer.items-pool нет предметов категории "
+                    + requestedCategory + " — заказ будет собран из общего пула.");
+            } else {
+                pool = filtered;
+            }
+        }
+
+        WandererItemQuality quality = WandererItemQuality.fromConfig(plugin.getConfig());
 
         int targetCount = minItems + (maxItems > minItems ? random.nextInt(maxItems - minItems + 1) : 0);
         int totalWeight = pool.stream().mapToInt(WandererItemConfig::weight).sum();
@@ -287,7 +460,7 @@ public class WandererManager {
                 }
             }
 
-            ItemStack stack = selected.buildItemStack();
+            ItemStack stack = selected.buildItemStack(quality, random);
             String base64 = ItemStackConverter.itemStackToBase64(stack);
             String dealItemId = UUID.randomUUID().toString().substring(0, 8);
 
@@ -353,9 +526,32 @@ public class WandererManager {
     }
 
     public CompletableFuture<Boolean> startDeal(Player player) {
+        return startDeal(player, null);
+    }
+
+    /**
+     * @param requestedCategory non-null means the player is paying extra
+     *                          ({@code wanderer.deal.personal-request.surcharge-percent}) to
+     *                          have the Wanderer's incoming delivery drawn only from that
+     *                          category of {@code wanderer.items-pool} instead of the full pool.
+     */
+    public CompletableFuture<Boolean> startDeal(Player player, WandererRequestCategory requestedCategory) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
 
-        int cost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
+        int baseCost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
+        int cost = baseCost;
+        boolean personalRequestEnabled = plugin.getConfig().getBoolean("wanderer.deal.personal-request.enabled", true);
+        if (requestedCategory != null && personalRequestEnabled) {
+            double surchargePercent = plugin.getConfig().getDouble("wanderer.deal.personal-request.surcharge-percent", 50);
+            cost = (int) Math.round(baseCost * (1 + surchargePercent / 100.0));
+        } else if (requestedCategory != null) {
+            // personal-request disabled server-side — fall back to a regular unfiltered deal
+            // rather than silently charging a surcharge for a feature that's off.
+            requestedCategory = null;
+        }
+        final WandererRequestCategory finalCategory = requestedCategory;
+        final int finalCost = cost;
+
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
         int minItems = plugin.getConfig().getInt("wanderer.deal.min-items", 3);
         int maxItems = plugin.getConfig().getInt("wanderer.deal.max-items", 6);
@@ -365,18 +561,19 @@ public class WandererManager {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         String currencyName = economy != null ? economy.currencyName() : "монет";
 
-        if (cost > 0) {
-            if (economy == null || !economy.has(player, cost)) {
+        if (finalCost > 0) {
+            if (economy == null || !economy.has(player, finalCost)) {
                 String msg = plugin.getConfig().getString("wanderer.messages.insufficient-funds-deal",
-                    "<red>Недостаточно монет! Требуется: <gold>{cost} {currency}</gold></red>")
-                    .replace("{cost}", String.valueOf(cost))
-                    .replace("{currency}", currencyName);
+                    "<red>Недостаточно монет! Требуется: <gold>{currency_icon}{cost} {currency}</gold></red>")
+                    .replace("{cost}", String.valueOf(finalCost))
+                    .replace("{currency}", currencyName)
+                    .replace("{currency_icon}", MessageUtils.currencyIcon());
                 MessageUtils.sendMessage(player, msg);
                 future.complete(false);
                 return future;
             }
 
-            if (!economy.charge(player, cost)) {
+            if (!economy.charge(player, finalCost)) {
                 MessageUtils.sendMessage(player, "<red>Ошибка списания средств!</red>");
                 future.complete(false);
                 return future;
@@ -387,16 +584,16 @@ public class WandererManager {
         long readyAt = now + (deliveryMinutes * 60L);
         long expiresAt = readyAt + (expireHours * 3600L);
 
-        List<WandererDealItem> items = rollRandomItems(minItems, maxItems);
+        List<WandererDealItem> items = rollRandomItems(minItems, maxItems, finalCategory);
         String itemsJson = gson.toJson(items);
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             String sql = """
-                INSERT INTO wanderer_deals (player_uuid, status, ordered_at, ready_at, expires_at, items_json)
-                VALUES (?, 'WAITING', ?, ?, ?, ?)
+                INSERT INTO wanderer_deals (player_uuid, status, ordered_at, ready_at, expires_at, items_json, requested_category)
+                VALUES (?, 'WAITING', ?, ?, ?, ?, ?)
                 ON CONFLICT(player_uuid) DO UPDATE SET
                     status='WAITING', ordered_at=EXCLUDED.ordered_at, ready_at=EXCLUDED.ready_at,
-                    expires_at=EXCLUDED.expires_at, items_json=EXCLUDED.items_json
+                    expires_at=EXCLUDED.expires_at, items_json=EXCLUDED.items_json, requested_category=EXCLUDED.requested_category
             """;
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -405,9 +602,14 @@ public class WandererManager {
                 ps.setLong(3, readyAt);
                 ps.setLong(4, expiresAt);
                 ps.setString(5, itemsJson);
+                if (finalCategory != null) {
+                    ps.setString(6, finalCategory.name());
+                } else {
+                    ps.setNull(6, java.sql.Types.VARCHAR);
+                }
                 ps.executeUpdate();
 
-                WandererDeal deal = new WandererDeal(0, player.getUniqueId(), "WAITING", now, readyAt, expiresAt, items);
+                WandererDeal deal = new WandererDeal(0, player.getUniqueId(), "WAITING", now, readyAt, expiresAt, items, finalCategory != null ? finalCategory.name() : null);
                 dealCache.put(player.getUniqueId(), deal);
 
                 Bukkit.getScheduler().runTask(plugin, () -> {
@@ -421,8 +623,8 @@ public class WandererManager {
             } catch (SQLException e) {
                 plugin.getLogger().severe("Ошибка создания сделки Странника: " + e.getMessage());
                 // Refund if failed
-                if (cost > 0 && economy != null) {
-                    Bukkit.getScheduler().runTask(plugin, () -> economy.give(player, cost));
+                if (finalCost > 0 && economy != null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> economy.give(player, finalCost));
                 }
                 future.complete(false);
             }
@@ -475,13 +677,13 @@ public class WandererManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 LoveEconomy economy = plugin.getEconomy().orElse(null);
                 if (economy == null || !economy.has(player, target.price())) {
-                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
 
                 if (!economy.charge(player, target.price())) {
-                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
@@ -557,7 +759,7 @@ public class WandererManager {
                 ps.setString(2, playerUuid.toString());
                 int rows = ps.executeUpdate();
                 if (rows > 0) {
-                    dealCache.computeIfPresent(playerUuid, (k, v) -> new WandererDeal(v.id(), v.playerUuid(), "READY", v.orderedAt(), now - 5, v.expiresAt(), v.items()));
+                    dealCache.computeIfPresent(playerUuid, (k, v) -> new WandererDeal(v.id(), v.playerUuid(), "READY", v.orderedAt(), now - 5, v.expiresAt(), v.items(), v.requestedCategory()));
                     future.complete(true);
                 } else {
                     future.complete(false);
@@ -599,7 +801,8 @@ public class WandererManager {
             rs.getLong("ordered_at"),
             rs.getLong("ready_at"),
             rs.getLong("expires_at"),
-            items
+            items,
+            rs.getString("requested_category")
         );
     }
 

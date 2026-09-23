@@ -63,7 +63,7 @@ public class WarMerchantGui {
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена: <gold>" + merchantItem.price() + " "
+                lore.add(MessageUtils.parse("<gray>Цена: <gold>" + MessageUtils.currencyIcon() + merchantItem.price() + " "
                         + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
                 lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));
                 meta.lore(lore);

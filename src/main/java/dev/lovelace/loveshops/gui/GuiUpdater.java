@@ -37,6 +37,26 @@ public final class GuiUpdater {
         });
     }
 
+    /**
+     * Same "reopen with fresh data" refresh {@link #broadcastSellerGuiUpdate} does for
+     * SellerGui, for AuctionGui — Bukkit never pushes inventory updates on its own, so every
+     * viewer with the auction house open needs an explicit re-render right when a bid is
+     * placed, a lot is bought out, or an auction times out (see AuctionManager), so they see
+     * the new current price, the new leading bidder, and lots that ended disappear from the
+     * active list. The auction list is global (not per-viewer), so every online player with
+     * this GUI open gets refreshed, not just the player who triggered the change.
+     */
+    public static void broadcastAuctionGuiUpdate(LoveShops plugin) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                InventoryView view = p.getOpenInventory();
+                if (SERIALIZER.serialize(view.title()).contains(AuctionGui.TITLE)) {
+                    new AuctionGui(plugin, p).open();
+                }
+            }
+        });
+    }
+
     public static ItemStack createSoldItemSkull() {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();

@@ -82,8 +82,16 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
-            if (slot == 13) {
-                plugin.getWandererManager().startDeal(player).thenAccept(success -> {
+            dev.lovelace.loveshops.models.WandererRequestCategory requestedCategory = switch (slot) {
+                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_TOOLS -> dev.lovelace.loveshops.models.WandererRequestCategory.TOOLS;
+                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_ARMOR -> dev.lovelace.loveshops.models.WandererRequestCategory.ARMOR;
+                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_ENCHANTMENTS -> dev.lovelace.loveshops.models.WandererRequestCategory.ENCHANTMENTS;
+                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_RARE -> dev.lovelace.loveshops.models.WandererRequestCategory.RARE;
+                default -> null;
+            };
+
+            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_STANDARD_DEAL || requestedCategory != null) {
+                plugin.getWandererManager().startDeal(player, requestedCategory).thenAccept(success -> {
                     if (success) {
                         plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
                             org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {

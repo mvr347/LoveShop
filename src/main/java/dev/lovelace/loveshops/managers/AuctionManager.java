@@ -3,6 +3,7 @@ package dev.lovelace.loveshops.managers;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.events.AuctionBidPlacedEvent;
+import dev.lovelace.loveshops.gui.GuiUpdater;
 import dev.lovelace.loveshops.models.AuctionData;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
@@ -276,7 +277,7 @@ public class AuctionManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 LoveEconomy economy = plugin.getEconomy().orElse(null);
                 if (economy == null || economy.balance(bidder) < bidAmount) {
-                    MessageUtils.sendMessage(bidder, "&cНедостаточно средств на балансе!");
+                    MessageUtils.sendMessage(bidder, "&c" + MessageUtils.currencyIcon() + "Недостаточно средств на балансе!");
                     future.complete(false);
                     return;
                 }
@@ -361,12 +362,16 @@ public class AuctionManager {
 
                         final boolean extended = extendedEndsAt > finalAuction.endsAt();
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            MessageUtils.sendMessage(bidder, "&a✓ Ставка принята: " + bidAmount + " монет!");
+                            MessageUtils.sendMessage(bidder, "&a✓ Ставка принята: " + MessageUtils.currencyIcon() + bidAmount + " монет!");
                             if (extended) {
                                 long addedSeconds = extendedEndsAt - System.currentTimeMillis() / 1000;
                                 MessageUtils.sendMessage(bidder, "&eСтавка в последние секунды — аукцион продлён на " + Math.max(0, addedSeconds) + " сек.");
                             }
                             Bukkit.getPluginManager().callEvent(new AuctionBidPlacedEvent(bidder, finalAuction, bidAmount));
+                            // Every player with this auction's GUI open needs to see the new
+                            // price and leading bidder right away — Bukkit doesn't push
+                            // inventory updates on its own (see GuiUpdater.broadcastAuctionGuiUpdate).
+                            GuiUpdater.broadcastAuctionGuiUpdate(plugin);
                             future.complete(true);
                         });
 
@@ -412,7 +417,7 @@ public class AuctionManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 long taxedBuyout = taxedAuctionPrice(buyer, finalAuction.buyoutPrice());
                 if (!plugin.getEconomy().map(e -> e.has(buyer, taxedBuyout)).orElse(false)) {
-                    MessageUtils.sendMessage(buyer, "&cНедостаточно средств для выкупа!");
+                    MessageUtils.sendMessage(buyer, "&c" + MessageUtils.currencyIcon() + "Недостаточно средств для выкупа!");
                     future.complete(false);
                     return;
                 }
@@ -447,6 +452,11 @@ public class AuctionManager {
                         conn.commit();
 
                         Bukkit.getScheduler().runTask(plugin, () -> {
+                            // Lot is 'completed' the instant the UPDATE above commits - every
+                            // viewer's Auction GUI must stop showing it as biddable right away,
+                            // regardless of whether attemptDeliver below actually succeeds.
+                            GuiUpdater.broadcastAuctionGuiUpdate(plugin);
+
                             // has() выше и charge() здесь разделены прыжком на асинхронный
                             // поток и обратно — баланс мог измениться. attemptDeliver
                             // проверяет заново и не выдаёт лот бесплатно, если денег вдруг
@@ -454,7 +464,7 @@ public class AuctionManager {
                             // выдача останется в очереди и будет повторена deliverPendingWins.
                             boolean delivered = attemptDeliver(finalAuction.id(), buyer, itemStack, finalAuction.buyoutPrice());
                             if (delivered) {
-                                MessageUtils.sendMessage(buyer, "&6Лот выкуплен за " + finalAuction.buyoutPrice() + " монет!");
+                                MessageUtils.sendMessage(buyer, "&6Лот выкуплен за " + MessageUtils.currencyIcon() + finalAuction.buyoutPrice() + " монет!");
                             } else {
                                 MessageUtils.sendMessage(buyer, "&cВыкуп оформлен, но списать монеты не удалось — предмет будет выдан, как только на балансе появится нужная сумма.");
                             }
@@ -510,6 +520,10 @@ public class AuctionManager {
 
                 conn.commit();
 
+                // Timeout completion ends the auction just as surely as a buyout does - anyone
+                // with this lot's Auction GUI open must stop seeing it as active.
+                GuiUpdater.broadcastAuctionGuiUpdate(plugin);
+
                 // Если победитель сейчас онлайн — пробуем выдать сразу; если нет (или не
                 // хватило денег прямо сейчас), delivered_at останется NULL и лот подберёт
                 // либо периодическая deliverPendingWins(), либо вход игрока в игру — раньше
@@ -521,7 +535,7 @@ public class AuctionManager {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
                             if (delivered) {
-                                MessageUtils.sendMessage(winner, "&6Поздравляем! Вы выиграли аукцион за " + auction.currentHighestBid() + " монет!");
+                                MessageUtils.sendMessage(winner, "&6Поздравляем! Вы выиграли аукцион за " + MessageUtils.currencyIcon() + auction.currentHighestBid() + " монет!");
                             }
                         });
                     }
@@ -560,7 +574,7 @@ public class AuctionManager {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
                     if (delivered) {
-                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + auction.currentHighestBid() + " монет)!");
+                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + MessageUtils.currencyIcon() + auction.currentHighestBid() + " монет)!");
                     }
                 });
             }
@@ -590,7 +604,7 @@ public class AuctionManager {
                     if (!winner.isOnline()) return;
                     boolean delivered = attemptDeliver(auction.id(), winner, item, auction.currentHighestBid());
                     if (delivered) {
-                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + auction.currentHighestBid() + " монет)!");
+                        MessageUtils.sendMessage(winner, "&6Вам выдан выигранный лот аукциона (" + MessageUtils.currencyIcon() + auction.currentHighestBid() + " монет)!");
                     }
                 });
             }

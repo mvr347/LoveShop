@@ -101,11 +101,11 @@ public class WarMerchantManager {
 
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null || !economy.has(player, merchantItem.price())) {
-            MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+            MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }
         if (!economy.charge(player, merchantItem.price())) {
-            MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+            MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }
 

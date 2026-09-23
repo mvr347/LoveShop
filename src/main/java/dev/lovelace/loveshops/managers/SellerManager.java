@@ -261,7 +261,7 @@ public class SellerManager {
                         .map(tax -> tax.applyToCost(player.getUniqueId(), basePrice))
                         .orElse((long) basePrice);
                 if (economy == null || !economy.has(player, itemPrice)) {
-                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
@@ -290,7 +290,7 @@ public class SellerManager {
                                 // the item out for free; now a failed charge un-sells the row so
                                 // the item isn't lost and isn't given away unpaid.
                                 if (!economy.charge(player, itemPrice)) {
-                                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                                     Bukkit.getAsyncScheduler().runNow(plugin, revertTask -> {
                                         try (Connection revertConn = plugin.getDatabaseManager().getConnection();
                                              PreparedStatement psRevert = revertConn.prepareStatement(
