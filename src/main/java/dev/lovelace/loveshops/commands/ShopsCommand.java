@@ -115,9 +115,9 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
             // для тех, кто по привычке набирает /loveshops reload и т.п.
             case "reload" -> redirectToAdmin(sender, "/loveshopsadmin reload", "loveshops.admin.reload");
             case "npc" -> redirectToAdmin(sender, "/loveshopsadmin npc", "loveshops.admin");
-            case "buyer" -> redirectToAdmin(sender, "/loveshopsadmin buyer", "loveshops.admin.buyer");
-            case "seller", "event" -> redirectToAdmin(sender, "/loveshopsadmin seller", "loveshops.admin.seller");
-            case "wanderer" -> redirectToAdmin(sender, "/loveshopsadmin wanderer", "loveshops.admin.wanderer");
+            case "buyer" -> redirectToAdmin(sender, "/loveshopsadmin status", "loveshops.admin.status");
+            case "seller", "event" -> redirectToAdmin(sender, "/loveshopsadmin event flea", "loveshops.admin.seller");
+            case "wanderer" -> redirectToAdmin(sender, "/loveshopsadmin event wanderer", "loveshops.admin.wanderer");
             default -> sendHelp(sender);
         }
 

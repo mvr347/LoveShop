@@ -3,6 +3,16 @@
 # в его config.yml), а не здесь. LoveShops требует LoveCore и без него не включится.
 
 
+# ===== NPC (привязка к Citizens) =====
+npc:
+  # Дальность луча взгляда для "/loveshopsadmin npc create|delete" без указания id: админ
+  # создаёт и располагает NPC штатными командами Citizens, затем смотрит на него и привязывает
+  # роль LoveShops этой командой - тот же паттерн, что уже используется в LoveClans
+  # (ClansAdminCommand#createNpc) и LoveTweaks (Herald bind). Добавлено 2026-09-23 вместе
+  # с переходом NpcManager на bindNpc(): LoveShops больше не создаёт и не удаляет сам Citizens
+  # NPC, только помечает/снимает метку с уже существующего.
+  bind-distance: 6.0
+
 # ===== СКУПЩИК =====
 buyer:
   enabled: true

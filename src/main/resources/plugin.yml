@@ -19,8 +19,8 @@ commands:
     aliases: [shops, шоп, loveshop, lshops, lshop, buyer, seller, auction, auctioneer, wanderer]
     usage: /loveshops <subcommand>
   loveshopsadmin:
-    description: Административные команды LoveShops (reload, npc, buyer, seller, price, rarity, forbidden, allowed)
-    aliases: [lssa]
+    description: Административные команды LoveShops (npc, status, item, event)
+    aliases: [lspa, lssa]
     usage: /loveshopsadmin <subcommand>
 
 permissions:
@@ -33,14 +33,14 @@ permissions:
   loveshops.admin.delete:
     description: Delete NPC merchant
     default: op
-  loveshops.admin.buyer:
-    description: Set player buyer status override
+  loveshops.admin.status:
+    description: 'Set player buyer status override (/loveshopsadmin status)'
     default: op
   loveshops.admin.seller:
-    description: Force-control the Seller (Барахолка) event schedule
+    description: 'Force-control the flea market event schedule (/loveshopsadmin event flea)'
     default: op
   loveshops.admin.wanderer:
-    description: Manage Wanderer merchant
+    description: 'Manage Wanderer merchant (/loveshopsadmin event wanderer)'
     default: op
   loveshops.wanderer.bypass:
     description: Bypass aggressive playstyle requirement for Wanderer

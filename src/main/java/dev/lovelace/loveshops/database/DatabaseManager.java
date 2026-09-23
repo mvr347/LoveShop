@@ -173,6 +173,12 @@ public class DatabaseManager {
             // аукциона (см. AuctionManager) — иначе лот пропадал безвозвратно. Теперь
             // недоставленные завершённые лоты можно безопасно находить и повторять попытку.
             addColumnIfMissing(stmt, "auctions", "delivered_at", "INTEGER");
+            // "Look at NPC, run a bind command" workflow (2026-09-23, /loveshopsadmin npc
+            // create|delete): the admin creates/positions the NPC with Citizens' own commands
+            // and LoveShops only binds a role onto it by Citizens id, instead of creating and
+            // destroying the NPC itself. NULL means a legacy row or a no-Citizens plain Villager
+            // that LoveShops still fully owns.
+            addColumnIfMissing(stmt, "shops_npcs", "citizens_id", "INTEGER");
         }
     }
 

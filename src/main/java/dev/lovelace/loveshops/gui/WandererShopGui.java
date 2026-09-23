@@ -51,8 +51,15 @@ public class WandererShopGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 54, Component.text(TITLE).color(NamedTextColor.DARK_PURPLE));
 
+        // gui-gen-5 RULE 2/RULE 6: стекло — только в Header (0-8), Row1 (9-17) и Footer
+        // (45-53). Рабочая зона (18-44) стекла не получает вообще, даже на боковых стенках
+        // (18, 26, 27, 35, 36, 44) и под позициями без товара, когда партия короче 21
+        // предмета — раньше стекло заливало все 54 слота разом.
         ItemStack filler = GuiUtils.createFiller();
-        for (int i = 0; i < 54; i++) {
+        for (int i = 0; i <= 17; i++) {
+            inv.setItem(i, filler);
+        }
+        for (int i = 45; i < 54; i++) {
             inv.setItem(i, filler);
         }
 

@@ -32,8 +32,14 @@ public class WandererDealGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(TITLE).color(NamedTextColor.DARK_PURPLE));
 
+        // gui-gen-5 RULE 2/RULE 6: стекло — только в Header (0-8) и Footer (18-26). Рабочая
+        // зона (9-17) стекла не получает — единственный реальный контент здесь (кнопка сделки
+        // в слоте 13), остальные слоты рабочей зоны остаются пустыми, а не стеклянными.
         ItemStack filler = GuiUtils.createFiller();
-        for (int i = 0; i < 27; i++) {
+        for (int i = 0; i <= 8; i++) {
+            inv.setItem(i, filler);
+        }
+        for (int i = 18; i < 27; i++) {
             inv.setItem(i, filler);
         }
 
