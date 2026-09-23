@@ -14,16 +14,21 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
- * Военный торговец - НПС, товары которого доступны только игрокам с достаточно
- * агрессивным стилем игры (LoveCore.BehaviorLevels, ставит LoveBehavior). Как и остальная
- * агрессивная механика в экосистеме (см. LoveClans CombatListener/ClanManager), "агрессивный"
- * значит НИЗКУЮ ступень playstyleLevel (0 - максимально агрессивный, MAX_LEVEL - максимально
- * миролюбивый) - порог задаётся в конфиге, а не жёстко.
+ * Военный торговец ("Странник" в игровом обиходе - см. javadoc {@link dev.lovelace.loveshops.gui.WarMerchantGui})
+ * - НПС, товары которого доступны только игрокам с достаточно агрессивным стилем игры
+ * (LoveCore.BehaviorLevels, ставит LoveBehavior). Как и остальная агрессивная механика в
+ * экосистеме (см. LoveClans CombatListener/ClanManager), "агрессивный" значит НИЗКУЮ ступень
+ * playstyleLevel (0 - максимально агрессивный, MAX_LEVEL - максимально миролюбивый) - порог
+ * задаётся в конфиге, а не жёстко.
  *
  * <p>Без LoveBehavior (сервис недоступен) доступа нет ни у кого - это не обход гейта отключением
  * плагина поведения, а осознанно закрытое по умолчанию состояние.</p>
@@ -83,6 +88,40 @@ public class WarMerchantManager {
     }
 
     /**
+     * Индексы товаров (в каноническом списке {@link #getItems()}), которые торговец предлагает
+     * ПРЯМО СЕЙЧАС - добавлено 2026-09-23 (owner: торговец должен ощущаться как "секретные
+     * сделки", а не статичная лавка). При выключенной ротации (по умолчанию - обратная
+     * совместимость с уже настроенными серверами) возвращает весь ассортимент по порядку, как
+     * и раньше. При включённой - каждые {@code war-merchant.rotation.interval-minutes} минут
+     * выбирает новое случайное подмножество размера {@code war-merchant.rotation.slots}: сид
+     * генератора - номер периода (currentTimeMillis / интервал), поэтому ВСЕ игроки в один и тот
+     * же период видят один и тот же набор (не по игроку) без отдельного планировщика - подмножество
+     * просто пересчитывается заново при каждом открытии меню.
+     *
+     * <p>Цены НЕ меняются в рамках этой ротации - только то, какие товары сейчас доступны.
+     * Более сложная замена (случайные цены, полноценный торг) сознательно не сделана - это
+     * отдельная, гораздо более рискованная фича вне рамок этой правки.</p>
+     */
+    public List<Integer> getRotatedIndices() {
+        List<MerchantItem> items = getItems();
+        if (items.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> allIndices = IntStream.range(0, items.size()).boxed().collect(Collectors.toCollection(ArrayList::new));
+        if (!plugin.getConfig().getBoolean("war-merchant.rotation.enabled", false)) {
+            return allIndices;
+        }
+
+        int intervalMinutes = Math.max(1, plugin.getConfig().getInt("war-merchant.rotation.interval-minutes", 60));
+        int showCount = plugin.getConfig().getInt("war-merchant.rotation.slots", items.size());
+        showCount = Math.max(1, Math.min(showCount, items.size()));
+
+        long period = System.currentTimeMillis() / (intervalMinutes * 60_000L);
+        Collections.shuffle(allIndices, new Random(period));
+        return allIndices.subList(0, showCount);
+    }
+
+    /**
      * Синхронная покупка (весь ассортимент статичен и живёт в config.yml, без БД/async
      * раунд-трипа как у SellerManager) - право доступа и цена всегда пересчитываются из
      * канонического списка по индексу, а не берутся из лора кликнутого предмета в инвентаре.
@@ -120,7 +159,9 @@ public class WarMerchantManager {
     public String randomDenyMessage() {
         List<String> messages = plugin.getConfig().getStringList("war-merchant.messages.deny");
         if (messages.isEmpty()) {
-            return "&cВоенный торговец: Тебе тут делать нечего, миролюбивый. Проваливай.";
+            // Игровое имя "Странник" с 2026-09-23 (см. WarMerchantGui.TITLE) - этот запасной
+            // вариант на случай пустого/удалённого war-merchant.messages.deny в config.yml.
+            return "&cСтранник: Тебе тут делать нечего, миролюбивый. Проваливай.";
         }
         return messages.get((int) (Math.random() * messages.size()));
     }
