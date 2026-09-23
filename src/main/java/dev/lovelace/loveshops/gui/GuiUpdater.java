@@ -3,6 +3,7 @@ package dev.lovelace.loveshops.gui;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -15,7 +16,7 @@ import java.util.List;
 
 public final class GuiUpdater {
 
-    public static final String RED_SKULL_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2VkMWFiYTczZjYzOWY0YmM0MmJkNDgxOTZjNzE1MTk3YmUyNzEyYzNiOTYyYzk3ZWJmOWU5ZWQ4ZWZhMDI1In19fQ==";
+    private static final PlainTextComponentSerializer SERIALIZER = PlainTextComponentSerializer.plainText();
 
     private GuiUpdater() {}
 
@@ -23,7 +24,12 @@ public final class GuiUpdater {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 InventoryView view = p.getOpenInventory();
-                if (view.title().toString().contains(SellerGui.TITLE)) {
+                // Component#toString() is a debug dump of the component tree, not its
+                // rendered text — matching against it is fragile (e.g. breaks for titles
+                // with nested/styled children) and silently leaves stale "in stock" seller
+                // GUIs open for other viewers when a match fails. Use the same plain-text
+                // serialization InventoryClickListener already uses to identify this GUI.
+                if (SERIALIZER.serialize(view.title()).contains(SellerGui.TITLE)) {
                     // Refresh open seller GUI
                     new SellerGui(plugin, p).open();
                 }

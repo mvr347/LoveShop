@@ -1,6 +1,8 @@
 package dev.lovelace.loveshops.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.managers.PriceCalculator;
+import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
@@ -14,6 +16,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class BuyerGui {
 
@@ -30,8 +33,11 @@ public class BuyerGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(TITLE).color(NamedTextColor.GOLD));
 
+        // gui-gen-5: боковые стенки рабочей зоны (9, 17) всегда пустые — стекла в
+        // рабочей зоне не бывает никогда, даже на позициях без контента (RULE 6).
         ItemStack filler = GuiUtils.createFiller();
         for (int i = 0; i < 27; i++) {
+            if (i == 9 || i == 17) continue;
             inv.setItem(i, filler);
         }
 
@@ -39,15 +45,20 @@ public class BuyerGui {
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         // Slot 26: Close button
-        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+        inv.setItem(26, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>", List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
         // Content slots: 10-16 (7 slots)
         int[] contentSlots = new int[]{10, 11, 12, 13, 14, 15, 16};
         int slotIdx = 0;
 
+        // Штраф за повторную сдачу копится в базе, но игроку никогда не показывался:
+        // цена просто падала от захода к заходу. Берём всю историю одним запросом.
+        Map<String, PriceCalculator.SubmissionHistory> history =
+            plugin.getPriceCalculator().getSubmissionHistory(player.getUniqueId());
+
         for (ItemStack item : player.getInventory().getContents()) {
             if (item == null || item.getType() == Material.AIR) continue;
-            if (plugin.getCurrencyManager().isCurrencyItem(item)) continue;
+            if (plugin.getEconomy().map(e -> e.isCoin(item)).orElse(false)) continue;
             if (slotIdx >= contentSlots.length) break;
 
             int price = plugin.getPriceCalculator().calculateBuyPrice(player, item);
@@ -56,7 +67,14 @@ public class BuyerGui {
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
+
+                PriceCalculator.SubmissionHistory submitted = history.get(item.getType().name());
+                if (submitted != null && submitted.penaltyPercent() > 0) {
+                    lore.add(MessageUtils.parse("<red>Вы сдавали это " + submitted.submitCount()
+                        + " раз — цена снижена на " + Math.round(submitted.penaltyPercent()) + "%</red>"));
+                }
+
                 lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— продать скупщику</gray>"));
                 meta.lore(lore);
                 displayItem.setItemMeta(meta);

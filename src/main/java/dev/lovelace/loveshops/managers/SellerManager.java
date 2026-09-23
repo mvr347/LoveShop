@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.GuiUpdater;
 import dev.lovelace.loveshops.models.BuyerItemData;
@@ -22,13 +23,11 @@ import java.util.concurrent.CompletableFuture;
 public class SellerManager {
 
     private final LoveShops plugin;
-    private final CurrencyManager currencyManager;
     private boolean active = false;
     private Boolean forceActiveOverride = null;
 
-    public SellerManager(LoveShops plugin, CurrencyManager currencyManager) {
+    public SellerManager(LoveShops plugin) {
         this.plugin = plugin;
-        this.currencyManager = currencyManager;
     }
 
     public boolean isSellerActive() {
@@ -163,20 +162,18 @@ public class SellerManager {
             }
 
             final BuyerItemData finalItemData = itemData;
-            final int itemPrice = finalPrice;
             final ItemStack itemStack = ItemStackConverter.itemStackFromBase64(finalItemData.itemData());
+            final int basePrice = finalPrice;
 
-            // Main thread checks: balance + inventory capacity
+            LoveEconomy economy = plugin.getEconomy().orElse(null);
+
+            // Main thread check: balance
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (currencyManager.getPlayerBalance(player) < itemPrice) {
+                final long itemPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                        .map(tax -> tax.applyToCost(player.getUniqueId(), basePrice))
+                        .orElse((long) basePrice);
+                if (economy == null || !economy.has(player, itemPrice)) {
                     MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
-                    future.complete(false);
-                    return;
-                }
-
-                if (!currencyManager.canFitItem(player, itemStack, itemPrice)) {
-                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-buy-message", "&cВаш инвентарь заполнен! Освободите место для товара.");
-                    MessageUtils.sendMessage(player, fullMsg);
                     future.complete(false);
                     return;
                 }
@@ -199,9 +196,31 @@ public class SellerManager {
 
                             // Grant item on main thread
                             Bukkit.getScheduler().runTask(plugin, () -> {
-                                currencyManager.removeCurrency(player, itemPrice);
+                                // charge() can fail here even though has() passed on the earlier
+                                // check above (physical-coin economy, balance can change during
+                                // the async round-trip we just made). Ignoring that used to hand
+                                // the item out for free; now a failed charge un-sells the row so
+                                // the item isn't lost and isn't given away unpaid.
+                                if (!economy.charge(player, itemPrice)) {
+                                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                                    Bukkit.getAsyncScheduler().runNow(plugin, revertTask -> {
+                                        try (Connection revertConn = plugin.getDatabaseManager().getConnection();
+                                             PreparedStatement psRevert = revertConn.prepareStatement(
+                                                 "UPDATE buyer_inventory SET sold_at = NULL WHERE id = ?")) {
+                                            psRevert.setInt(1, itemId);
+                                            psRevert.executeUpdate();
+                                        } catch (SQLException e) {
+                                            plugin.getLogger().severe("Error reverting failed seller purchase #" + itemId + ": " + e.getMessage());
+                                        }
+                                        GuiUpdater.broadcastSellerGuiUpdate(plugin, itemId);
+                                    });
+                                    future.complete(false);
+                                    return;
+                                }
                                 if (itemStack != null) {
-                                    player.getInventory().addItem(itemStack);
+                                    for (ItemStack extra : player.getInventory().addItem(itemStack).values()) {
+                                        player.getWorld().dropItemNaturally(player.getLocation(), extra);
+                                    }
                                 }
                                 MessageUtils.sendMessage(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
 

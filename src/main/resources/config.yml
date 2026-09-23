@@ -1,14 +1,6 @@
-# ===== ВАЛЮТА И ИНТЕГРАЦИЯ =====
-currency:
-  type: "itemsadder"                          # 'itemsadder', 'executableitems', or 'vault'
-  currency-item: "copper_coin"                # ID фоллбек кастомного предмета
-  currency-display-name: "Монеты"             # Название для сообщений
-  itemsadder-coins:
-    copper_coin: 1
-    iron_coin: 10
-    gold_coin: 100
-    diamond_coin: 1000
-    netherite_coin: 10000
+# ===== ВАЛЮТА =====
+# Валюта — общая для всей экосистемы, настраивается в LoveCore (economy.denominations
+# в его config.yml), а не здесь. LoveShops требует LoveCore и без него не включится.
 
 
 # ===== СКУПЩИК =====
@@ -16,7 +8,7 @@ buyer:
   enabled: true
   base-price-config:
     type: "config"                            # 'config' или 'nbt'
-    default-price: 100                        # если не найдена в config
+    default-price: 75                         # если не найдена в config (было 100, снижено на четверть — см. prices-config ниже)
   
   price-variance:
     min-percent: -30                          # минимальная вариативность
@@ -61,6 +53,7 @@ seller:
     noise-min-percent: -10                    # случайный шум цикла (мин)
     noise-max-percent: 10                     # случайный шум цикла (макс)
     min-multiplier: 0.3                       # минимальный итоговый множитель цены
+    trend-threshold-percent: 5                # на сколько цена должна уйти от спокойной, чтобы в меню показать тренд
 
   messages:
     arrival:
@@ -75,6 +68,20 @@ auctioneer:
   auction-duration-hours: 24                  # длительность аукциона
   price-threshold: 400                        # цена скупки, начиная с которой предмет уходит на аукцион, а не на барахолку
   buyout-multiplier: 2.5                      # цена мгновенного выкупа = стартовая цена * множитель
+
+  # Редкие/зачарованные предметы уходят на аукцион независимо от price-threshold выше.
+  route-rare-items: true
+  # Минимальная редкость (COMMON/UNCOMMON/RARE/EPIC, см. org.bukkit.inventory.ItemRarity),
+  # начиная с которой предмет считается "редким" — фиолетово-золотистые цвета в тултипе ванильи.
+  # Работает только для предметов, у которых явно проставлен компонент редкости; для
+  # обычных зачарованных вещей без такого компонента срабатывает отдельная проверка на
+  # зачарования (всегда включена, не зависит от этого порога).
+  min-rarity: "RARE"
+
+  anti-snipe:
+    enabled: true
+    threshold-seconds: 30                     # ставка позже этого времени до конца продлевает аукцион
+    extension-seconds: 30                     # на сколько продлевать от момента ставки
 
   bid-step:
     type: "percentage"                        # 'percentage' или 'fixed'
@@ -91,14 +98,85 @@ protection:
   gui-update-on-purchase: true                # обновлять GUI по событию при покупке
   item-already-sold-message: "&cЭтот предмет уже куплен другим игроком."
   insufficient-funds: "&cНедостаточно средств!"
-  inventory-full-sell-message: "&cУ вас нет свободного места в инвентаре для получения монет!"
-  inventory-full-buy-message: "&cВаш инвентарь заполнен! Освободите место для товара."
 
   
 placeholders:
   enabled: true                               # включить PlaceholderAPI интеграцию
 
+# ===== "ЖИВЫЕ" НПС: РЕАКЦИЯ НА ВЕЖЛИВОСТЬ/СТИЛЬ ИГРЫ (LoveBehavior) =====
+# Срабатывает при клике на любого НПС (Скупщик/Барахолка/Аукционист), до открытия
+# GUI. Это отдельный, более ранний слой поверх ручного /lssa status у Скупщика —
+# тот статус (buyer_reputation_overrides) как проверялся, так и проверяется отдельно
+# в момент финализации сделки Скупщика, здесь не участвует. Без LoveBehavior секция
+# не действует (открытие GUI как раньше).
+npc-dialogue:
+  reject:
+    enabled: true                             # блокировать открытие GUI для ужасной вежливости/агрессивного стиля
+    terrible-politeness:
+      - "Не люблю таких, как ты. Проваливай."
+      - "О тебе слишком много говорят плохого. Уходи."
+      - "С такими манерами тебе тут не рады."
+    aggressive-playstyle:
+      - "Спокойнее! Или у меня для тебя ничего нет."
+      - "Твой агрессивный настрой мне не нравится. Ступай своей дорогой."
+      - "Не хочу с тобой дел иметь — слишком буйный."
+  ambient:
+    enabled: true                             # необязательные фразы-настроение, не блокируют GUI
+    chance: 0.35                              # шанс сказать фразу при открытии GUI
+    terrible-politeness:
+      - "*смотрит на тебя с презрением*"
+      - "Ну и тип..."
+    aggressive-playstyle:
+      - "*настороженно косится*"
+      - "Только без глупостей."
+    friendly:
+      - "О, рад тебя видеть!"
+      - "С тобой всегда приятно иметь дело."
+      - "Заходи почаще, доброму человеку тут всегда рады."
+
+# ===== ВОЕННЫЙ ТОРГОВЕЦ (ТОЛЬКО ДЛЯ АГРЕССИВНОГО СТИЛЯ ИГРЫ) =====
+# НПС нового типа "warmerchant" (создаётся через /loveshopsadmin npc create warmerchant <Имя>),
+# ассортимент которого доступен только игрокам с достаточно агрессивным стилем игры
+# (LoveCore.BehaviorLevels, ставит LoveBehavior). Как и остальная агрессивная механика в
+# экосистеме (см. LoveClans war.aggressive-playstyle-bonus) - "агрессивный" значит НИЗКУЮ
+# ступень playstyleLevel, не высокую. Без LoveBehavior доступа нет ни у кого.
+war-merchant:
+  enabled: true
+  playstyle-threshold: 0
+  messages:
+    deny:
+      - "Военный торговец: Тебе тут делать нечего, миролюбивый. Проваливай."
+      - "Военный торговец: Это не для тебя. Здесь торгуют только с теми, кто не боится крови."
+      - "Военный торговец: Возвращайся, когда перестанешь бояться сражений."
+  # material - любой Material; price - цена в валюте LoveCore; enchantments - необязательная
+  # карта ИМЯ_ЗАЧАРОВАНИЯ_В_ВЕРХНЕМ_РЕГИСТРЕ: уровень (те же ключи, что у /enchant и в loot-таблицах).
+  items:
+    - material: DIAMOND_SWORD
+      price: 800
+      enchantments: { SHARPNESS: 3, FIRE_ASPECT: 1 }
+    - material: CROSSBOW
+      price: 650
+      enchantments: { QUICK_CHARGE: 2, PIERCING: 2 }
+    - material: NETHERITE_AXE
+      price: 1400
+      enchantments: { SHARPNESS: 2, UNBREAKING: 3 }
+    - material: SHIELD
+      price: 300
+      enchantments: { }
+    - material: TOTEM_OF_UNDYING
+      price: 2000
+      enchantments: { }
+
 # ===== ПОЗИЦИИ ПРЕДМЕТОВ В CONFIG =====
+# Базовые цены скупщика были срезаны примерно на 25% (владелец сервера сообщил, что
+# скупщик отдаёт слишком много монет). Это самый прямой и предсказуемый рычаг: он
+# действует до множителей variance/reputation-bonus/repetition-penalty ниже, так что
+# соотношение между ними и итоговый разброс цены не меняются — меняется только база.
+# Проверьте эти значения в игре и подправьте под свою экономику при необходимости.
+# Обычные и редкие предметы теперь в отдельном файле prices.yml — см. common/rare там.
+# Здесь остаются только клановые артефакты LoveClans: цена по типу, а не по материалу,
+# им отдельный список не нужен. Выше порога аукциона (auctioneer.price-threshold),
+# поэтому артефакт уходит на торги, а не на барахолку.
 prices-config:
   DIAMOND: 500
   GOLD_INGOT: 150
@@ -139,6 +217,7 @@ wanderer:
   playstyle-requirement:
     enabled: true
     required-style: "aggressive"                # Требуемый стиль: aggressive
+    playstyle-threshold: 0                      # Порог в LoveCore.BehaviorLevels (0 = максимальная агрессия)
 
   messages:
     not-aggressive:

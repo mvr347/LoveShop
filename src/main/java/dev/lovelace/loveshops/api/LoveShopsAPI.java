@@ -29,4 +29,14 @@ public interface LoveShopsAPI {
     CompletableFuture<Boolean> placeAuctionBid(Player bidder, int auctionId, int bidAmount);
 
     List<NpcData> getAllNpcs();
+
+    /**
+     * Creates an auction lot for an item supplied by another plugin (e.g. LoveBrew routing a
+     * top-quality, long-aged beverage to the Auctioneer instead of an instant NPC sale). The
+     * item is not taken from any inventory — the caller is responsible for removing it from
+     * wherever it came from before/after invoking this.
+     * @param startingPrice opening bid, typically the caller's own formula price
+     * @return a future completing with the new auction's id
+     */
+    CompletableFuture<Integer> createExternalAuction(ItemStack item, int startingPrice);
 }

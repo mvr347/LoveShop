@@ -13,10 +13,12 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 
+import dev.lovelace.loveshops.textures.HeadTextures;
+
 public class WandererWaitingGui {
 
     public static final String TITLE = "Странник (В пути)";
-    public static final String HOURGLASS_HEAD_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZmM4MDM5MmJhMGE0MjkxMWU1NTgwNDM3OTExZGFkNTVjODE2NDExNmExMDg5Y2YxMWRlYjY5Y2FlM2QxYmEzIn19fQ==";
+    public static final String HOURGLASS_HEAD_BASE64 = HeadTextures.WANDERER_WAITING;
 
     private final LoveShops plugin;
     private final Player player;

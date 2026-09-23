@@ -3,8 +3,10 @@ package dev.lovelace.loveshops.managers;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.BuyerItemData;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -28,12 +30,94 @@ public class PriceCalculator {
 
     public int getBasePrice(ItemStack item) {
         if (item == null) return 0;
+
+        // Клановые артефакты ценятся не по материалу, а по типу: иначе боевой рог
+        // ушёл бы на барахолку по цене обычного предмета того же материала.
+        String artifactType = artifactTypeOf(item);
+        if (artifactType != null) {
+            int artifactPrice = plugin.getConfig().getInt("prices-config.artifacts." + artifactType, -1);
+            if (artifactPrice > 0) {
+                return artifactPrice;
+            }
+            return plugin.getConfig().getInt("prices-config.artifacts.default-price", 2500);
+        }
+
         String materialName = item.getType().name();
-        int configuredPrice = plugin.getConfig().getInt("prices-config." + materialName, -1);
+
+        // Редкий предмет с явно заданной ценой (см. prices.yml — rare.<материал>.price)
+        // перебивает и обычную цену, и цену по формуле: если админ вручную задал цену
+        // лота для этого материала, значит так и надо.
+        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(materialName);
+        if (override.isPresent() && override.get().price() != null) {
+            return override.get().price();
+        }
+
+        int configuredPrice = plugin.getPricesManager().getCommonPrice(materialName, -1);
         if (configuredPrice > 0) {
             return configuredPrice;
         }
-        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 100);
+        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 75);
+    }
+
+    /**
+     * Тип кланового артефакта, если предмет им является. Читается прямо из метки,
+     * которую ставит LoveClans, — так связка работает без зависимости на его классы
+     * и молча выключается, если плагин кланов на сервере не стоит.
+     */
+    public String artifactTypeOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        NamespacedKey key = new NamespacedKey("loveclans", "artifact");
+        return item.getItemMeta().getPersistentDataContainer()
+                .get(key, PersistentDataType.STRING);
+    }
+
+    /**
+     * Rare/enchanted items get routed to the Auctioneer instead of a flat per-material buyout
+     * — see BuyerManager#processSale. Two independent signals: an explicit item rarity
+     * (org.bukkit.inventory.ItemRarity, available since this project's Paper API 26.2 — the
+     * purple/gold-ish vanilla tooltip colors) at or above the configured minimum, or any
+     * enchantment on the item (covers enchanted gear that vanilla doesn't always tag with a
+     * distinct rarity component).
+     */
+    public boolean isRareItem(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+
+        // Ручная метка (prices.yml — rare.<материал>.rare) перебивает автоматическое
+        // определение в обе стороны: true — принудительно на аукцион, даже если авто-проверка
+        // ниже ничего не заметила; false — принудительно исключить, даже если предмет
+        // зачарован или несёт компонент редкости (например, авто-проверка ошиблась).
+        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(item.getType().name());
+        if (override.isPresent()) {
+            return override.get().rare();
+        }
+
+        if (!item.hasItemMeta()) {
+            return false;
+        }
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta.hasEnchants()) {
+            return true;
+        }
+        if (meta.hasRarity()) {
+            return rarityMeetsThreshold(meta.getRarity());
+        }
+        return false;
+    }
+
+    /** Достигает ли редкость configured-порога (auctioneer.min-rarity, по умолчанию RARE). */
+    public boolean rarityMeetsThreshold(org.bukkit.inventory.ItemRarity rarity) {
+        String minRarityName = plugin.getConfig().getString("auctioneer.min-rarity", "RARE");
+        try {
+            org.bukkit.inventory.ItemRarity minRarity = org.bukkit.inventory.ItemRarity.valueOf(minRarityName.toUpperCase(java.util.Locale.ROOT));
+            return rarity.ordinal() >= minRarity.ordinal();
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("Некорректное значение auctioneer.min-rarity: " + minRarityName);
+            return false;
+        }
     }
 
     public double getRandomVariancePercent() {
@@ -61,25 +145,87 @@ public class PriceCalculator {
         return 0.0;
     }
 
-    public int getReputationBonusPercent(Player player) {
-        // Soft integration with LoveBehavior API if available
-        int defaultGood = plugin.getConfig().getInt("buyer.reputation-bonus.good-status", 20);
-        
-        try {
-            Class<?> apiClass = Class.forName("dev.lovelace.lovebehavior.api.LoveBehaviorAPI");
-            Object apiInstance = Bukkit.getServicesManager().load(apiClass);
-            if (apiInstance != null) {
-                // Call getReputation(UUID) reflectively
-                var method = apiClass.getMethod("getReputation", UUID.class);
-                Object repStatus = method.invoke(apiInstance, player.getUniqueId());
-                if ("good".equalsIgnoreCase(String.valueOf(repStatus))) {
-                    return defaultGood;
-                }
-            }
-        } catch (Exception ignored) {
-            // LoveBehavior not installed or different API structure
+    /** История сдачи одного типа предмета: сколько раз сдавали и на сколько за это срезана цена. */
+    public record SubmissionHistory(int submitCount, double penaltyPercent) {}
+
+    /**
+     * Вся история сдачи предмета игроком одним запросом — для меню скупщика,
+     * где иначе пришлось бы дёргать базу на каждый предмет в инвентаре.
+     */
+    public Map<String, SubmissionHistory> getSubmissionHistory(UUID playerUuid) {
+        Map<String, SubmissionHistory> history = new HashMap<>();
+        if (!plugin.getConfig().getBoolean("buyer.repetition-penalty.enabled", true)) {
+            return history;
         }
-        return 0;
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                 "SELECT item_type, submit_count, price_penalty_percent FROM buyer_prices_history WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                history.put(rs.getString("item_type"),
+                    new SubmissionHistory(rs.getInt("submit_count"), rs.getDouble("price_penalty_percent")));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Error reading submission history: " + e.getMessage());
+        }
+        return history;
+    }
+
+    /** Куда движется цена лота относительно спокойной цены без спроса, предложения и шума. */
+    public enum PriceTrend { RISING, FALLING, STABLE }
+
+    /** Цена лота без динамики — только базовая цена и наценка барахолки. */
+    public int getNeutralSellPrice(int basePrice) {
+        double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
+        return Math.max(1, (int) Math.round(basePrice * (1.0 + markup / 100.0)));
+    }
+
+    /**
+     * Тренд цены лота. Спрос, предложение и шум цикла уже собираются в базе,
+     * но игрок их не видел — цена просто менялась между заходами в меню.
+     */
+    public PriceTrend getTrend(int basePrice, int currentPrice) {
+        int neutral = getNeutralSellPrice(basePrice);
+        if (neutral <= 0) return PriceTrend.STABLE;
+
+        double thresholdPercent = plugin.getConfig().getDouble("seller.dynamic-pricing.trend-threshold-percent", 5.0);
+        double deltaPercent = (currentPrice - neutral) * 100.0 / neutral;
+
+        if (deltaPercent > thresholdPercent) return PriceTrend.RISING;
+        if (deltaPercent < -thresholdPercent) return PriceTrend.FALLING;
+        return PriceTrend.STABLE;
+    }
+
+    /**
+     * Надбавка или штраф к цене скупки по репутации игрока. Раньше здесь была рефлексия на
+     * {@code dev.lovelace.lovebehavior.api.LoveBehaviorAPI.getReputation(UUID)} — пакета с таким
+     * именем в LoveBehavior нет и не было (реальный — {@code me.lovelace.lovebehavior.api}), так
+     * что интеграция не срабатывала никогда, и всё, кроме «good», давало ровно ноль.
+     *
+     * <p>{@code ReputationOracle} ядра возвращает пять ступеней вместо одной строки: bad-status
+     * из конфига (раньше не использовался вовсе) теперь тоже применяется.</p>
+     */
+    public int getReputationBonusPercent(Player player) {
+        if (Bukkit.getPluginManager().getPlugin("LoveCore") == null) {
+            return 0;
+        }
+        try {
+            return dev.lovelace.lovecore.api.LoveCore
+                    .service(dev.lovelace.lovecore.api.social.ReputationOracle.class)
+                    .map(oracle -> reputationBonusFor(oracle.tier(player.getUniqueId())))
+                    .orElse(0);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private int reputationBonusFor(dev.lovelace.lovecore.api.social.ReputationOracle.Tier tier) {
+        return switch (tier) {
+            case RESPECTED, GOOD -> plugin.getConfig().getInt("buyer.reputation-bonus.good-status", 20);
+            case BAD, OUTCAST -> plugin.getConfig().getInt("buyer.reputation-bonus.bad-status", -50);
+            case NEUTRAL -> 0;
+        };
     }
 
     public int calculateBuyPrice(Player player, ItemStack item) {

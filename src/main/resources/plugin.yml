@@ -1,7 +1,7 @@
 name: LoveShops
 version: 1.0.0
 main: dev.lovelace.loveshops.LoveShops
-api-version: '1.21'
+api-version: '26.2'
 description: Advanced trading system with NPC merchants (Buyer, Seller, Auctioneer)
 author: Lovelace
 
@@ -9,14 +9,19 @@ softdepend:
   - LoveBehavior
   - PlaceholderAPI
   - ItemsAdder
-  - ExecutableItems
   - Citizens
+  - LoveCore
+  - LoveBrewing
 
 commands:
   loveshops:
     description: LoveShops main administration and trading command
-    aliases: [shops, loveshop, lshops, lshop, buyer, seller, auction, auctioneer, wanderer]
+    aliases: [shops, шоп, loveshop, lshops, lshop, buyer, seller, auction, auctioneer, wanderer]
     usage: /loveshops <subcommand>
+  loveshopsadmin:
+    description: Административные команды LoveShops (reload, npc, buyer, seller, price, rarity, forbidden, allowed)
+    aliases: [lssa]
+    usage: /loveshopsadmin <subcommand>
 
 permissions:
   loveshops.admin:
@@ -31,6 +36,9 @@ permissions:
   loveshops.admin.buyer:
     description: Set player buyer status override
     default: op
+  loveshops.admin.seller:
+    description: Force-control the Seller (Барахолка) event schedule
+    default: op
   loveshops.admin.wanderer:
     description: Manage Wanderer merchant
     default: op
@@ -41,5 +49,14 @@ permissions:
     description: Reload plugin configuration
     default: op
   loveshops.admin.open:
-    description: Open GUI menu for specified player
+    description: Open shop GUI menus by command (self or for another player) — without it, the command produces no output at all
+    default: op
+  loveshops.admin.price:
+    description: Set the price of the item held in hand
+    default: op
+  loveshops.admin.rarity:
+    description: Set the rarity of the item held in hand
+    default: op
+  loveshops.admin.forbidden:
+    description: Forbid/allow selling the item held in hand
     default: op

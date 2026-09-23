@@ -4,9 +4,11 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
+import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -14,6 +16,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Optional;
 
@@ -49,10 +52,15 @@ public class InventoryClickListener implements Listener {
                 plugin.getWandererManager().handleWandererInteraction(player);
                 return;
             }
+            if (npc.type().equalsIgnoreCase("warmerchant") && !plugin.getWarMerchantManager().isEligible(player.getUniqueId())) {
+                MessageUtils.sendMessage(player, plugin.getWarMerchantManager().randomDenyMessage());
+                return;
+            }
             switch (npc.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
+                case "warmerchant" -> new WarMerchantGui(plugin, player).open();
             }
         }
     }
@@ -193,6 +201,27 @@ public class InventoryClickListener implements Listener {
                 int itemId = extractIdFromLore(clicked);
                 if (itemId > 0) {
                     plugin.getSellerManager().buyItem(player, itemId);
+                }
+            }
+        } else if (titleText.contains(WarMerchantGui.TITLE)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 27) return;
+
+            if (slot == 26) {
+                player.closeInventory();
+                return;
+            }
+
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked != null && clicked.hasItemMeta()) {
+                Integer index = clicked.getItemMeta().getPersistentDataContainer()
+                        .get(new NamespacedKey(plugin, "war_merchant_index"), PersistentDataType.INTEGER);
+                if (index != null) {
+                    boolean success = plugin.getWarMerchantManager().purchase(player, index);
+                    if (success) {
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> new WarMerchantGui(plugin, player).open());
+                    }
                 }
             }
         } else if (titleText.contains(AuctionGui.TITLE)) {

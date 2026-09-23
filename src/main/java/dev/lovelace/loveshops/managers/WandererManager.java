@@ -2,6 +2,9 @@ package dev.lovelace.loveshops.managers;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import dev.lovelace.lovecore.api.LoveCore;
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
+import dev.lovelace.lovecore.api.social.BehaviorLevels;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.WandererDeal;
 import dev.lovelace.loveshops.models.WandererDealItem;
@@ -26,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WandererManager {
 
     private final LoveShops plugin;
-    private final CurrencyManager currencyManager;
     private final Gson gson = new Gson();
     private final Type itemsListType = new TypeToken<List<WandererDealItem>>() {}.getType();
     private final Random random = new Random();
@@ -35,9 +37,8 @@ public class WandererManager {
     private Boolean forceActiveOverride = null;
     private final Map<UUID, WandererDeal> dealCache = new ConcurrentHashMap<>();
 
-    public WandererManager(LoveShops plugin, CurrencyManager currencyManager) {
+    public WandererManager(LoveShops plugin) {
         this.plugin = plugin;
-        this.currencyManager = currencyManager;
     }
 
     // ==========================================
@@ -126,6 +127,15 @@ public class WandererManager {
         }
 
         if (player.hasPermission("loveshops.wanderer.bypass") || player.hasPermission("loveshops.admin")) {
+            return CompletableFuture.completedFuture(true);
+        }
+
+        int threshold = plugin.getConfig().getInt("wanderer.playstyle-requirement.playstyle-threshold",
+                plugin.getConfig().getInt("wanderer.playstyle-threshold", 0));
+        boolean levelCheck = LoveCore.service(BehaviorLevels.class)
+                .map(levels -> levels.playstyleLevel(player.getUniqueId()) <= threshold)
+                .orElse(false);
+        if (levelCheck) {
             return CompletableFuture.completedFuture(true);
         }
 
@@ -342,18 +352,25 @@ public class WandererManager {
         int expireHours = plugin.getConfig().getInt("wanderer.deal.deal-expire-hours", 48);
 
         // Check balance on primary thread
-        if (cost > 0 && currencyManager.getPlayerBalance(player) < cost) {
-            String msg = plugin.getConfig().getString("wanderer.messages.insufficient-funds-deal",
-                "<red>Недостаточно монет! Требуется: <gold>{cost} {currency}</gold></red>")
-                .replace("{cost}", String.valueOf(cost))
-                .replace("{currency}", currencyManager.getCurrencyName());
-            MessageUtils.sendMessage(player, msg);
-            future.complete(false);
-            return future;
-        }
+        LoveEconomy economy = plugin.getEconomy().orElse(null);
+        String currencyName = economy != null ? economy.currencyName() : "монет";
 
         if (cost > 0) {
-            currencyManager.removeCurrency(player, cost);
+            if (economy == null || !economy.has(player, cost)) {
+                String msg = plugin.getConfig().getString("wanderer.messages.insufficient-funds-deal",
+                    "<red>Недостаточно монет! Требуется: <gold>{cost} {currency}</gold></red>")
+                    .replace("{cost}", String.valueOf(cost))
+                    .replace("{currency}", currencyName);
+                MessageUtils.sendMessage(player, msg);
+                future.complete(false);
+                return future;
+            }
+
+            if (!economy.charge(player, cost)) {
+                MessageUtils.sendMessage(player, "<red>Ошибка списания средств!</red>");
+                future.complete(false);
+                return future;
+            }
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -394,8 +411,8 @@ public class WandererManager {
             } catch (SQLException e) {
                 plugin.getLogger().severe("Ошибка создания сделки Странника: " + e.getMessage());
                 // Refund if failed
-                if (cost > 0) {
-                    Bukkit.getScheduler().runTask(plugin, () -> currencyManager.giveCurrency(player, cost));
+                if (cost > 0 && economy != null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> economy.give(player, cost));
                 }
                 future.complete(false);
             }
@@ -436,21 +453,23 @@ public class WandererManager {
 
             // Primary thread balance and inventory checks
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (currencyManager.getPlayerBalance(player) < target.price()) {
+                LoveEconomy economy = plugin.getEconomy().orElse(null);
+                if (economy == null || !economy.has(player, target.price())) {
                     MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
 
-                if (!currencyManager.canFitItem(player, itemStack, target.price())) {
-                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.inventory-full-buy-message", "&cВаш инвентарь заполнен! Освободите место."));
+                if (!economy.charge(player, target.price())) {
+                    MessageUtils.sendMessage(player, plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
 
-                // Deduct and give item
-                currencyManager.removeCurrency(player, target.price());
-                player.getInventory().addItem(itemStack);
+                // Give item (drop any overflow)
+                for (ItemStack extra : player.getInventory().addItem(itemStack).values()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), extra);
+                }
                 MessageUtils.sendMessage(player, "<green>Вы успешно приобрели товар у Странника!</green>");
 
                 // Update deal items list

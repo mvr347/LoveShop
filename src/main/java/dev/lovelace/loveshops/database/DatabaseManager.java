@@ -4,9 +4,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.sql.*;
+import java.util.regex.Pattern;
 
 public class DatabaseManager {
 
+    private static final Pattern VALID_IDENTIFIER = Pattern.compile("^[a-z_][a-z0-9_]*$", Pattern.CASE_INSENSITIVE);
     private final JavaPlugin plugin;
     private Connection connection;
 
@@ -165,10 +167,20 @@ public class DatabaseManager {
             addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
             addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
             addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
+            // Отдельно от status='completed': completed означает «победитель определён»,
+            // delivered_at — «предмет физически выдан и монеты списаны». Раньше выдача
+            // победителю происходила только если он был онлайн ровно в момент завершения
+            // аукциона (см. AuctionManager) — иначе лот пропадал безвозвратно. Теперь
+            // недоставленные завершённые лоты можно безопасно находить и повторять попытку.
+            addColumnIfMissing(stmt, "auctions", "delivered_at", "INTEGER");
         }
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {
+        if (!VALID_IDENTIFIER.matcher(table).matches() || !VALID_IDENTIFIER.matcher(column).matches()) {
+            plugin.getLogger().warning("Invalid table or column name: " + table + ", " + column);
+            return;
+        }
         try {
             stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
         } catch (SQLException e) {

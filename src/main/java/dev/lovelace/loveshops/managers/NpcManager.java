@@ -170,6 +170,7 @@ public class NpcManager {
                 case "seller" -> v.setProfession(Villager.Profession.ARMORER);
                 case "auctioneer" -> v.setProfession(Villager.Profession.LIBRARIAN);
                 case "wanderer" -> v.setProfession(Villager.Profession.FLETCHER);
+                case "warmerchant" -> v.setProfession(Villager.Profession.TOOLSMITH);
             }
         });
 

@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.gui;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.WandererDeal;
 import dev.lovelace.loveshops.models.WandererDealItem;
@@ -16,6 +17,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import dev.lovelace.loveshops.textures.HeadTextures;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,8 +27,8 @@ import java.util.Map;
 public class WandererShopGui {
 
     public static final String TITLE = "Странник (Контрабанда)";
-    public static final String INFO_HEAD_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzkxZDZkNmFmNWNmMmRjZDE5MDA1NmY2YmMyNmFlZTNjMmRhNWNmYzM2OTUxNWE0MmE5NWU0NmYzNmQzN2I0In19fQ==";
-    public static final String RESET_HEAD_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNmZhNzY0MTk3N2EzNmE3MTFkZGMxNWE4NTVlZThkZGYyYjQ4ZDY2MWQ4MzczM2FlY2FiZjQ3OTQyZDU3MzkxIn19fQ==";
+    public static final String INFO_HEAD_BASE64 = HeadTextures.WANDERER_INFO;
+    public static final String RESET_HEAD_BASE64 = HeadTextures.WANDERER_RESET;
 
     // Content slots for 54-slot menu (Golden Rule 5)
     public static final int[] CONTENT_SLOTS = new int[]{
@@ -112,7 +115,8 @@ public class WandererShopGui {
                         if (meta != null) {
                             List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                             lore.add(Component.empty());
-                            lore.add(MessageUtils.parse("<gray>Цена: <gold>" + item.price() + " " + plugin.getCurrencyManager().getCurrencyName() + "</gold></gray>"));
+                            String currency = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
+                            lore.add(MessageUtils.parse("<gray>Цена: <gold>" + item.price() + " " + currency + "</gold></gray>"));
                             lore.add(MessageUtils.parse("<green><bold>ЛКМ</bold> </green><gray>— приобрести предмет</gray>"));
                             meta.lore(lore);
                             display.setItemMeta(meta);

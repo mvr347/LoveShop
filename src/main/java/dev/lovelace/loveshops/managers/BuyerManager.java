@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
@@ -15,20 +16,27 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 
 public class BuyerManager {
 
     private final LoveShops plugin;
     private final PriceCalculator priceCalculator;
-    private final CurrencyManager currencyManager;
     private final Random random = new Random();
 
-    public BuyerManager(LoveShops plugin, PriceCalculator priceCalculator, CurrencyManager currencyManager) {
+    // Гвард от повторного входа: без него быстрый двойной клик (или два параллельных
+    // вызова через LoveShopsAPI) успевают оба найти один и тот же стак в инвентаре ДО того,
+    // как первый вызов дойдёт до его фактического удаления (оно раньше откладывалось до
+    // возврата асинхронной записи в БД) — итог: предмет продан один раз, а монеты выданы
+    // дважды. Один "в процессе" слот на игрока за раз.
+    private final Set<UUID> processingSales = ConcurrentHashMap.newKeySet();
+
+    public BuyerManager(LoveShops plugin, PriceCalculator priceCalculator) {
         this.plugin = plugin;
         this.priceCalculator = priceCalculator;
-        this.currencyManager = currencyManager;
     }
 
     public CompletableFuture<String> getPlayerStatus(UUID playerUuid) {
@@ -98,15 +106,40 @@ public class BuyerManager {
             return future;
         }
 
+        // Единая точка входа для скупщика, барахолки (channel='seller') и аукциона по
+        // порогу цены — запрет здесь перекрывает все три канала разом. AuctionManager
+        // проверяет это же ещё раз на своей стороне для внешних вызовов (например, из LoveBrew).
+        if (plugin.getForbiddenManager().isForbidden(item)) {
+            player.sendMessage(MessageUtils.parse("<red>Этот предмет запрещено продавать!</red>"));
+            future.complete(false);
+            return future;
+        }
+
+        if (!processingSales.add(player.getUniqueId())) {
+            // Уже есть сделка в процессе у этого игрока — второй клик игнорируем, а не
+            // запускаем параллельно (см. комментарий у объявления processingSales).
+            future.complete(false);
+            return future;
+        }
+
         getPlayerStatus(player.getUniqueId()).thenAccept(status -> {
             if ("bad".equalsIgnoreCase(status) || "aggressive".equalsIgnoreCase(status)) {
                 Bukkit.getScheduler().runTask(plugin, () -> rejectPlayer(player, status));
+                processingSales.remove(player.getUniqueId());
                 future.complete(false);
                 return;
             }
 
+            LoveEconomy economy = plugin.getEconomy().orElse(null);
+
             // Must run inventory check on main thread
             Bukkit.getScheduler().runTask(plugin, () -> {
+                if (economy == null) {
+                    processingSales.remove(player.getUniqueId());
+                    future.complete(false);
+                    return;
+                }
+
                 // Find matching item in player's inventory
                 ItemStack matchInInventory = null;
                 int matchSlot = -1;
@@ -115,7 +148,7 @@ public class BuyerManager {
                 for (int i = 0; i < contents.length; i++) {
                     ItemStack invItem = contents[i];
                     if (invItem == null || invItem.getType() == Material.AIR) continue;
-                    if (currencyManager.isCurrencyItem(invItem)) continue;
+                    if (economy.isCoin(invItem)) continue;
 
                     if (invItem.getType() == item.getType() && invItem.getAmount() >= item.getAmount()) {
                         matchInInventory = invItem;
@@ -125,34 +158,39 @@ public class BuyerManager {
                 }
 
                 if (matchInInventory == null) {
+                    processingSales.remove(player.getUniqueId());
                     future.complete(false);
                     return;
                 }
 
                 int finalPrice = priceCalculator.calculateBuyPrice(player, item);
                 int basePrice = priceCalculator.getBasePrice(item);
+                int quantity = item.getAmount();
 
-                // Verify inventory can fit coins after removing item
-                if (!currencyManager.canFitCurrency(player, finalPrice, item)) {
-                    String fullMsg = plugin.getConfig().getString("protection.inventory-full-sell-message", "&cУ вас нет свободного места в инвентаре для получения монет!");
-                    MessageUtils.sendMessage(player, fullMsg);
-                    future.complete(false);
-                    return;
+                // Списываем предмет из инвентаря немедленно, тем же тактом, что и поиск
+                // совпадения выше — без единого пункта возврата в планировщик между ними
+                // ни один другой клик/вызов не может увидеть этот стак ещё не тронутым.
+                // Раньше удаление откладывалось до возврата из асинхронной записи в БД
+                // (см. историю правок), и второй клик успевал найти тот же стек нетронутым,
+                // что вело к однократной продаже предмета с двукратной выплатой монет.
+                ItemStack slotItem = contents[matchSlot];
+                int remaining = slotItem.getAmount() - quantity;
+                if (remaining > 0) {
+                    slotItem.setAmount(remaining);
+                } else {
+                    player.getInventory().setItem(matchSlot, null);
                 }
-
-                final int slotToRemove = matchSlot;
-                final ItemStack targetItem = matchInInventory;
 
                 List<NpcData> buyerNpcs = plugin.getNpcManager().getNpcsByType("buyer");
                 Integer npcId = buyerNpcs.isEmpty() ? null : buyerNpcs.get(0).id();
 
                 String base64Item = ItemStackConverter.itemStackToBase64(item);
-                int quantity = item.getAmount();
                 String itemType = item.getType().name();
 
                 boolean auctioneerEnabled = plugin.getConfig().getBoolean("auctioneer.enabled", true);
                 int auctionThreshold = plugin.getConfig().getInt("auctioneer.price-threshold", 400);
-                String channel = (auctioneerEnabled && basePrice * quantity >= auctionThreshold) ? "auction" : "seller";
+                boolean isRare = plugin.getConfig().getBoolean("auctioneer.route-rare-items", true) && priceCalculator.isRareItem(item);
+                String channel = (auctioneerEnabled && (isRare || basePrice * quantity >= auctionThreshold)) ? "auction" : "seller";
 
                 Bukkit.getAsyncScheduler().runNow(plugin, task -> {
                     try (Connection conn = plugin.getDatabaseManager().getConnection()) {
@@ -180,33 +218,36 @@ public class BuyerManager {
 
                         conn.commit();
 
-                        // Main thread: remove item from player inventory & give coins
+                        // Main thread: pay the player now that the sale is durably recorded
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            // Re-verify slot still holds item
-                            ItemStack currentSlotItem = player.getInventory().getItem(slotToRemove);
-                            if (currentSlotItem != null && currentSlotItem.getType() == targetItem.getType()) {
-                                int newAmount = currentSlotItem.getAmount() - quantity;
-                                if (newAmount > 0) {
-                                    currentSlotItem.setAmount(newAmount);
-                                } else {
-                                    player.getInventory().setItem(slotToRemove, null);
-                                }
-                            } else {
-                                player.getInventory().removeItem(item);
-                            }
-
-                            currencyManager.giveCurrency(player, finalPrice);
+                            long taxedPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                                    .map(tax -> tax.applyToPayout(player.getUniqueId(), finalPrice))
+                                    .orElse((long) finalPrice);
+                            economy.give(player, taxedPrice);
 
                             String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
-                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPrice));
+                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(taxedPrice));
                             MessageUtils.sendMessage(player, acceptMsg);
 
+                            processingSales.remove(player.getUniqueId());
                             future.complete(true);
                         });
 
                     } catch (SQLException e) {
                         plugin.getLogger().severe("Error processing buyer sale: " + e.getMessage());
-                        future.complete(false);
+                        // Предмет уже списан выше (до похода в БД) — если запись не удалась,
+                        // возвращаем его игроку вместо того, чтобы просто проглотить ошибку
+                        // и оставить его без предмета и без оплаты.
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            ItemStack refund = item.clone();
+                            refund.setAmount(quantity);
+                            for (ItemStack leftover : player.getInventory().addItem(refund).values()) {
+                                player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+                            }
+                            MessageUtils.sendMessage(player, "&cОшибка обработки продажи — предмет возвращён.");
+                            processingSales.remove(player.getUniqueId());
+                            future.complete(false);
+                        });
                     }
                 });
             });

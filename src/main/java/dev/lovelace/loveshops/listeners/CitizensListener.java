@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
+import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.citizensnpcs.api.event.NPCRightClickEvent;
@@ -53,11 +54,29 @@ public class CitizensListener implements Listener {
                 return;
             }
 
+            if (npcData.type().equalsIgnoreCase("warmerchant")) {
+                // Отдельный гейт по стилю игры вместо обычной вежливость/агрессия mood-проверки
+                // ниже - этот НПС наоборот открыт ТОЛЬКО агрессивным, а не закрыт для них.
+                if (!plugin.getWarMerchantManager().isEligible(player.getUniqueId())) {
+                    MessageUtils.sendMessage(player, plugin.getWarMerchantManager().randomDenyMessage());
+                    return;
+                }
+                new WarMerchantGui(plugin, player).open();
+                return;
+            }
+
+            var dialogue = plugin.getNpcDialogueManager();
+            var mood = dialogue.moodOf(player.getUniqueId());
+            if (dialogue.tryReject(player, mood)) {
+                return;
+            }
+
             switch (npcData.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
             }
+            dialogue.maybeSayAmbient(player, mood);
         }
     }
 }

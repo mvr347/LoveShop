@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.gui;
 
+import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
@@ -13,10 +14,12 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 
+import dev.lovelace.loveshops.textures.HeadTextures;
+
 public class WandererDealGui {
 
     public static final String TITLE = "Странник (Договор)";
-    public static final String CONTRACT_HEAD_BASE64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZTI0ZGJmN2E0MGNiNDcyNmNjYWRhYTNmNmYzMWRkMWQxNzRhMWE5NTg5YTY0YTc5YmYzNDIxYTZjNzc5NzUifX19";
+    public static final String CONTRACT_HEAD_BASE64 = HeadTextures.WANDERER_CONTRACT;
 
     private final LoveShops plugin;
     private final Player player;
@@ -43,7 +46,7 @@ public class WandererDealGui {
 
         int cost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
-        String currencyName = plugin.getCurrencyManager().getCurrencyName();
+        String currencyName = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
         String timeStr = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
 
         // Slot 13: Contract deal button
