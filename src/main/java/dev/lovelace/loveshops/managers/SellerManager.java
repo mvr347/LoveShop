@@ -43,48 +43,136 @@ public class SellerManager {
     }
 
     public void checkSellerStatus() {
-        boolean nowActive = isSellerActive();
-        if (nowActive != active) {
-            this.active = nowActive;
-            if (nowActive) {
-                // Seller arrived (Flea market event active)
-                for (String msg : plugin.getConfig().getStringList("seller.messages.arrival")) {
-                    Bukkit.broadcast(MessageUtils.parse(msg));
-                }
-                // Despawn buyer NPCs during event
-                for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
-                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
-                }
-                // Spawn seller NPCs
-                for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
-                    plugin.getNpcManager().spawnNpcEntity(npc);
-                }
-                // Spawn auctioneer NPCs (auction runs alongside the flea market)
-                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
-                    plugin.getNpcManager().spawnNpcEntity(npc);
-                }
-                // Move expensive buyer purchases into fresh auction lots, roll a new dynamic-pricing cycle
-                plugin.getAuctionManager().createAuctionsFromPendingItems();
-                plugin.getPriceCalculator().rollSellerPriceCycle();
-            } else {
-                // Seller departed (Flea market event ended)
-                for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
-                    Bukkit.broadcast(MessageUtils.parse(msg));
-                }
-                // Despawn seller NPCs
-                for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
-                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
-                }
-                // Despawn auctioneer NPCs
-                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
-                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
-                }
-                // Respawn buyer NPCs
-                for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
-                    plugin.getNpcManager().spawnNpcEntity(npc);
-                }
-            }
+        // ScheduleListener drives this from Bukkit.getAsyncScheduler(), not the main thread -
+        // hop over before touching Bukkit.broadcast()/NPC spawn-despawn below, same self-guard
+        // idiom NpcManager.spawnNpcEntity/despawnNpcEntity already use.
+        if (!Bukkit.isPrimaryThread()) {
+            Bukkit.getScheduler().runTask(plugin, this::checkSellerStatus);
+            return;
         }
+        boolean nowActive = isSellerActive();
+        if (nowActive == active) {
+            return;
+        }
+        this.active = nowActive;
+
+        if (nowActive) {
+            handleArrival();
+        } else {
+            handleDeparture();
+        }
+    }
+
+    /**
+     * Flea market's arrival edge. Auctioneer NPCs and the auction/price-cycle plumbing run
+     * unconditionally - they are a separate system (rare/expensive items routed to the
+     * "auction" channel by BuyerManager.processSale) and have their own stock independent of
+     * the ordinary seller channel. Only the seller NPC + arrival broadcast are gated on there
+     * being anything to sell, and only for the natural, time-based transition: an admin using
+     * /loveshopsadmin seller start (forceStartSeller) is explicitly asking to see the market
+     * open regardless, e.g. for testing, so that path is never silently skipped.
+     */
+    private void handleArrival() {
+        for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+            plugin.getNpcManager().spawnNpcEntity(npc);
+        }
+        plugin.getPriceCalculator().rollSellerPriceCycle();
+
+        if (forceActiveOverride != null) {
+            plugin.getAuctionManager().createAuctionsFromPendingItems();
+            performSellerArrival();
+            return;
+        }
+
+        // createAuctionsFromPendingItems() only moves channel='auction' rows today, so it can't
+        // actually change the channel='seller' count checked below - but we still wait for it
+        // to finish before counting, so "should the flea market open" always reflects the same
+        // post-routing state the Seller GUI itself would show, even if that routing ever grows
+        // to touch the seller channel too.
+        plugin.getAuctionManager().createAuctionsFromPendingItems().thenRun(() ->
+            getAvailableItemCount().thenAccept(count -> Bukkit.getScheduler().runTask(plugin, () -> {
+                int minItems = Math.max(1, plugin.getConfig().getInt("seller.min-items-to-spawn", 1));
+                if (count >= minItems) {
+                    performSellerArrival();
+                } else {
+                    plugin.getLogger().info("Барахолка: пропускаем прибытие торговца — доступно только "
+                        + count + " предмет(ов) из " + minItems + " необходимых (channel='seller').");
+                }
+            }))
+        );
+    }
+
+    private void performSellerArrival() {
+        // Seller arrived (Flea market event active)
+        for (String msg : plugin.getConfig().getStringList("seller.messages.arrival")) {
+            Bukkit.broadcast(MessageUtils.parse(msg));
+        }
+        // Despawn buyer NPCs during event
+        for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
+            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+        }
+        // Spawn seller NPCs
+        for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+            plugin.getNpcManager().spawnNpcEntity(npc);
+        }
+    }
+
+    private void handleDeparture() {
+        // Seller departed (Flea market event ended)
+        for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
+            Bukkit.broadcast(MessageUtils.parse(msg));
+        }
+        // Despawn seller NPCs
+        for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+        }
+        // Despawn auctioneer NPCs
+        for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+        }
+        // Respawn buyer NPCs
+        for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
+            plugin.getNpcManager().spawnNpcEntity(npc);
+        }
+        // Whatever wasn't bought stays unsold forever (no buyer NPC is up to sell it again)
+        // and must not roll over into next week's flea market alongside fresh stock.
+        clearUnsoldStock();
+    }
+
+    /**
+     * Deletes seller-channel rows nobody bought before the event closed. Async, off the main
+     * thread, matching every other DB access in this class.
+     */
+    private void clearUnsoldStock() {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            String sql = "DELETE FROM buyer_inventory WHERE channel = 'seller' AND sold_at IS NULL";
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                int deleted = ps.executeUpdate();
+                if (deleted > 0) {
+                    plugin.getLogger().info("Барахолка: очищено " + deleted + " непроданных предметов после закрытия события.");
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error clearing unsold seller stock: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Count of items currently purchasable in the Seller GUI (channel='seller', unsold). */
+    public CompletableFuture<Integer> getAvailableItemCount() {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            String sql = "SELECT COUNT(*) AS cnt FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller'";
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ResultSet rs = ps.executeQuery();
+                future.complete(rs.next() ? rs.getInt("cnt") : 0);
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error counting seller items: " + e.getMessage());
+                future.complete(0);
+            }
+        });
+        return future;
     }
 
     public void forceStartSeller() {

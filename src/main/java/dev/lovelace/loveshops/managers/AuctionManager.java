@@ -85,12 +85,13 @@ public class AuctionManager {
     /**
      * Moves buyer purchases routed to the "auction" channel (expensive items, see
      * BuyerManager.processSale) into fresh auction lots. Called when the flea market opens.
+     * <p>
+     * Returns a future that completes once every pending row has been processed, so callers
+     * (SellerManager, deciding whether the flea market actually has anything to show) can wait
+     * for this to finish instead of racing it on the async scheduler.
      */
-    /**
-     * Moves buyer purchases routed to the "auction" channel (expensive items, see
-     * BuyerManager.processSale) into fresh auction lots. Called when the flea market opens.
-     */
-    public void createAuctionsFromPendingItems() {
+    public CompletableFuture<Void> createAuctionsFromPendingItems() {
+        CompletableFuture<Void> future = new CompletableFuture<>();
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             record PendingItem(int id, String itemData, int basePrice) {}
             List<PendingItem> pendingList = new ArrayList<>();
@@ -105,6 +106,7 @@ public class AuctionManager {
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("Error fetching pending auction items: " + e.getMessage());
+                future.complete(null);
                 return;
             }
 
@@ -126,7 +128,9 @@ public class AuctionManager {
                     plugin.getLogger().severe("Error processing pending auction item #" + pending.id() + ": " + e.getMessage());
                 }
             }
+            future.complete(null);
         });
+        return future;
     }
 
     private int createAuctionSync(ItemStack item, int startingPrice) throws SQLException {
