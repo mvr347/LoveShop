@@ -18,12 +18,26 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AuctionManager {
 
     private final LoveShops plugin;
+
+    // completeAuction() (natural end-of-auction) and buyoutAuction() both flip an auction to
+    // status='completed' and then try to deliver it to the winner right away; independently,
+    // deliverPendingWins()/deliverPendingWinsFor() sweep for status='completed' AND
+    // delivered_at IS NULL. checkAndCompleteAuctions() and deliverPendingWins() are called
+    // back-to-back in the SAME 30s tick in ScheduleListener, each firing its own async DB task -
+    // there is no ordering between "completeAuction's UPDATE commits" and "deliverPendingWins'
+    // SELECT runs", so the sweep can pick up the very auction completeAuction() just finished
+    // and is still in the middle of delivering (delivered_at isn't written until AFTER the
+    // charge+item hand-off, via a separate async hop). Without a guard here, that means every
+    // auction with an online winner risks being charged and delivered TWICE. See attemptDeliver().
+    private final Set<Integer> deliveringAuctions = ConcurrentHashMap.newKeySet();
 
     public AuctionManager(LoveShops plugin) {
         this.plugin = plugin;
@@ -602,11 +616,22 @@ public class AuctionManager {
      * @return {@code true}, если лот выдан и монеты списаны
      */
     private boolean attemptDeliver(int auctionId, Player winner, ItemStack item, int price) {
+        // Claim this lot before touching the winner's balance/inventory - see deliveringAuctions.
+        // Held until markDelivered()'s async write actually lands, not just until this method
+        // returns, so a concurrent sweep can't slip in during that write's own round trip.
+        if (!deliveringAuctions.add(auctionId)) {
+            return false;
+        }
+
         LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy == null) return false;
+        if (economy == null) {
+            deliveringAuctions.remove(auctionId);
+            return false;
+        }
 
         long taxedPrice = taxedAuctionPrice(winner, price);
         if (!economy.charge(winner, taxedPrice)) {
+            deliveringAuctions.remove(auctionId);
             return false;
         }
 
@@ -619,11 +644,12 @@ public class AuctionManager {
             }
         }
 
-        markDelivered(auctionId);
+        markDelivered(auctionId).whenComplete((v, err) -> deliveringAuctions.remove(auctionId));
         return true;
     }
 
-    private void markDelivered(int auctionId) {
+    private CompletableFuture<Void> markDelivered(int auctionId) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(
@@ -632,8 +658,11 @@ public class AuctionManager {
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().severe("Error marking auction #" + auctionId + " as delivered: " + e.getMessage());
+            } finally {
+                future.complete(null);
             }
         });
+        return future;
     }
 
     private AuctionData mapAuction(ResultSet rs) throws SQLException {
