@@ -33,11 +33,15 @@ public class AuctionGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(TITLE).color(NamedTextColor.GOLD));
 
-        // gui-gen-5: боковые стенки рабочей зоны (9, 17) всегда пустые — стекла в
-        // рабочей зоне не бывает никогда, даже на позициях без контента (RULE 6).
+        // gui-gen-5 RULE 2/RULE 6: стекло — только в Header (0-8) и Footer (18-26).
+        // Рабочая зона (9-17) стекла не получает вообще, даже под позициями без контента на
+        // этот момент — раньше стекло сперва заливало и её тоже, и слоты без лота (когда
+        // активных аукционов меньше 7) оставались стеклянными вместо пустых.
         ItemStack filler = GuiUtils.createFiller();
-        for (int i = 0; i < 27; i++) {
-            if (i == 9 || i == 17) continue;
+        for (int i = 0; i <= 8; i++) {
+            inv.setItem(i, filler);
+        }
+        for (int i = 18; i < 27; i++) {
             inv.setItem(i, filler);
         }
 

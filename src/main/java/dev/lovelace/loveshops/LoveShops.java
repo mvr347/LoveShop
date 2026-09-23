@@ -11,6 +11,7 @@ import dev.lovelace.loveshops.api.LoveShopsAPIImpl;
 import dev.lovelace.loveshops.commands.LoveShopsAdminCommand;
 import dev.lovelace.loveshops.commands.ShopsCommand;
 import dev.lovelace.loveshops.database.DatabaseManager;
+import dev.lovelace.loveshops.integration.CitizensIntegration;
 import dev.lovelace.loveshops.listeners.InventoryClickListener;
 import dev.lovelace.loveshops.listeners.ScheduleListener;
 import dev.lovelace.loveshops.managers.*;
@@ -33,6 +34,7 @@ public final class LoveShops extends JavaPlugin {
     private NpcDialogueManager npcDialogueManager;
     private WarMerchantManager warMerchantManager;
     private WandererManager wandererManager;
+    private CitizensIntegration citizensIntegration;
 
     @Override
     public void onEnable() {
@@ -67,6 +69,7 @@ public final class LoveShops extends JavaPlugin {
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
         this.wandererManager = new WandererManager(this);
+        this.citizensIntegration = new CitizensIntegration();
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
@@ -136,6 +139,7 @@ public final class LoveShops extends JavaPlugin {
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
     public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
     public WandererManager getWandererManager() { return wandererManager; }
+    public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
 
     /**
      * Служба валюты ядра. LoveCore проверен обязательным в {@link #onEnable}, поэтому пусто

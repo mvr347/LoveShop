@@ -34,12 +34,15 @@ public class SellerGui {
     public void open() {
         Inventory inv = Bukkit.createInventory(null, 54, Component.text(TITLE).color(NamedTextColor.GOLD));
 
-        // gui-gen-5: боковые стенки рабочей зоны (18, 26, 27, 35, 36, 44) всегда пустые —
-        // стекла в рабочей зоне не бывает никогда, даже на позициях без контента (RULE 6).
+        // gui-gen-5 RULE 2/RULE 6: стекло — только в Header (0-8), Row1 (9-17) и Footer
+        // (45-53). Рабочая зона (18-44) стекла не получает вообще, даже под позициями без
+        // контента на этот момент — раньше стекло сперва заливало и её тоже, и слоты без
+        // товара (когда лотов меньше 21) оставались стеклянными вместо пустых.
         ItemStack filler = GuiUtils.createFiller();
-        java.util.Set<Integer> workingZoneWalls = java.util.Set.of(18, 26, 27, 35, 36, 44);
-        for (int i = 0; i < 54; i++) {
-            if (workingZoneWalls.contains(i)) continue;
+        for (int i = 0; i <= 17; i++) {
+            inv.setItem(i, filler);
+        }
+        for (int i = 45; i < 54; i++) {
             inv.setItem(i, filler);
         }
 
