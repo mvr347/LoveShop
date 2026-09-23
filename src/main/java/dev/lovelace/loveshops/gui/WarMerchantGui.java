@@ -19,19 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Военный торговец ("Странник" в игровом обиходе — owner 2026-09-23: внутреннее имя
- * war-merchant/"Военный торговец" остаётся в коде, конфиг-ключах и типе NPC без изменений
- * (не breaking change для уже настроенных серверов и уже созданных /loveshopsadmin npc create
- * warmerchant НПС), меняется только то, что видит игрок - заголовок меню и реплики) -
- * фиксированный ассортимент из {@code war-merchant.items} в config.yml (с 2026-09-23,
- * опционально, ротацией подмножества - см. {@link WarMerchantManager#getRotatedIndices()}),
+ * Военный торговец - фиксированный ассортимент из {@code war-merchant.items} в config.yml,
  * доступный только игрокам, прошедшим {@link WarMerchantManager#isEligible}. Сама проверка
  * права доступа выполняется до open() (см. CitizensListener/InventoryClickListener), это меню
  * просто рендерит товар.
  */
 public class WarMerchantGui {
 
-    public static final String TITLE = "Странник";
+    public static final String TITLE = "Военный торговец";
 
     private final LoveShops plugin;
     private final Player player;
@@ -58,17 +53,10 @@ public class WarMerchantGui {
 
         int[] contentSlots = new int[]{10, 11, 12, 13, 14, 15, 16};
         List<WarMerchantManager.MerchantItem> items = plugin.getWarMerchantManager().getItems();
-        // Ротация (war-merchant.rotation, добавлено 2026-09-23) - выбирает подмножество
-        // канонического списка на текущий период, чтобы ассортимент ощущался как меняющиеся
-        // "тёмные" предложения, а не статичная лавка. Индексы ниже - позиции в items выше
-        // (getItems()), а не позиции на экране - purchase(index) продолжает работать с тем же
-        // каноническим списком независимо от того, что сейчас показано в ротации.
-        List<Integer> rotatedIndices = plugin.getWarMerchantManager().getRotatedIndices();
 
         int slotIdx = 0;
-        for (int canonicalIndex : rotatedIndices) {
+        for (WarMerchantManager.MerchantItem merchantItem : items) {
             if (slotIdx >= contentSlots.length) break;
-            WarMerchantManager.MerchantItem merchantItem = items.get(canonicalIndex);
 
             ItemStack displayItem = merchantItem.display().clone();
             ItemMeta meta = displayItem.getItemMeta();
@@ -82,7 +70,7 @@ public class WarMerchantGui {
                 // Индекс в каноническом списке config.yml - клик-обработчик пересчитывает
                 // цену/товар по нему заново, а не доверяет лору отображаемого предмета.
                 meta.getPersistentDataContainer().set(
-                        new NamespacedKey(plugin, "war_merchant_index"), PersistentDataType.INTEGER, canonicalIndex);
+                        new NamespacedKey(plugin, "war_merchant_index"), PersistentDataType.INTEGER, slotIdx);
                 displayItem.setItemMeta(meta);
             }
 
