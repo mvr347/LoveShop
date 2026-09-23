@@ -163,10 +163,21 @@ public class DatabaseManager {
                 );
             """);
 
+            // 10. wanderer_schedule_state (single row) - persists the last randomly-picked
+            // arrival day so "never two days in a row" survives a restart. See
+            // WandererManager#decideTodayArrival.
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS wanderer_schedule_state (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    last_arrival_date TEXT
+                );
+            """);
+
             addColumnIfMissing(stmt, "buyer_inventory", "item_type", "TEXT");
             addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
             addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
             addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
+            addColumnIfMissing(stmt, "wanderer_deals", "requested_category", "TEXT");
             // Отдельно от status='completed': completed означает «победитель определён»,
             // delivered_at — «предмет физически выдан и монеты списаны». Раньше выдача
             // победителю происходила только если он был онлайн ровно в момент завершения

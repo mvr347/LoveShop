@@ -71,7 +71,7 @@ public class BuyerGui {
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + price + " " + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
+                lore.add(MessageUtils.parse("<gray>Цена скупки: <gold>" + MessageUtils.currencyIcon() + price + " " + plugin.getEconomy().map(e -> e.currencyName()).orElse("монет") + "</gold></gray>"));
 
                 PriceCalculator.SubmissionHistory submitted = history.get(item.getType().name());
                 if (submitted != null && submitted.penaltyPercent() > 0) {

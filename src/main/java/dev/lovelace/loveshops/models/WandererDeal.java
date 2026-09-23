@@ -10,7 +10,9 @@ public record WandererDeal(
     long orderedAt,
     long readyAt,
     long expiresAt,
-    List<WandererDealItem> items
+    List<WandererDealItem> items,
+    /** Category the player paid extra to request ({@link WandererItemConfig#category()}), or {@code null} for a regular unfiltered deal. */
+    String requestedCategory
 ) {
     public boolean isReady() {
         return (System.currentTimeMillis() / 1000) >= readyAt;
@@ -31,10 +33,10 @@ public record WandererDeal(
     }
 
     public WandererDeal withItems(List<WandererDealItem> newItems) {
-        return new WandererDeal(id, playerUuid, status, orderedAt, readyAt, expiresAt, newItems);
+        return new WandererDeal(id, playerUuid, status, orderedAt, readyAt, expiresAt, newItems, requestedCategory);
     }
 
     public WandererDeal withStatus(String newStatus) {
-        return new WandererDeal(id, playerUuid, newStatus, orderedAt, readyAt, expiresAt, items);
+        return new WandererDeal(id, playerUuid, newStatus, orderedAt, readyAt, expiresAt, items, requestedCategory);
     }
 }

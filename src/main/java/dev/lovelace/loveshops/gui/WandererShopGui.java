@@ -123,7 +123,7 @@ public class WandererShopGui {
                             List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                             lore.add(Component.empty());
                             String currency = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
-                            lore.add(MessageUtils.parse("<gray>Цена: <gold>" + item.price() + " " + currency + "</gold></gray>"));
+                            lore.add(MessageUtils.parse("<gray>Цена: <gold>" + MessageUtils.currencyIcon() + item.price() + " " + currency + "</gold></gray>"));
                             lore.add(MessageUtils.parse("<green><bold>ЛКМ</bold> </green><gray>— приобрести предмет</gray>"));
                             meta.lore(lore);
                             display.setItemMeta(meta);

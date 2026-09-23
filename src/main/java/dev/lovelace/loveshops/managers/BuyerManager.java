@@ -225,8 +225,9 @@ public class BuyerManager {
                                     .orElse((long) finalPrice);
                             economy.give(player, taxedPrice);
 
-                            String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {price} монет!");
-                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(taxedPrice));
+                            String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {currency_icon}{price} монет!");
+                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(taxedPrice))
+                                    .replace("{currency_icon}", MessageUtils.currencyIcon());
                             MessageUtils.sendMessage(player, acceptMsg);
 
                             processingSales.remove(player.getUniqueId());
