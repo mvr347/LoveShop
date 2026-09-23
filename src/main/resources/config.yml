@@ -110,3 +110,143 @@ prices-config:
   LAPIS_LAZULI: 40
   QUARTZ: 35
   REDSTONE: 20
+
+# ===== ОСОБЫЙ ТОРГОВЕЦ (СТРАННИК) =====
+wanderer:
+  enabled: true
+  name: "Странник"
+  display-name: "<gradient:#9b59b6:#e74c3c><bold>Странник</bold></gradient>"
+  skin-owner: "Wanderer"
+
+  # Расписание появления: 3 раза в неделю
+  schedule:
+    days:
+      - "TUESDAY"
+      - "THURSDAY"
+      - "SATURDAY"
+    arrival-time: "10:00"                       # формат HH:MM
+    departure-time: "22:00"
+
+  # Настройки договора (заказа предметов)
+  deal:
+    cost: 150                                   # Стоимость заключения договора (0 = бесплатно)
+    delivery-time-minutes: 60                   # Через сколько минут Странник принесёт предметы
+    min-items: 3                                # Минимальное кол-во предметов в приносе
+    max-items: 6                                # Максимальное кол-во предметов в приносе
+    deal-expire-hours: 48                       # Сколько часов сохраняются принесённые товары
+
+  # Требование к стилю игры LoveBehavior
+  playstyle-requirement:
+    enabled: true
+    required-style: "aggressive"                # Требуемый стиль: aggressive
+
+  messages:
+    not-aggressive:
+      - "<red>Странник:</red> <gray>Ты выглядишь слишком мирным... Я веду дела только с теми, у кого агрессивный стиль игры. Возвращайся, когда прольёшь чью-то кровь.</gray>"
+      - "<red>Странник:</red> <gray>Мои товары — не для слабаков. Твой стиль слишком мягок. Мне нужны бойцы и агрессоры.</gray>"
+      - "<red>Странник:</red> <gray>Уходи. Я торгую только с безжалостными хищниками.</gray>"
+    not-active:
+      - "<dark_purple>Странник:</dark_purple> <gray>Сейчас я в дальнем пути. Я бываю в городе только по вторникам, четвергам и субботам!</gray>"
+    deal-started: "<green>Странник:</green> <gray>По рукам! Я отправляюсь в путь за редким добром. Вернусь через <gold>{time}</gold>.</gray>"
+    deal-not-ready: "<yellow>Странник:</yellow> <gray>Я ещё не вернулся с полными руками. Жди меня через <gold>{time}</gold>.</gray>"
+    deal-ready: "<green>Странник:</green> <gray>Я вернулся и принёс отличные вещи! Выбирай, пока не разобрали.</gray>"
+    deal-completed: "<green>Странник:</green> <gray>Сделка завершена. Хочешь заказать новую партию?</gray>"
+    insufficient-funds-deal: "<red>У вас недостаточно средств для заключения сделки! Требуется: <gold>{cost} {currency}</gold></red>"
+    arrival:
+      - "<dark_purple>[Странник]</dark_purple> <white>Таинственный Странник прибыл в город! Он ищет тех, кто не боится пролить кровь...</white>"
+    departure:
+      - "<dark_purple>[Странник]</dark_purple> <gray>Странник собрал пожитки и растворился в ночи. Встретимся в следующий раз...</gray>"
+
+  # Пул предметов, которые может принести Странник
+  items-pool:
+    - id: "blood_sword"
+      material: "NETHERITE_SWORD"
+      name: "<red><bold>Клинок Кровавого Странника</bold></red>"
+      lore:
+        - "<gray>Заточен в пламени Преисподней.</gray>"
+        - "<dark_red>Оружие безжалостного завоевателя.</dark_red>"
+      enchants:
+        SHARPNESS: 5
+        FIRE_ASPECT: 2
+        UNBREAKING: 3
+      price: 1500
+      amount: 1
+      weight: 20
+
+    - id: "predator_crossbow"
+      material: "CROSSBOW"
+      name: "<gold><bold>Арбалет Хищника</bold></gold>"
+      lore:
+        - "<gray>Выпускает град смертоносных стрел.</gray>"
+      enchants:
+        QUICK_CHARGE: 3
+        PIERCING: 4
+        MULTISHOT: 1
+      price: 1100
+      amount: 1
+      weight: 25
+
+    - id: "berserk_axe"
+      material: "NETHERITE_AXE"
+      name: "<dark_red><bold>Секира Берсерка</bold></dark_red>"
+      lore:
+        - "<gray>Сокрушает щиты противников одним ударом.</gray>"
+      enchants:
+        SHARPNESS: 5
+        EFFICIENCY: 5
+      price: 1300
+      amount: 1
+      weight: 20
+
+    - id: "enchanted_apple_pack"
+      material: "ENCHANTED_GOLDEN_APPLE"
+      name: "<light_purple><bold>Зачарованное Золотое Яблоко</bold></light_purple>"
+      price: 800
+      amount: 2
+      weight: 35
+
+    - id: "totem_of_undying"
+      material: "TOTEM_OF_UNDYING"
+      name: "<yellow><bold>Тотем Бессмертия</bold></yellow>"
+      price: 950
+      amount: 1
+      weight: 30
+
+    - id: "tnt_crate"
+      material: "TNT"
+      name: "<red>Партия Контрабандного Динамита</red>"
+      lore:
+        - "<gray>Идеально для подрыва укреплений.</gray>"
+      price: 300
+      amount: 16
+      weight: 50
+
+    - id: "end_crystal_pack"
+      material: "END_CRYSTAL"
+      name: "<light_purple>Кристаллы Края</light_purple>"
+      lore:
+        - "<gray>Для мощнейших тактических взрывов.</gray>"
+      price: 700
+      amount: 2
+      weight: 40
+
+    - id: "netherite_scrap_pack"
+      material: "NETHERITE_SCRAP"
+      name: "<dark_gray><bold>Осколки Древнего Незерита</bold></dark_gray>"
+      price: 600
+      amount: 3
+      weight: 40
+
+    - id: "experience_bottles"
+      material: "EXPERIENCE_BOTTLE"
+      name: "<green>Концентрированный Эликсир Опыта</green>"
+      price: 250
+      amount: 32
+      weight: 60
+
+    - id: "spectral_arrow_quiver"
+      material: "SPECTRAL_ARROW"
+      name: "<gold>Спектральные Стрелы Охотника</gold>"
+      price: 200
+      amount: 32
+      weight: 55

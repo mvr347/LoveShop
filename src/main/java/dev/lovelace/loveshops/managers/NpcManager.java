@@ -130,6 +130,11 @@ public class NpcManager {
             return;
         }
 
+        if (npc.type().equalsIgnoreCase("wanderer") && !plugin.getWandererManager().isWandererActive()) {
+            despawnNpcEntity(npc.uuid());
+            return;
+        }
+
         if (npc.type().equalsIgnoreCase("buyer") && plugin.getSellerManager().isSellerActive()) {
             despawnNpcEntity(npc.uuid());
             return;
@@ -164,6 +169,7 @@ public class NpcManager {
                 case "buyer" -> v.setProfession(Villager.Profession.WEAPONSMITH);
                 case "seller" -> v.setProfession(Villager.Profession.ARMORER);
                 case "auctioneer" -> v.setProfession(Villager.Profession.LIBRARIAN);
+                case "wanderer" -> v.setProfession(Villager.Profession.FLETCHER);
             }
         });
 

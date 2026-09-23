@@ -23,6 +23,7 @@ public final class LoveShops extends JavaPlugin {
     private BuyerManager buyerManager;
     private SellerManager sellerManager;
     private AuctionManager auctionManager;
+    private WandererManager wandererManager;
 
     @Override
     public void onEnable() {
@@ -44,10 +45,11 @@ public final class LoveShops extends JavaPlugin {
         this.buyerManager = new BuyerManager(this, priceCalculator, currencyManager);
         this.sellerManager = new SellerManager(this, currencyManager);
         this.auctionManager = new AuctionManager(this, currencyManager);
+        this.wandererManager = new WandererManager(this, currencyManager);
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
-        for (String cmdName : java.util.List.of("loveshops", "shops", "loveshop", "lshops", "lshop", "buyer", "seller", "auction", "auctioneer")) {
+        for (String cmdName : java.util.List.of("loveshops", "shops", "loveshop", "lshops", "lshop", "buyer", "seller", "auction", "auctioneer", "wanderer")) {
             var cmd = getCommand(cmdName);
             if (cmd != null) {
                 cmd.setExecutor(shopsCmd);
@@ -101,4 +103,5 @@ public final class LoveShops extends JavaPlugin {
     public BuyerManager getBuyerManager() { return buyerManager; }
     public SellerManager getSellerManager() { return sellerManager; }
     public AuctionManager getAuctionManager() { return auctionManager; }
+    public WandererManager getWandererManager() { return wandererManager; }
 }

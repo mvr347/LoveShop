@@ -49,6 +49,32 @@ public class LoveShopsPlaceholder extends PlaceholderExpansion {
             return String.valueOf(plugin.getSellerManager().isSellerActive());
         }
 
+        if (params.equalsIgnoreCase("wanderer_active")) {
+            return String.valueOf(plugin.getWandererManager().isWandererActive());
+        }
+
+        if (params.equalsIgnoreCase("wanderer_arrival")) {
+            return plugin.getWandererManager().getNextArrivalText();
+        }
+
+        if (params.equalsIgnoreCase("wanderer_deal_status") && player != null) {
+            try {
+                var opt = plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).get();
+                return opt.map(dev.lovelace.loveshops.models.WandererDeal::status).orElse("NONE");
+            } catch (Exception e) {
+                return "NONE";
+            }
+        }
+
+        if (params.equalsIgnoreCase("wanderer_deal_time") && player != null) {
+            try {
+                var opt = plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).get();
+                return opt.map(d -> TimeUtils.formatRemainingTime(d.remainingSeconds())).orElse("0с");
+            } catch (Exception e) {
+                return "0с";
+            }
+        }
+
         if (params.equalsIgnoreCase("auction_count")) {
             try {
                 return String.valueOf(plugin.getAuctionManager().getActiveAuctions().get().size());

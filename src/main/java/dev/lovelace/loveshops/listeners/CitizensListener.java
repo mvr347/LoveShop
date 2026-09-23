@@ -48,6 +48,11 @@ public class CitizensListener implements Listener {
                 return;
             }
 
+            if (npcData.type().equalsIgnoreCase("wanderer")) {
+                plugin.getWandererManager().handleWandererInteraction(player);
+                return;
+            }
+
             switch (npcData.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();

@@ -15,7 +15,7 @@ softdepend:
 commands:
   loveshops:
     description: LoveShops main administration and trading command
-    aliases: [shops, loveshop, lshops, lshop, buyer, seller, auction, auctioneer]
+    aliases: [shops, loveshop, lshops, lshop, buyer, seller, auction, auctioneer, wanderer]
     usage: /loveshops <subcommand>
 
 permissions:
@@ -30,6 +30,12 @@ permissions:
     default: op
   loveshops.admin.buyer:
     description: Set player buyer status override
+    default: op
+  loveshops.admin.wanderer:
+    description: Manage Wanderer merchant
+    default: op
+  loveshops.wanderer.bypass:
+    description: Bypass aggressive playstyle requirement for Wanderer
     default: op
   loveshops.admin.reload:
     description: Reload plugin configuration

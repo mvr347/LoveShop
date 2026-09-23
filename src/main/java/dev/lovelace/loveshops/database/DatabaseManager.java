@@ -148,6 +148,19 @@ public class DatabaseManager {
                 );
             """);
 
+            // 9. wanderer_deals (deal negotiation and delivered contraband items)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS wanderer_deals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_uuid TEXT UNIQUE NOT NULL,
+                    status TEXT NOT NULL,
+                    ordered_at INTEGER NOT NULL,
+                    ready_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL,
+                    items_json TEXT NOT NULL
+                );
+            """);
+
             addColumnIfMissing(stmt, "buyer_inventory", "item_type", "TEXT");
             addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
             addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");

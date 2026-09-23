@@ -33,8 +33,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         String cmdLabel = label.toLowerCase();
 
-        // Direct alias handling (/buyer, /seller, /auction, /auctioneer)
-        if (cmdLabel.equals("buyer") || cmdLabel.equals("seller") || cmdLabel.equals("auction") || cmdLabel.equals("auctioneer")) {
+        // Direct alias handling (/buyer, /seller, /auction, /auctioneer, /wanderer)
+        if (cmdLabel.equals("buyer") || cmdLabel.equals("seller") || cmdLabel.equals("auction") || cmdLabel.equals("auctioneer") || cmdLabel.equals("wanderer")) {
             Player target = null;
             if (args.length >= 1 && (sender.hasPermission("loveshops.admin.open") || sender.hasPermission("loveshops.admin"))) {
                 target = Bukkit.getPlayer(args[0]);
@@ -53,6 +53,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 case "buyer" -> new BuyerGui(plugin, target).open();
                 case "seller" -> new SellerGui(plugin, target).open();
                 case "auction", "auctioneer" -> new AuctionGui(plugin, target).open();
+                case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
             }
 
             if (sender != target) {
@@ -70,7 +71,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         switch (sub) {
             case "gui", "open", "openmenu" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <buyer|seller|auctioneer> [игрок]</yellow>"));
+                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <buyer|seller|auctioneer|wanderer> [игрок]</yellow>"));
                     return true;
                 }
                 String menuType = args[1].toLowerCase();
@@ -99,7 +100,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                     case "buyer" -> new BuyerGui(plugin, target).open();
                     case "seller" -> new SellerGui(plugin, target).open();
                     case "auctioneer", "auction" -> new AuctionGui(plugin, target).open();
-                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: buyer, seller, auctioneer</red>"));
+                    case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
+                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: buyer, seller, auctioneer, wanderer</red>"));
                 }
 
                 if (sender != target) {
@@ -130,12 +132,12 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                         return true;
                     }
                     if (args.length < 4) {
-                        player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops npc create <buyer|seller|auctioneer> <Имя></yellow>"));
+                        player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops npc create <buyer|seller|auctioneer|wanderer> <Имя></yellow>"));
                         return true;
                     }
                     String type = args[2].toLowerCase();
-                    if (!List.of("buyer", "seller", "auctioneer").contains(type)) {
-                        player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: buyer, seller, auctioneer</red>"));
+                    if (!List.of("buyer", "seller", "auctioneer", "wanderer").contains(type)) {
+                        player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: buyer, seller, auctioneer, wanderer</red>"));
                         return true;
                     }
                     String name = String.join(" ", List.of(args).subList(3, args.length));
@@ -230,6 +232,92 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                     default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops seller <start|stop|reset></yellow>"));
                 }
             }
+            case "wanderer" -> {
+                if (!sender.hasPermission("loveshops.admin.wanderer") && !sender.hasPermission("loveshops.admin")) {
+                    sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+                    return true;
+                }
+                if (args.length < 2) {
+                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops wanderer <start|stop|reset|info|open|setready|resetdeal> ...</yellow>"));
+                    return true;
+                }
+                String action = args[1].toLowerCase();
+                switch (action) {
+                    case "start" -> {
+                        plugin.getWandererManager().forceStartWanderer();
+                        sender.sendMessage(MessageUtils.parse("<green>Торговец Странник активирован принудительно!</green>"));
+                    }
+                    case "stop" -> {
+                        plugin.getWandererManager().forceStopWanderer();
+                        sender.sendMessage(MessageUtils.parse("<red>Торговец Странник деактивирован принудительно!</red>"));
+                    }
+                    case "reset" -> {
+                        plugin.getWandererManager().resetWandererOverride();
+                        sender.sendMessage(MessageUtils.parse("<yellow>Режим Странника сброшен к автоматическому расписанию (3 дня в неделю).</yellow>"));
+                    }
+                    case "info" -> {
+                        boolean active = plugin.getWandererManager().isWandererActive();
+                        String nextArrival = plugin.getWandererManager().getNextArrivalText();
+                        sender.sendMessage(MessageUtils.parse("<gold>=== Странник: Информация ===</gold>"));
+                        sender.sendMessage(MessageUtils.parse("<gray>Статус: " + (active ? "<green>АКТИВЕН" : "<red>НЕАКТИВЕН") + "</gray>"));
+                        sender.sendMessage(MessageUtils.parse("<gray>Ближайшее прибытие: <yellow>" + nextArrival + "</yellow></gray>"));
+                    }
+                    case "open" -> {
+                        Player target = null;
+                        if (args.length >= 3) {
+                            target = Bukkit.getPlayer(args[2]);
+                            if (target == null || !target.isOnline()) {
+                                sender.sendMessage(MessageUtils.parse("<red>Игрок " + args[2] + " не найден!</red>"));
+                                return true;
+                            }
+                        } else if (sender instanceof Player p) {
+                            target = p;
+                        } else {
+                            sender.sendMessage(MessageUtils.parse("<red>Укажите игрока: /loveshops wanderer open <player></red>"));
+                            return true;
+                        }
+                        plugin.getWandererManager().handleWandererInteraction(target);
+                        sender.sendMessage(MessageUtils.parse("<green>Интерфейс Странника открыт для " + target.getName() + "!</green>"));
+                    }
+                    case "setready" -> {
+                        Player target = null;
+                        if (args.length >= 3) {
+                            target = Bukkit.getPlayer(args[2]);
+                        } else if (sender instanceof Player p) {
+                            target = p;
+                        }
+                        if (target == null) {
+                            sender.sendMessage(MessageUtils.parse("<red>Укажите игрока: /loveshops wanderer setready <player></red>"));
+                            return true;
+                        }
+                        Player finalTarget = target;
+                        plugin.getWandererManager().setDealReady(finalTarget.getUniqueId()).thenAccept(ok -> {
+                            if (ok) {
+                                sender.sendMessage(MessageUtils.parse("<green>Заказ Странника для " + finalTarget.getName() + " мгновенно завершён и готов к выдаче!</green>"));
+                            } else {
+                                sender.sendMessage(MessageUtils.parse("<red>У игрока " + finalTarget.getName() + " нет активного заказа.</red>"));
+                            }
+                        });
+                    }
+                    case "resetdeal" -> {
+                        Player target = null;
+                        if (args.length >= 3) {
+                            target = Bukkit.getPlayer(args[2]);
+                        } else if (sender instanceof Player p) {
+                            target = p;
+                        }
+                        if (target == null) {
+                            sender.sendMessage(MessageUtils.parse("<red>Укажите игрока: /loveshops wanderer resetdeal <player></red>"));
+                            return true;
+                        }
+                        Player finalTarget = target;
+                        plugin.getWandererManager().resetDeal(finalTarget.getUniqueId()).thenRun(() -> {
+                            sender.sendMessage(MessageUtils.parse("<green>Заказ Странника для " + finalTarget.getName() + " сброшен.</green>"));
+                        });
+                    }
+                    default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops wanderer <start|stop|reset|info|open|setready|resetdeal></yellow>"));
+                }
+            }
             default -> sendHelp(sender);
         }
 
@@ -238,13 +326,14 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(MessageUtils.parse("<gradient:#FF5555:#FFAA00>=== LoveShops Команды ===</gradient>"));
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> - Открыть меню"));
+        sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer|wanderer> [игрок]</gold> - Открыть меню"));
         if (sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer> [игрок]</gold> - Открыть меню игроку (из игры/консоли)"));
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshops open <buyer|seller|auctioneer|wanderer> [игрок]</gold> - Открыть меню игроку (из игры/консоли)"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc create <type> <name></gold> - Создать NPC-торговца"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc delete</gold> - Удалить ближнего NPC"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops npc list</gold> - Просмотреть список всех NPC и их точные координаты"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops seller <start|stop|reset></gold> - Управление событием барахолки"));
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshops wanderer <start|stop|reset|info|open|setready|resetdeal></gold> - Управление Странником"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops buyer <player> <status> [msg]</gold> - Изменить статус игрока у скупщика"));
             sender.sendMessage(MessageUtils.parse("<gold>/loveshops reload</gold> - Перезагрузить конфиг"));
         }
@@ -255,7 +344,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
         String cmdLabel = label.toLowerCase();
 
-        if (List.of("buyer", "seller", "auction", "auctioneer").contains(cmdLabel)) {
+        if (List.of("buyer", "seller", "auction", "auctioneer", "wanderer").contains(cmdLabel)) {
             if (args.length == 1 && (sender.hasPermission("loveshops.admin.open") || sender.hasPermission("loveshops.admin"))) {
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase())).toList();
@@ -266,18 +355,22 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             completions.addAll(List.of("gui", "open", "help"));
             if (sender.hasPermission("loveshops.admin")) {
-                completions.addAll(List.of("npc", "seller", "event", "buyer", "reload"));
+                completions.addAll(List.of("npc", "seller", "wanderer", "event", "buyer", "reload"));
             }
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
-            completions.addAll(List.of("buyer", "seller", "auctioneer"));
+            completions.addAll(List.of("buyer", "seller", "auctioneer", "wanderer"));
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         } else if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
             completions.addAll(List.of("create", "delete", "list"));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("npc") && args[1].equalsIgnoreCase("create")) {
-            completions.addAll(List.of("buyer", "seller", "auctioneer"));
+            completions.addAll(List.of("buyer", "seller", "auctioneer", "wanderer"));
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("seller") || args[0].equalsIgnoreCase("event"))) {
             completions.addAll(List.of("start", "stop", "reset"));
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("wanderer")) {
+            completions.addAll(List.of("start", "stop", "reset", "info", "open", "setready", "resetdeal"));
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("wanderer") && List.of("open", "setready", "resetdeal").contains(args[1].toLowerCase())) {
+            completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         } else if (args.length == 2 && args[0].equalsIgnoreCase("buyer")) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         } else if (args.length == 3 && args[0].equalsIgnoreCase("buyer")) {

@@ -45,6 +45,10 @@ public class InventoryClickListener implements Listener {
                 MessageUtils.sendMessage(player, "<red>Аукционист появляется вместе с барахолкой, по воскресеньям с 10:00 до 18:00!</red>");
                 return;
             }
+            if (npc.type().equalsIgnoreCase("wanderer")) {
+                plugin.getWandererManager().handleWandererInteraction(player);
+                return;
+            }
             switch (npc.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
@@ -60,7 +64,92 @@ public class InventoryClickListener implements Listener {
 
         String titleText = serializer.serialize(event.getView().title());
 
-        if (titleText.contains(BuyerGui.TITLE)) {
+        if (titleText.contains(dev.lovelace.loveshops.gui.WandererDealGui.TITLE)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 27) return;
+
+            if (slot == 26) {
+                player.closeInventory();
+                return;
+            }
+
+            if (slot == 13) {
+                plugin.getWandererManager().startDeal(player).thenAccept(success -> {
+                    if (success) {
+                        plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
+                            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                                optDeal.ifPresent(deal -> new dev.lovelace.loveshops.gui.WandererWaitingGui(plugin, player, deal).open());
+                            });
+                        });
+                    }
+                });
+            }
+        } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 27) return;
+
+            if (slot == 26) {
+                player.closeInventory();
+            }
+        } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 54) return;
+
+            if (slot == 53) {
+                player.closeInventory();
+                return;
+            }
+
+            if (slot == 51) {
+                plugin.getWandererManager().resetDeal(player.getUniqueId()).thenRun(() -> {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                        MessageUtils.sendMessage(player, "<green>Заказ завершён! Вы можете заключить новый договор.</green>");
+                        new dev.lovelace.loveshops.gui.WandererDealGui(plugin, player).open();
+                    });
+                });
+                return;
+            }
+
+            boolean isContentSlot = false;
+            for (int s : dev.lovelace.loveshops.gui.WandererShopGui.CONTENT_SLOTS) {
+                if (s == slot) {
+                    isContentSlot = true;
+                    break;
+                }
+            }
+
+            if (isContentSlot) {
+                plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
+                    if (optDeal.isEmpty()) return;
+                    var deal = optDeal.get();
+                    int slotIndex = -1;
+                    for (int i = 0; i < dev.lovelace.loveshops.gui.WandererShopGui.CONTENT_SLOTS.length; i++) {
+                        if (dev.lovelace.loveshops.gui.WandererShopGui.CONTENT_SLOTS[i] == slot) {
+                            slotIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (slotIndex >= 0 && slotIndex < deal.items().size()) {
+                        var item = deal.items().get(slotIndex);
+                        if (!item.bought()) {
+                            plugin.getWandererManager().buyDealItem(player, item.id()).thenAccept(bought -> {
+                                if (bought) {
+                                    plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(updated -> {
+                                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                                            updated.ifPresent(d -> new dev.lovelace.loveshops.gui.WandererShopGui(plugin, player, d).open());
+                                        });
+                                    });
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        } else if (titleText.contains(BuyerGui.TITLE)) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
             if (slot < 0 || slot >= 27) return;

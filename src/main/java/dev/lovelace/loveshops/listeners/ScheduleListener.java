@@ -20,6 +20,7 @@ public class ScheduleListener implements Listener {
             // Check completed auctions every 60 seconds
             plugin.getAuctionManager().checkAndCompleteAuctions();
             plugin.getSellerManager().checkSellerStatus();
+            plugin.getWandererManager().checkWandererStatus();
         }, 10, 30, TimeUnit.SECONDS);
     }
 }
