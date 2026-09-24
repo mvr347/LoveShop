@@ -257,9 +257,13 @@ public class SellerManager {
 
             // Main thread check: balance
             Bukkit.getScheduler().runTask(plugin, () -> {
-                final long itemPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
+                final long behaviorTaxedPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
                         .map(tax -> tax.applyToCost(player.getUniqueId(), basePrice))
                         .orElse((long) basePrice);
+                // merchant-tax (config.yml): flat economy-sink markup on top of the behavioral
+                // TaxOracle rate above — see PriceCalculator#applyMerchantTaxToCost. Wanderer
+                // never goes through this.
+                final long itemPrice = plugin.getPriceCalculator().applyMerchantTaxToCost(behaviorTaxedPrice);
                 if (economy == null || !economy.has(player, itemPrice)) {
                     MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);

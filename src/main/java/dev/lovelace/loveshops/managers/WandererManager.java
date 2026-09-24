@@ -412,7 +412,7 @@ public class WandererManager {
     }
 
     public List<WandererDealItem> rollRandomItems(int minItems, int maxItems) {
-        return rollRandomItems(minItems, maxItems, null);
+        return rollRandomItems(minItems, maxItems, null, 1.0);
     }
 
     /**
@@ -423,6 +423,17 @@ public class WandererManager {
      *                          never silently hands back zero items after the player already paid.
      */
     public List<WandererDealItem> rollRandomItems(int minItems, int maxItems, WandererRequestCategory requestedCategory) {
+        return rollRandomItems(minItems, maxItems, requestedCategory, 1.0);
+    }
+
+    /**
+     * @param priceMultiplier applied to every rolled item's config price (see
+     *                        {@link #computeDynamicPriceMultiplier(Connection)} —
+     *                        {@code wanderer.dynamic-pricing} in config.yml). 1.0 means "no
+     *                        adjustment", matching the pre-dynamic-pricing behavior of the
+     *                        2-arg/3-arg overloads above.
+     */
+    public List<WandererDealItem> rollRandomItems(int minItems, int maxItems, WandererRequestCategory requestedCategory, double priceMultiplier) {
         List<WandererItemConfig> pool = loadItemPool();
         if (pool.isEmpty()) return Collections.emptyList();
 
@@ -464,10 +475,16 @@ public class WandererManager {
             String base64 = ItemStackConverter.itemStackToBase64(stack);
             String dealItemId = UUID.randomUUID().toString().substring(0, 8);
 
+            // wanderer.dynamic-pricing: scarcity/activity multiplier baked into the price at
+            // roll time, so the item's price is fixed for the lifetime of this deal (matches
+            // buyDealItem(), which charges WandererDealItem#price() as-is — see
+            // computeDynamicPriceMultiplier()).
+            int adjustedPrice = Math.max(1, (int) Math.round(selected.price() * priceMultiplier));
+
             result.add(new WandererDealItem(
                 dealItemId,
                 selected.name() != null ? selected.name() : selected.material(),
-                selected.price(),
+                adjustedPrice,
                 selected.amount(),
                 false,
                 base64
@@ -482,6 +499,78 @@ public class WandererManager {
         }
 
         return result;
+    }
+
+    /**
+     * wanderer.dynamic-pricing (2026-09-24): Wanderer's item prices react to the past 7 days
+     * of server economic activity, on top of the flat per-item price already set in
+     * {@code wanderer.items-pool}. Two independent signals, each capped separately so one
+     * doesn't drown out the other, then combined additively and clamped to a hard ceiling:
+     *
+     * <ul>
+     *   <li><b>Scarcity</b> (dominant signal) — how many items players sold to the Buyer NPC
+     *       ({@code buyer_inventory.received_at}, all channels, i.e. the Скупщик's total weekly
+     *       intake) in the last 7 days. Few sales this week = goods are scarce = Wanderer charges
+     *       more. At/above {@code scarcity-reference-weekly-sold} the market is considered
+     *       well-supplied and this signal contributes nothing (never a discount — see below).</li>
+     *   <li><b>Activity</b> (smaller signal, per the owner's request) — how many distinct
+     *       players were economically active in the last 7 days: sold something to the Buyer NPC
+     *       OR placed an auction bid. A richer, more active economy can absorb a bit more, so
+     *       this nudges prices up too, capped independently and weighted lower than scarcity.</li>
+     * </ul>
+     *
+     * <p>Deliberately one-directional (multiplier never drops below 1.0): the owner asked for
+     * prices to go UP under these two conditions, not down under their opposites — an abundant,
+     * quiet week just means no bonus, not a discount. Both signals and the final ceiling are
+     * independently configurable ({@code wanderer.dynamic-pricing.*}) so the owner can retune
+     * without a code change.</p>
+     */
+    private double computeDynamicPriceMultiplier(Connection conn) throws SQLException {
+        if (!plugin.getConfig().getBoolean("wanderer.dynamic-pricing.enabled", true)) {
+            return 1.0;
+        }
+
+        long weekAgo = System.currentTimeMillis() / 1000 - 7L * 24 * 3600;
+
+        int weeklySold = 0;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) AS cnt FROM buyer_inventory WHERE received_at >= ?")) {
+            ps.setLong(1, weekAgo);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) weeklySold = rs.getInt("cnt");
+        }
+
+        int weeklyActivePlayers = 0;
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT COUNT(*) AS cnt FROM (
+                    SELECT player_uuid FROM buyer_inventory WHERE received_at >= ?
+                    UNION
+                    SELECT bidder_uuid FROM auction_bids WHERE placed_at >= ?
+                )
+            """)) {
+            ps.setLong(1, weekAgo);
+            ps.setLong(2, weekAgo);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) weeklyActivePlayers = rs.getInt("cnt");
+        }
+
+        double scarcityWeightPercent = plugin.getConfig().getDouble("wanderer.dynamic-pricing.scarcity-weight-percent", 40.0);
+        double scarcityReference = Math.max(1, plugin.getConfig().getInt("wanderer.dynamic-pricing.scarcity-reference-weekly-sold", 50));
+        double scarcityRatio = clamp01(1.0 - weeklySold / scarcityReference);
+        double scarcityBonusPercent = scarcityRatio * scarcityWeightPercent;
+
+        double activityWeightPercent = plugin.getConfig().getDouble("wanderer.dynamic-pricing.activity-weight-percent", 15.0);
+        double activityReference = Math.max(1, plugin.getConfig().getInt("wanderer.dynamic-pricing.activity-reference-weekly-players", 20));
+        double activityRatio = clamp01(weeklyActivePlayers / activityReference);
+        double activityBonusPercent = activityRatio * activityWeightPercent;
+
+        double maxMultiplier = Math.max(1.0, plugin.getConfig().getDouble("wanderer.dynamic-pricing.max-multiplier", 1.75));
+        double multiplier = 1.0 + (scarcityBonusPercent + activityBonusPercent) / 100.0;
+        return Math.max(1.0, Math.min(maxMultiplier, multiplier));
+    }
+
+    private static double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     // ==========================================
@@ -584,10 +673,21 @@ public class WandererManager {
         long readyAt = now + (deliveryMinutes * 60L);
         long expiresAt = readyAt + (expireHours * 3600L);
 
-        List<WandererDealItem> items = rollRandomItems(minItems, maxItems, finalCategory);
-        String itemsJson = gson.toJson(items);
-
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            // Dynamic pricing multiplier needs a DB round-trip (weekly scarcity/activity
+            // signals) - computed here, on the async thread, right before rolling items, not on
+            // the main thread that started this deal.
+            double priceMultiplier;
+            try (Connection multiplierConn = plugin.getDatabaseManager().getConnection()) {
+                priceMultiplier = computeDynamicPriceMultiplier(multiplierConn);
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Странник: не удалось посчитать динамический множитель цены, использую 1.0: " + e.getMessage());
+                priceMultiplier = 1.0;
+            }
+
+            List<WandererDealItem> items = rollRandomItems(minItems, maxItems, finalCategory, priceMultiplier);
+            String itemsJson = gson.toJson(items);
+
             String sql = """
                 INSERT INTO wanderer_deals (player_uuid, status, ordered_at, ready_at, expires_at, items_json, requested_category)
                 VALUES (?, 'WAITING', ?, ?, ?, ?, ?)

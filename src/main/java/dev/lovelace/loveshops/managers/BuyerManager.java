@@ -223,10 +223,14 @@ public class BuyerManager {
                             long taxedPrice = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.TaxOracle.class)
                                     .map(tax -> tax.applyToPayout(player.getUniqueId(), finalPrice))
                                     .orElse((long) finalPrice);
-                            economy.give(player, taxedPrice);
+                            // merchant-tax (config.yml): flat economy-sink cut on top of the
+                            // behavioral TaxOracle rate above — see PriceCalculator#applyMerchantTaxToPayout.
+                            // Wanderer never goes through this.
+                            long finalPayout = priceCalculator.applyMerchantTaxToPayout(taxedPrice);
+                            economy.give(player, finalPayout);
 
                             String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {currency_icon}{price} монет!");
-                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(taxedPrice))
+                            acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPayout))
                                     .replace("{currency_icon}", MessageUtils.currencyIcon());
                             MessageUtils.sendMessage(player, acceptMsg);
 

@@ -82,24 +82,38 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
-            dev.lovelace.loveshops.models.WandererRequestCategory requestedCategory = switch (slot) {
-                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_TOOLS -> dev.lovelace.loveshops.models.WandererRequestCategory.TOOLS;
-                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_ARMOR -> dev.lovelace.loveshops.models.WandererRequestCategory.ARMOR;
-                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_ENCHANTMENTS -> dev.lovelace.loveshops.models.WandererRequestCategory.ENCHANTMENTS;
-                case dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_RARE -> dev.lovelace.loveshops.models.WandererRequestCategory.RARE;
-                default -> null;
-            };
+            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_STANDARD_DEAL) {
+                startWandererDeal(player, null);
+                return;
+            }
 
-            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_STANDARD_DEAL || requestedCategory != null) {
-                plugin.getWandererManager().startDeal(player, requestedCategory).thenAccept(success -> {
-                    if (success) {
-                        plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
-                            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
-                                optDeal.ifPresent(deal -> new dev.lovelace.loveshops.gui.WandererWaitingGui(plugin, player, deal).open());
-                            });
-                        });
+            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_REQUEST) {
+                dev.lovelace.loveshops.models.WandererRequestCategory[] categories =
+                    dev.lovelace.loveshops.models.WandererRequestCategory.values();
+
+                ItemStack clicked = event.getCurrentItem();
+                int currentIndex = 0;
+                if (clicked != null && clicked.hasItemMeta()) {
+                    Integer ordinal = clicked.getItemMeta().getPersistentDataContainer().get(
+                        new NamespacedKey(plugin, dev.lovelace.loveshops.gui.WandererDealGui.CATEGORY_INDEX_KEY), PersistentDataType.INTEGER);
+                    if (ordinal != null && ordinal >= 0 && ordinal < categories.length) {
+                        currentIndex = ordinal;
                     }
-                });
+                }
+
+                boolean isRightClick = event.getClick() == org.bukkit.event.inventory.ClickType.RIGHT
+                    || event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT;
+
+                if (isRightClick) {
+                    // ПКМ — confirm and order whichever category the button currently shows.
+                    startWandererDeal(player, categories[currentIndex]);
+                } else {
+                    // ЛКМ (or anything else) — just cycle the shown category in place, no
+                    // economy action, no GUI reopen needed.
+                    int nextIndex = (currentIndex + 1) % categories.length;
+                    ItemStack updated = dev.lovelace.loveshops.gui.WandererDealGui.buildCategoryButton(plugin, categories[nextIndex]);
+                    event.setCurrentItem(updated);
+                }
             }
         } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)) {
             event.setCancelled(true);
@@ -261,6 +275,19 @@ public class InventoryClickListener implements Listener {
                 }
             }
         }
+    }
+
+    /** Shared by the standard deal button and the cycling category button's ПКМ confirm. */
+    private void startWandererDeal(Player player, dev.lovelace.loveshops.models.WandererRequestCategory requestedCategory) {
+        plugin.getWandererManager().startDeal(player, requestedCategory).thenAccept(success -> {
+            if (success) {
+                plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                        optDeal.ifPresent(deal -> new dev.lovelace.loveshops.gui.WandererWaitingGui(plugin, player, deal).open());
+                    });
+                });
+            }
+        });
     }
 
     private int extractIdFromLore(ItemStack item) {
