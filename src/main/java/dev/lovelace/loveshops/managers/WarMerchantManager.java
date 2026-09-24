@@ -99,12 +99,16 @@ public class WarMerchantManager {
         }
         MerchantItem merchantItem = items.get(index);
 
+        // merchant-tax (config.yml): same flat economy-sink markup as Buyer/Seller — see
+        // PriceCalculator#applyMerchantTaxToCost. Wanderer never goes through this.
+        long taxedPrice = plugin.getPriceCalculator().applyMerchantTaxToCost(merchantItem.price());
+
         LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy == null || !economy.has(player, merchantItem.price())) {
+        if (economy == null || !economy.has(player, taxedPrice)) {
             MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }
-        if (!economy.charge(player, merchantItem.price())) {
+        if (!economy.charge(player, taxedPrice)) {
             MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }

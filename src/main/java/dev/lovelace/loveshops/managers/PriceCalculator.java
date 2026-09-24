@@ -316,6 +316,44 @@ public class PriceCalculator {
         }
     }
 
+    // ===== merchant-tax: flat economy-sink cut on LoveShop's own NPCs (NOT Wanderer) =====
+
+    /**
+     * 2026-09-24 (owner request): a flat percentage cut applied on top of everything else at
+     * the final price for the Buyer NPC (Скупщик), the flea-market Seller NPC (Барахолка) and
+     * WarMerchant — see {@code merchant-tax} in config.yml. Wanderer is explicitly excluded per
+     * the owner's instruction; its prices are governed only by {@code wanderer.dynamic-pricing}
+     * and the personal-request surcharge, never by this cut.
+     *
+     * <p>This is independent from {@code dev.lovelace.lovecore.api.economy.TaxOracle} (LoveCore's
+     * ecosystem-wide, per-player politeness-based tax, already applied at the same call sites in
+     * BuyerManager/SellerManager before this runs) — TaxOracle reacts to player behavior and
+     * covers every plugin; this is a constant, LoveShop-only sink the owner wanted independently
+     * of player behavior, to preserve gold value across three specific NPCs. Applied last, on
+     * top of TaxOracle's result, not merged into a single formula, so TaxOracle's existing
+     * behavior is unaffected.</p>
+     *
+     * <p>Called from each manager's final price computation (BuyerManager#processSale,
+     * SellerManager#buyItem, WarMerchantManager#purchase) rather than scattered ad-hoc, so the
+     * rate lives in exactly one place.</p>
+     */
+    public long applyMerchantTaxToPayout(long basePayout) {
+        return Math.max(0, Math.round(basePayout * (1.0 - merchantTaxRate())));
+    }
+
+    /** See {@link #applyMerchantTaxToPayout(long)} — the purchase-side counterpart (cost up, not payout down). */
+    public long applyMerchantTaxToCost(long baseCost) {
+        return Math.round(baseCost * (1.0 + merchantTaxRate()));
+    }
+
+    private double merchantTaxRate() {
+        if (!plugin.getConfig().getBoolean("merchant-tax.enabled", true)) {
+            return 0.0;
+        }
+        double percent = plugin.getConfig().getDouble("merchant-tax.percent", 7.0);
+        return Math.max(0.0, Math.min(100.0, percent)) / 100.0;
+    }
+
     public void rollSellerPriceCycle() {
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             double noiseMin = plugin.getConfig().getDouble("seller.dynamic-pricing.noise-min-percent", -10.0);
