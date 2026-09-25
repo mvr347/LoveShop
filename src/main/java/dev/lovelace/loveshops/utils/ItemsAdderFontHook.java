@@ -48,8 +48,13 @@ public final class ItemsAdderFontHook {
             return text;
         }
 
-        String withTags = text.replaceAll("%img_([a-zA-Z0-9_:]+)%", ":$1:")
-                .replaceAll("%ia_([a-zA-Z0-9_:]+)%", ":$1:");
+        // Wrapped in <white>...</white> (MiniMessage tag, applied here since this runs before
+        // MiniMessage deserialization - see MessageUtils.parse) rather than bare ":tag:": the
+        // glyph's bitmap otherwise inherits whatever color tag is active around it (e.g. a red
+        // warning or gold price prefix), which visibly discolors the icon. </white> pops back to
+        // the surrounding color for whatever follows, instead of hardcoding a color after it too.
+        String withTags = text.replaceAll("%img_([a-zA-Z0-9_:]+)%", "<white>:$1:</white>")
+                .replaceAll("%ia_([a-zA-Z0-9_:]+)%", "<white>:$1:</white>");
 
         try {
             Class<?> fontImagesClass = Class.forName("dev.lone.itemsadder.api.FontImages");
