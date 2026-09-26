@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
+import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
@@ -75,6 +76,7 @@ public class CitizensListener implements Listener {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
+                case "banker" -> new BankerGui(plugin, player).open();
             }
             dialogue.maybeSayAmbient(player, mood);
         }

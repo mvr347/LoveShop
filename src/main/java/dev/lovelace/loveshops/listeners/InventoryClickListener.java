@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BuyerGui;
 import dev.lovelace.loveshops.gui.SellerGui;
+import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
@@ -61,6 +62,7 @@ public class InventoryClickListener implements Listener {
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "warmerchant" -> new WarMerchantGui(plugin, player).open();
+                case "banker" -> new BankerGui(plugin, player).open();
             }
         }
     }
@@ -105,11 +107,8 @@ public class InventoryClickListener implements Listener {
                     || event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT;
 
                 if (isRightClick) {
-                    // ПКМ — confirm and order whichever category the button currently shows.
                     startWandererDeal(player, categories[currentIndex]);
                 } else {
-                    // ЛКМ (or anything else) — just cycle the shown category in place, no
-                    // economy action, no GUI reopen needed.
                     int nextIndex = (currentIndex + 1) % categories.length;
                     ItemStack updated = dev.lovelace.loveshops.gui.WandererDealGui.buildCategoryButton(plugin, categories[nextIndex]);
                     event.setCurrentItem(updated);
@@ -246,6 +245,9 @@ public class InventoryClickListener implements Listener {
                     }
                 }
             }
+        } else if (titleText.contains(BankerGui.TITLE)) {
+            event.setCancelled(true);
+            handleBankerClick(player, event);
         } else if (titleText.contains(AuctionGui.TITLE)) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
@@ -273,6 +275,30 @@ public class InventoryClickListener implements Listener {
                         });
                     }
                 }
+            }
+        }
+    }
+
+    private void handleBankerClick(Player player, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot < 0 || slot >= 36) return;
+        if (slot == 35) {
+            player.closeInventory();
+            return;
+        }
+        if (slot == BankerGui.SLOT_CONSOLIDATE) {
+            if (BankerGui.consolidate(plugin, player)) {
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> new BankerGui(plugin, player).open());
+            }
+            return;
+        }
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta()) return;
+        Long denom = clicked.getItemMeta().getPersistentDataContainer()
+                .get(new NamespacedKey(plugin, BankerGui.DENOM_KEY), PersistentDataType.LONG);
+        if (denom != null && denom > 0) {
+            if (BankerGui.breakOne(plugin, player, denom)) {
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> new BankerGui(plugin, player).open());
             }
         }
     }

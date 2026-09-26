@@ -225,6 +225,15 @@ prices-config:
   QUARTZ: 35
   REDSTONE: 20
 
+# ===== БАНКИР =====
+# Обмен физических монет LoveCore между номиналами (укрупнение / размен).
+banker:
+  enabled: true
+  # Базовая комиссия в % при укрупнении (0 = бесплатно). Размен одной монеты — без комиссии.
+  # Персональная: /loveshopsadmin banker fee <игрок> <0-100>
+  # Сброс к базовой: /loveshopsadmin banker fee <игрок> reset
+  fee-percent: 5
+
 # ===== ОСОБЫЙ ТОРГОВЕЦ (СТРАННИК) =====
 wanderer:
   enabled: true

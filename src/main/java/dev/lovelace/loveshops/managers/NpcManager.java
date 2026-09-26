@@ -52,22 +52,10 @@ public class NpcManager {
         });
     }
 
-    /**
-     * Legacy/no-Citizens creation path: LoveShops spawns and fully owns a plain Villager NPC at
-     * the given location. This is what runs when Citizens isn't installed at all - there's no
-     * Citizens NPC to bind to, so it's the only way to place an NPC merchant on the map.
-     */
     public CompletableFuture<NpcData> createNpc(String type, String name, Location loc, String skinOwner) {
         return insertNpc(type, name, loc, skinOwner, null);
     }
 
-    /**
-     * Binds a LoveShops role onto a Citizens NPC the admin already created and positioned
-     * themselves ({@code /npc create}, then {@code /loveshopsadmin npc create <type> [name]}
-     * while looking at it or having it Citizens-selected). LoveShops never creates or destroys
-     * that Citizens NPC - {@link #spawnCitizensNpc} only tags/looks it up by id from here on,
-     * and {@link #deleteNpc} only untags it. See {@code CitizensIntegration}.
-     */
     public CompletableFuture<NpcData> bindNpc(String type, int citizensId, String displayNameOverride, String boundBy) {
         if (!Bukkit.isPrimaryThread()) {
             CompletableFuture<NpcData> future = new CompletableFuture<>();
@@ -217,18 +205,13 @@ public class NpcManager {
                 case "auctioneer" -> v.setProfession(Villager.Profession.LIBRARIAN);
                 case "wanderer" -> v.setProfession(Villager.Profession.FLETCHER);
                 case "warmerchant" -> v.setProfession(Villager.Profession.TOOLSMITH);
+                case "banker" -> v.setProfession(Villager.Profession.CARTOGRAPHER);
             }
         });
 
         spawnedEntities.put(npc.uuid(), villager);
     }
 
-    /**
-     * Resolves this row's Citizens NPC handle and tags it, without ever creating or destroying
-     * the underlying entity for a bound row (citizens_id set) - only a legacy row (citizens_id
-     * NULL, created before the 2026-09-23 bind workflow) still gets a NPC created for it here,
-     * exactly as every row used to be handled.
-     */
     private void spawnCitizensNpc(NpcData npc, Location loc) {
         try {
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
@@ -265,8 +248,6 @@ public class NpcManager {
             cNpc.data().setPersistent("loveshops_type", npc.type());
 
             if (bound) {
-                // The admin positions/moves a bound NPC with Citizens' own commands - LoveShops
-                // only makes sure it's actually spawned somewhere, never force-teleports it.
                 if (!cNpc.isSpawned()) {
                     Location spawnAt = cNpc.getStoredLocation() != null ? cNpc.getStoredLocation() : loc;
                     cNpc.spawn(spawnAt);
@@ -283,12 +264,6 @@ public class NpcManager {
         }
     }
 
-    /**
-     * Routine hide, called on every gating transition (weekly Барахолка leaving, plugin
-     * disable, a role being deleted, etc.) - never {@code destroy()}s a Citizens NPC, only
-     * despawns it, since a bound NPC belongs to the admin's own Citizens setup and routine
-     * plugin-side state changes must not delete it. Full unbinding is {@link #unbindNpcEntity}.
-     */
     public void despawnNpcEntity(UUID npcUuid) {
         if (!Bukkit.isPrimaryThread()) {
             Bukkit.getScheduler().runTask(plugin, () -> despawnNpcEntity(npcUuid));
@@ -319,13 +294,6 @@ public class NpcManager {
         }
     }
 
-    /**
-     * Fully removes a LoveShops role from its NPC, called only from {@link #deleteNpc}. A
-     * Citizens-bound NPC is left exactly as Citizens shows it - only the {@code loveshops_*}
-     * tags come off, the entity itself is never despawned or destroyed, since the admin created
-     * and owns it. A legacy/no-Citizens row has no other owner, so its Villager is removed
-     * outright, same as this plugin has always done for it.
-     */
     private void unbindNpcEntity(UUID npcUuid, Integer citizensId) {
         if (!Bukkit.isPrimaryThread()) {
             Bukkit.getScheduler().runTask(plugin, () -> unbindNpcEntity(npcUuid, citizensId));
@@ -374,7 +342,6 @@ public class NpcManager {
         return loadedNpcs.get(uuid);
     }
 
-    /** Looks up by {@code shops_npcs.id} (the short number shown in {@code npc list}), for {@code /loveshopsadmin npc delete <id>}. */
     public NpcData getNpcById(int id) {
         for (NpcData npc : loadedNpcs.values()) {
             if (npc.id() == id) return npc;
@@ -382,7 +349,6 @@ public class NpcManager {
         return null;
     }
 
-    /** Looks up the LoveShops row bound to a given Citizens NPC id, for the look-at-and-delete path. */
     public Optional<NpcData> getNpcByCitizensId(int citizensId) {
         return loadedNpcs.values().stream()
             .filter(n -> n.citizensId() != null && n.citizensId() == citizensId)
@@ -425,9 +391,6 @@ public class NpcManager {
     }
 
     private NpcData mapResultSet(ResultSet rs) throws SQLException {
-        // wasNull() reflects only the most recently read column, so the NULL check has to happen
-        // right next to getInt() - not after the several other rs.getXxx() calls the NpcData
-        // constructor below makes, which would each overwrite it first.
         int rawCitizensId = rs.getInt("citizens_id");
         Integer citizensId = rs.wasNull() ? null : rawCitizensId;
         return new NpcData(
