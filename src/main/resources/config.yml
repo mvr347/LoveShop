@@ -5,25 +5,35 @@
 
 # ===== NPC (привязка к Citizens) =====
 npc:
+  # Дальность луча взгляда для "/loveshopsadmin npc create|delete" без указания id: админ
+  # создаёт и располагает NPC штатными командами Citizens, затем смотрит на него и привязывает
+  # роль LoveShops этой командой - тот же паттерн, что уже используется в LoveClans
+  # (ClansAdminCommand#createNpc) и LoveTweaks (Herald bind). Добавлено 2026-09-23 вместе
+  # с переходом NpcManager на bindNpc(): LoveShops больше не создаёт и не удаляет сам Citizens
+  # NPC, только помечает/снимает метку с уже существующего.
   bind-distance: 6.0
 
 # ===== СКУПЩИК =====
 buyer:
   enabled: true
   base-price-config:
-    type: "config"
-    default-price: 75
+    type: "config"                            # 'config' или 'nbt'
+    default-price: 75                         # если не найдена в config (было 100, снижено на четверть — см. prices-config ниже)
+  
   price-variance:
-    min-percent: -30
-    max-percent: 30
+    min-percent: -30                          # минимальная вариативность
+    max-percent: 30                           # максимальная вариативность
+  
   repetition-penalty:
     enabled: true
-    penalty-per-submit: 5
-    max-penalty: 50
+    penalty-per-submit: 5                     # штраф % за каждую сдачу одинакового предмета
+    max-penalty: 50                           # максимум штрафа (%)
+  
   reputation-bonus:
-    good-status: 20
-    bad-status: -50
-    aggressive-status: -30
+    good-status: 20                           # + % к цене
+    bad-status: -50                           # отказ в покупке
+    aggressive-status: -30                    # отказ или сниженная цена
+  
   messages:
     reject-bad-reputation:
       - "Скупщик: Про тебя ходят плохие слухи... Катись своей дорогой!"
@@ -39,19 +49,28 @@ buyer:
 # ===== ТОРГОВЕЦ-БАРАХОЛКА =====
 seller:
   enabled: true
-  arrival-day: "SUNDAY"
-  arrival-time: "10:00"
+  arrival-day: "SUNDAY"                       # день недели
+  arrival-time: "10:00"                       # формат HH:MM (по серверному времени)
   departure-time: "18:00"
+  # Минимум непроданных предметов в channel='seller', при котором барахолка реально открывается
+  # (торговец приезжает, спавнится NPC). Раньше это значение читалось конфигом, но нигде не
+  # применялось в коде — торговец приезжал по расписанию даже с пустым списком товаров.
+  # Подключено 2026-09-23: SellerManager.handleArrival() теперь считает доступные строки
+  # ПОСЛЕ createAuctionsFromPendingItems() и не показывает событие, если товаров меньше этого
+  # порога. На форс-старт админом (/loveshopsadmin seller start) порог не действует.
   min-items-to-spawn: 10
-  markup-percent: 15
+  
+  markup-percent: 15                          # базовая наценка на предметы от скупщика (%)
+
   dynamic-pricing:
     enabled: true
-    demand-weight-percent: 3
-    supply-weight-percent: 2
-    noise-min-percent: -10
-    noise-max-percent: 10
-    min-multiplier: 0.3
-    trend-threshold-percent: 5
+    demand-weight-percent: 3                  # + % к цене за каждую покупку предмета этого типа в текущем цикле
+    supply-weight-percent: 2                  # - % к цене за каждую единицу этого типа сейчас в наличии
+    noise-min-percent: -10                    # случайный шум цикла (мин)
+    noise-max-percent: 10                     # случайный шум цикла (макс)
+    min-multiplier: 0.3                       # минимальный итоговый множитель цены
+    trend-threshold-percent: 5                # на сколько цена должна уйти от спокойной, чтобы в меню показать тренд
+
   messages:
     arrival:
       - "&e[Барахолка] &fТорговец приехал! &6Сейчас с 10:00 до 18:00."
@@ -62,18 +81,28 @@ seller:
 # ===== АУКЦИОН (РЕДКИЕ ПРЕДМЕТЫ) =====
 auctioneer:
   enabled: true
-  auction-duration-hours: 24
-  price-threshold: 400
-  buyout-multiplier: 2.5
+  auction-duration-hours: 24                  # длительность аукциона
+  price-threshold: 400                        # цена скупки, начиная с которой предмет уходит на аукцион, а не на барахолку
+  buyout-multiplier: 2.5                      # цена мгновенного выкупа = стартовая цена * множитель
+
+  # Редкие/зачарованные предметы уходят на аукцион независимо от price-threshold выше.
   route-rare-items: true
+  # Минимальная редкость (COMMON/UNCOMMON/RARE/EPIC, см. org.bukkit.inventory.ItemRarity),
+  # начиная с которой предмет считается "редким" — фиолетово-золотистые цвета в тултипе ванильи.
+  # Работает только для предметов, у которых явно проставлен компонент редкости; для
+  # обычных зачарованных вещей без такого компонента срабатывает отдельная проверка на
+  # зачарования (всегда включена, не зависит от этого порога).
   min-rarity: "RARE"
+
   anti-snipe:
     enabled: true
-    threshold-seconds: 30
-    extension-seconds: 30
+    threshold-seconds: 30                     # ставка позже этого времени до конца продлевает аукцион
+    extension-seconds: 30                     # на сколько продлевать от момента ставки
+
   bid-step:
-    type: "percentage"
-    value: 5
+    type: "percentage"                        # 'percentage' или 'fixed'
+    value: 5                                  # 5% от текущей ставки
+
   messages:
     auction-started: "&6Аукцион! &eПредмет: {item_name} &eна сумму {starting_price}"
     auction-ended: "&6Аукцион завершён! &eПобедитель: {winner} за {final_price}"
@@ -82,16 +111,23 @@ auctioneer:
 
 # ===== ЗАЩИТА И СИСТЕМНЫЕ ПАРАМЕТРЫ =====
 protection:
-  gui-update-on-purchase: true
+  gui-update-on-purchase: true                # обновлять GUI по событию при покупке
   item-already-sold-message: "&cЭтот предмет уже куплен другим игроком."
   insufficient-funds: "&cНедостаточно средств!"
 
+  
 placeholders:
-  enabled: true
+  enabled: true                               # включить PlaceholderAPI интеграцию
 
+# ===== "ЖИВЫЕ" НПС: РЕАКЦИЯ НА ВЕЖЛИВОСТЬ/СТИЛЬ ИГРЫ (LoveBehavior) =====
+# Срабатывает при клике на любого НПС (Скупщик/Барахолка/Аукционист), до открытия
+# GUI. Это отдельный, более ранний слой поверх ручного /lssa status у Скупщика —
+# тот статус (buyer_reputation_overrides) как проверялся, так и проверяется отдельно
+# в момент финализации сделки Скупщика, здесь не участвует. Без LoveBehavior секция
+# не действует (открытие GUI как раньше).
 npc-dialogue:
   reject:
-    enabled: true
+    enabled: true                             # блокировать открытие GUI для ужасной вежливости/агрессивного стиля
     terrible-politeness:
       - "Не люблю таких, как ты. Проваливай."
       - "О тебе слишком много говорят плохого. Уходи."
@@ -101,8 +137,8 @@ npc-dialogue:
       - "Твой агрессивный настрой мне не нравится. Ступай своей дорогой."
       - "Не хочу с тобой дел иметь — слишком буйный."
   ambient:
-    enabled: true
-    chance: 0.35
+    enabled: true                             # необязательные фразы-настроение, не блокируют GUI
+    chance: 0.35                              # шанс сказать фразу при открытии GUI
     terrible-politeness:
       - "*смотрит на тебя с презрением*"
       - "Ну и тип..."
@@ -114,6 +150,12 @@ npc-dialogue:
       - "С тобой всегда приятно иметь дело."
       - "Заходи почаще, доброму человеку тут всегда рады."
 
+# ===== ВОЕННЫЙ ТОРГОВЕЦ (ТОЛЬКО ДЛЯ АГРЕССИВНОГО СТИЛЯ ИГРЫ) =====
+# НПС нового типа "warmerchant" (создаётся через /loveshopsadmin npc create warmerchant <Имя>),
+# ассортимент которого доступен только игрокам с достаточно агрессивным стилем игры
+# (LoveCore.BehaviorLevels, ставит LoveBehavior). Как и остальная агрессивная механика в
+# экосистеме (см. LoveClans war.aggressive-playstyle-bonus) - "агрессивный" значит НИЗКУЮ
+# ступень playstyleLevel, не высокую. Без LoveBehavior доступа нет ни у кого.
 war-merchant:
   enabled: true
   playstyle-threshold: 0
@@ -122,6 +164,8 @@ war-merchant:
       - "Военный торговец: Тебе тут делать нечего, миролюбивый. Проваливай."
       - "Военный торговец: Это не для тебя. Здесь торгуют только с теми, кто не боится крови."
       - "Военный торговец: Возвращайся, когда перестанешь бояться сражений."
+  # material - любой Material; price - цена в валюте LoveCore; enchantments - необязательная
+  # карта ИМЯ_ЗАЧАРОВАНИЯ_В_ВЕРХНЕМ_РЕГИСТРЕ: уровень (те же ключи, что у /enchant и в loot-таблицах).
   items:
     - material: DIAMOND_SWORD
       price: 800
@@ -139,10 +183,36 @@ war-merchant:
       price: 2000
       enchantments: { }
 
+# ===== НАЛОГ ТОРГОВЦЕВ (Скупщик/Барахолка/Военный торговец — БЕЗ Странника) =====
+# 2026-09-24, по явной просьбе владельца: фиксированный процент, которым магазины LoveShop
+# "съедают" часть каждой сделки - экономический сток / мера сохранения ценности золота на
+# сервере. Скупщик платит игроку МЕНЬШЕ на этот процент; Барахолка и Военный торговец берут с
+# игрока БОЛЬШЕ на этот процент. Странник ИСКЛЮЧЁН СОЗНАТЕЛЬНО - владелец прямо попросил не
+# трогать его цены этим налогом (см. wanderer.dynamic-pricing выше - у него своя, отдельная
+# логика ценообразования).
+#
+# Это НЕ то же самое, что dev.lovelace.lovecore.api.economy.TaxOracle из LoveCore (секция tax:
+# в конфиге LoveCore) - тот уже облагает налогом покупки/продажи экосистемно, по вежливости
+# конкретного игрока, для любого плагина. Этот процент - независимый, ПОСТОЯННЫЙ (не зависит от
+# поведения игрока) сток, который применяется ПОСЛЕ TaxOracle, поверх его результата (см.
+# PriceCalculator#applyMerchantTaxToCost/applyMerchantTaxToPayout) - так поведенческий налог
+# продолжает работать как раньше, а этот процент просто добавляет фиксированный слой сверху.
+# 7% выбрано как заметный, но не разрушительный сток - владелец попросил диапазон 5-10%,
+# середина диапазона взята как безопасный старт; поправить после недели наблюдений в игре.
 merchant-tax:
   enabled: true
   percent: 7
 
+# ===== ПОЗИЦИИ ПРЕДМЕТОВ В CONFIG =====
+# Базовые цены скупщика были срезаны примерно на 25% (владелец сервера сообщил, что
+# скупщик отдаёт слишком много монет). Это самый прямой и предсказуемый рычаг: он
+# действует до множителей variance/reputation-bonus/repetition-penalty ниже, так что
+# соотношение между ними и итоговый разброс цены не меняются — меняется только база.
+# Проверьте эти значения в игре и подправьте под свою экономику при необходимости.
+# Обычные и редкие предметы теперь в отдельном файле prices.yml — см. common/rare там.
+# Здесь остаются только клановые артефакты LoveClans: цена по типу, а не по материалу,
+# им отдельный список не нужен. Выше порога аукциона (auctioneer.price-threshold),
+# поэтому артефакт уходит на торги, а не на барахолку.
 prices-config:
   DIAMOND: 500
   GOLD_INGOT: 150
@@ -163,3 +233,340 @@ banker:
   # Персональная: /loveshopsadmin banker fee <игрок> <0-100>
   # Сброс к базовой: /loveshopsadmin banker fee <игрок> reset
   fee-percent: 5
+
+# ===== ОСОБЫЙ ТОРГОВЕЦ (СТРАННИК) =====
+wanderer:
+  enabled: true
+  name: "Странник"
+  display-name: "<gradient:#9b59b6:#e74c3c><bold>Странник</bold></gradient>"
+  skin-owner: "Wanderer"
+
+  # Расписание появления. 2026-09-23: раньше это были 3 ЖЁСТКО заданных дня недели
+  # (TUESDAY/THURSDAY/SATURDAY) — теперь Странник каждый день бросает кубик, приходить ли
+  # ему сегодня (вероятность = arrivals-per-week/7), с одним жёстким правилом: не два дня
+  # подряд (см. WandererManager#isTodayArrivalDay). arrivals-per-week — средняя частота в
+  # неделю, а не гарантированное число визитов.
+  schedule:
+    arrivals-per-week: 3
+    arrival-time: "10:00"                       # формат HH:MM
+    departure-time: "22:00"
+
+  # Точечные "визиты" вместо общего оповещения о приходе (см. messages ниже — оповещение
+  # убрано по требованию). Странник сам решает, кому лично намекнуть о своём визите — это
+  # ТОЛЬКО предвзятость выбора получателя приватного сообщения, а не право торговать (это
+  # отдельно решает playstyle-requirement выше) и не связано с фичей "агрессивный стиль
+  # открывает секретные сделки", которую отдельно делают на стороне LoveBehavior.
+  # 2026-09-26: выключено по умолчанию — владелец попросил, чтобы Странник вообще не показывал
+  # текст при появлении (сюда же relates departure-enabled ниже, про уход).
+  visit-targeting:
+    enabled: false
+    # Игрок классифицируется как "агрессивный/конфликтный", если LoveCore.BehaviorLevels
+    # .playstyleLevel(uuid) <= этого порога (0 = максимально агрессивный стиль, 6 = максимально
+    # добрый, см. BehaviorLevels.MAX_LEVEL). Неаггрессивные (выше порога) визит получают всегда.
+    aggressive-threshold: 2
+    # Конфликтный игрок всё ещё может получить личный визит Странника, но только с этим
+    # шансом (0..1) — Странник предпочитает спокойных игроков, но не игнорирует агрессивных
+    # полностью.
+    aggressive-consider-chance: 0.5
+    messages:
+      - "<dark_purple>[Странник]</dark_purple> <white>Кто-то тихо стучит в дверь твоего дома... Таинственный Странник заглянул в город и ищет встречи именно с тобой.</white>"
+      - "<dark_purple>[Странник]</dark_purple> <white>Из тени у рынка тебе едва заметно кивает знакомый силуэт с капюшоном...</white>"
+
+  # Настройки договора (заказа предметов)
+  deal:
+    cost: 150                                   # Стоимость заключения договора (0 = бесплатно)
+    delivery-time-minutes: 60                   # Через сколько минут Странник принесёт предметы
+    min-items: 3                                # Минимальное кол-во предметов в приносе
+    max-items: 6                                # Максимальное кол-во предметов в приносе
+    deal-expire-hours: 48                       # Сколько часов сохраняются принесённые товары
+
+    # Платный персональный заказ: игрок платит доплату и получает партию, собранную ТОЛЬКО
+    # из предметов запрошенной категории (item-pool.category ниже), вместо случайного набора
+    # из всего пула. Категории: TOOLS (Инструменты), ARMOR (Броня), ENCHANTMENTS (Зачарования —
+    # зачарованные книги), RARE (Редкие предметы).
+    personal-request:
+      enabled: true
+      surcharge-percent: 50                     # доплата % к deal.cost за выбор конкретной категории
+
+  # Динамическое ценообразование Странника по экономике недели (2026-09-24, просьба владельца).
+  # Множитель цены считается на КАЖДЫЙ новый договор (WandererManager#computeDynamicPriceMultiplier)
+  # из двух сигналов за последние 7 дней и применяется к price каждого предмета из items-pool ниже.
+  # Множитель ТОЛЬКО повышает цену (никогда не опускает её ниже 1.0) - владелец просил именно
+  # "выше при дефиците/активности", а не симметричную скидку в обратную сторону.
+  #   1) scarcity (дефицит, основной сигнал) - сколько предметов игроки продали Скупщику за
+  #      неделю (buyer_inventory.received_at). Мало продаж = дефицит товаров = Странник дороже.
+  #      При weeklySold >= scarcity-reference-weekly-sold бонус равен нулю (рынок и так насыщен).
+  #   2) activity (активность экономики, вторичный сигнал, слабее scarcity по просьбе владельца) -
+  #      сколько разных игроков за неделю продавали Скупщику ИЛИ делали ставки на аукционе
+  #      (buyer_inventory + auction_bids). Богатая/активная экономика выдерживает цены повыше.
+  # Оба веса и порог насыщения независимо настраиваются - шаблон значений ниже: 50 продаж/неделю
+  # и 20 активных игроков/неделю взяты как "обычная неделя" по объёму органично играющего сервера
+  # среднего размера; поправить под свой сервер после недели наблюдений в /loveshopsadmin.
+  dynamic-pricing:
+    enabled: true
+    scarcity-weight-percent: 40                 # макс. надбавка % от дефицита (при weeklySold = 0)
+    scarcity-reference-weekly-sold: 50          # "нормальная" неделя продаж Скупщику - выше неё бонуса нет
+    activity-weight-percent: 15                 # макс. надбавка % от активности (меньше scarcity — так просил владелец)
+    activity-reference-weekly-players: 20       # "нормальное" число активных игроков в неделю - выше него бонус не растёт
+    max-multiplier: 1.75                        # потолок множителя (scarcity+activity вместе), чтобы цена не улетела в абсурд
+
+  # Реалистичное качество товара Странника (2026-09-23): раньше предметы всегда приходили
+  # с полной прочностью и полным набором зачарований из конфига — выглядело неестественно
+  # "сгенерированным". Теперь оба свойства бросаются отдельно на каждый предмет.
+  item-quality:
+    durability:
+      enabled: true
+      pristine-chance: 0.35                     # шанс прийти без износа вообще
+      min-wear-percent: 5                       # если износ есть — мин. % потерянной прочности
+      max-wear-percent: 60                      # макс. % потерянной прочности
+    enchant-quality:
+      # Зачарования Странника намеренно ЛУЧШЕ обычного дропа: даже "худший" ролл (без
+      # зачарований) применяется только к товарам, которые уже отобраны вручную как
+      # "Wanderer-уровня" в items-pool — потолок качества всё равно выше рядового лута.
+      enabled: true
+      full-enchant-chance: 0.65                 # шанс сохранить ВСЕ зачарования как в конфиге
+      partial-enchant-chance: 0.25              # шанс оставить только сильнейшую половину
+      # оставшийся шанс (1 - full - partial) = без зачарований на этом ролле
+
+  # Требование к стилю игры LoveBehavior
+  playstyle-requirement:
+    enabled: true
+    required-style: "aggressive"                # Требуемый стиль: aggressive
+    playstyle-threshold: 0                      # Порог в LoveCore.BehaviorLevels (0 = максимальная агрессия)
+
+  messages:
+    not-aggressive:
+      - "<red>Странник:</red> <gray>Ты выглядишь слишком мирным... Я веду дела только с теми, у кого агрессивный стиль игры. Возвращайся, когда прольёшь чью-то кровь.</gray>"
+      - "<red>Странник:</red> <gray>Мои товары — не для слабаков. Твой стиль слишком мягок. Мне нужны бойцы и агрессоры.</gray>"
+      - "<red>Странник:</red> <gray>Уходи. Я торгую только с безжалостными хищниками.</gray>"
+    not-active:
+      - "<dark_purple>Странник:</dark_purple> <gray>Сейчас я в дальнем пути. Моё расписание не знает даже город — приходи и проверь!</gray>"
+    deal-started: "<green>Странник:</green> <gray>По рукам! Я отправляюсь в путь за редким добром. Вернусь через <gold>{time}</gold>.</gray>"
+    deal-not-ready: "<yellow>Странник:</yellow> <gray>Я ещё не вернулся с полными руками. Жди меня через <gold>{time}</gold>.</gray>"
+    deal-ready: "<green>Странник:</green> <gray>Я вернулся и принёс отличные вещи! Выбирай, пока не разобрали.</gray>"
+    deal-completed: "<green>Странник:</green> <gray>Сделка завершена. Хочешь заказать новую партию?</gray>"
+    insufficient-funds-deal: "<red>У вас недостаточно средств для заключения сделки! Требуется: <gold>{currency_icon}{cost} {currency}</gold></red>"
+    # arrival: намеренно убран — Странник больше не объявляет о своём приходе на весь сервер,
+    # см. visit-targeting выше (приватные "визиты" вместо общего оповещения).
+    # 2026-09-26: departure-enabled по умолчанию false — владелец попросил, чтобы Странник не
+    # показывал текст и при уходе тоже (см. visit-targeting.enabled выше про приход). Список
+    # departure ниже сохранён на случай, если это захотят включить обратно.
+    departure-enabled: false
+    departure:
+      - "<dark_purple>[Странник]</dark_purple> <gray>Странник собрал пожитки и растворился в ночи. Встретимся в следующий раз...</gray>"
+
+  # Пул предметов, которые может принести Странник. category — см. personal-request выше:
+  # TOOLS / ARMOR / ENCHANTMENTS / RARE (по умолчанию RARE, если не указано).
+  items-pool:
+    - id: "blood_sword"
+      material: "NETHERITE_SWORD"
+      name: "<red><bold>Клинок Кровавого Странника</bold></red>"
+      lore:
+        - "<gray>Заточен в пламени Преисподней.</gray>"
+        - "<dark_red>Оружие безжалостного завоевателя.</dark_red>"
+      enchants:
+        SHARPNESS: 5
+        FIRE_ASPECT: 2
+        UNBREAKING: 3
+      price: 1500
+      amount: 1
+      weight: 20
+      category: "RARE"
+
+    - id: "predator_crossbow"
+      material: "CROSSBOW"
+      name: "<gold><bold>Арбалет Хищника</bold></gold>"
+      lore:
+        - "<gray>Выпускает град смертоносных стрел.</gray>"
+      enchants:
+        QUICK_CHARGE: 3
+        PIERCING: 4
+        MULTISHOT: 1
+      price: 1100
+      amount: 1
+      weight: 25
+      category: "RARE"
+
+    - id: "berserk_axe"
+      material: "NETHERITE_AXE"
+      name: "<dark_red><bold>Секира Берсерка</bold></dark_red>"
+      lore:
+        - "<gray>Сокрушает щиты противников одним ударом.</gray>"
+      enchants:
+        SHARPNESS: 5
+        EFFICIENCY: 5
+      price: 1300
+      amount: 1
+      weight: 20
+      category: "RARE"
+
+    - id: "enchanted_apple_pack"
+      material: "ENCHANTED_GOLDEN_APPLE"
+      name: "<light_purple><bold>Зачарованное Золотое Яблоко</bold></light_purple>"
+      price: 800
+      amount: 2
+      weight: 35
+      category: "RARE"
+
+    - id: "totem_of_undying"
+      material: "TOTEM_OF_UNDYING"
+      name: "<yellow><bold>Тотем Бессмертия</bold></yellow>"
+      price: 950
+      amount: 1
+      weight: 30
+      category: "RARE"
+
+    - id: "tnt_crate"
+      material: "TNT"
+      name: "<red>Партия Контрабандного Динамита</red>"
+      lore:
+        - "<gray>Идеально для подрыва укреплений.</gray>"
+      price: 300
+      amount: 16
+      weight: 50
+      category: "RARE"
+
+    - id: "end_crystal_pack"
+      material: "END_CRYSTAL"
+      name: "<light_purple>Кристаллы Края</light_purple>"
+      lore:
+        - "<gray>Для мощнейших тактических взрывов.</gray>"
+      price: 700
+      amount: 2
+      weight: 40
+      category: "RARE"
+
+    - id: "netherite_scrap_pack"
+      material: "NETHERITE_SCRAP"
+      name: "<dark_gray><bold>Осколки Древнего Незерита</bold></dark_gray>"
+      price: 600
+      amount: 3
+      weight: 40
+      category: "RARE"
+
+    - id: "experience_bottles"
+      material: "EXPERIENCE_BOTTLE"
+      name: "<green>Концентрированный Эликсир Опыта</green>"
+      price: 250
+      amount: 32
+      weight: 60
+      category: "RARE"
+
+    - id: "spectral_arrow_quiver"
+      material: "SPECTRAL_ARROW"
+      name: "<gold>Спектральные Стрелы Охотника</gold>"
+      price: 200
+      amount: 32
+      weight: 55
+      category: "RARE"
+
+    - id: "wanderer_pickaxe"
+      material: "NETHERITE_PICKAXE"
+      name: "<aqua><bold>Кирка Старателя Странника</bold></aqua>"
+      lore:
+        - "<gray>Прошла не одну шахту в поисках редкой руды.</gray>"
+      enchants:
+        EFFICIENCY: 5
+        FORTUNE: 3
+        UNBREAKING: 3
+      price: 1000
+      amount: 1
+      weight: 25
+      category: "TOOLS"
+
+    - id: "wanderer_axe_tool"
+      material: "DIAMOND_AXE"
+      name: "<gold>Топор Лесоруба Странника</gold>"
+      enchants:
+        EFFICIENCY: 4
+        UNBREAKING: 3
+      price: 500
+      amount: 1
+      weight: 30
+      category: "TOOLS"
+
+    - id: "wanderer_shears"
+      material: "SHEARS"
+      name: "<green>Верные Ножницы Странника</green>"
+      enchants:
+        UNBREAKING: 3
+        MENDING: 1
+      price: 300
+      amount: 1
+      weight: 30
+      category: "TOOLS"
+
+    - id: "wanderer_chestplate"
+      material: "NETHERITE_CHESTPLATE"
+      name: "<dark_purple><bold>Нагрудник Скитальца</bold></dark_purple>"
+      lore:
+        - "<gray>Повидал больше битв, чем иной наёмник.</gray>"
+      enchants:
+        PROTECTION: 4
+        UNBREAKING: 3
+      price: 1200
+      amount: 1
+      weight: 25
+      category: "ARMOR"
+
+    - id: "wanderer_boots"
+      material: "NETHERITE_BOOTS"
+      name: "<dark_purple>Сапоги Скитальца</dark_purple>"
+      enchants:
+        PROTECTION: 3
+        FEATHER_FALLING: 4
+        UNBREAKING: 3
+      price: 700
+      amount: 1
+      weight: 30
+      category: "ARMOR"
+
+    - id: "wanderer_shield"
+      material: "SHIELD"
+      name: "<gold>Щит Пограничника</gold>"
+      enchants:
+        UNBREAKING: 3
+      price: 400
+      amount: 1
+      weight: 30
+      category: "ARMOR"
+
+    - id: "book_mending"
+      material: "ENCHANTED_BOOK"
+      name: "<light_purple><bold>Книга: Починка</bold></light_purple>"
+      enchants:
+        MENDING: 1
+      price: 900
+      amount: 1
+      weight: 25
+      category: "ENCHANTMENTS"
+
+    - id: "book_sharpness_5"
+      material: "ENCHANTED_BOOK"
+      name: "<red><bold>Книга: Острота V</bold></red>"
+      enchants:
+        SHARPNESS: 5
+      price: 600
+      amount: 1
+      weight: 30
+      category: "ENCHANTMENTS"
+
+    - id: "book_protection_4"
+      material: "ENCHANTED_BOOK"
+      name: "<blue><bold>Книга: Защита IV</bold></blue>"
+      enchants:
+        PROTECTION: 4
+      price: 600
+      amount: 1
+      weight: 30
+      category: "ENCHANTMENTS"
+
+    - id: "book_fortune_3"
+      material: "ENCHANTED_BOOK"
+      name: "<gold><bold>Книга: Удача III</bold></gold>"
+      enchants:
+        FORTUNE: 3
+      price: 550
+      amount: 1
+      weight: 30
+      category: "ENCHANTMENTS"

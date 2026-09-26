@@ -36,6 +36,21 @@ public final class ItemsAdderFontHook {
             return text;
         }
 
+        // Wrapped in <white>...</white> (MiniMessage tag, applied here since this runs before
+        // MiniMessage deserialization - see MessageUtils.parse) BEFORE handing off to
+        // PlaceholderAPI below, not after: ItemsAdder registers %img_x%/%ia_x% as its own PAPI
+        // expansion, so on a server with both plugins installed (the normal production case)
+        // PlaceholderAPI.setPlaceholders resolves the placeholder straight to the raw glyph
+        // character, and by then there is no %img_x% token left to wrap - the glyph would
+        // silently inherit whatever color tag is active around it (a red warning, a gold price
+        // prefix, ...). Wrapping the literal token first survives both that PAPI path and the
+        // manual FontImages fallback below, since PAPI and FontImages both do a plain
+        // string-replace and don't care what surrounds the token they're replacing.
+        if (text.contains("%img_") || text.contains("%ia_")) {
+            text = text.replaceAll("%img_([a-zA-Z0-9_:]+)%", "<white>%img_$1%</white>")
+                    .replaceAll("%ia_([a-zA-Z0-9_:]+)%", "<white>%ia_$1%</white>");
+        }
+
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             try {
                 text = PlaceholderAPI.setPlaceholders(player, text);
@@ -48,13 +63,8 @@ public final class ItemsAdderFontHook {
             return text;
         }
 
-        // Wrapped in <white>...</white> (MiniMessage tag, applied here since this runs before
-        // MiniMessage deserialization - see MessageUtils.parse) rather than bare ":tag:": the
-        // glyph's bitmap otherwise inherits whatever color tag is active around it (e.g. a red
-        // warning or gold price prefix), which visibly discolors the icon. </white> pops back to
-        // the surrounding color for whatever follows, instead of hardcoding a color after it too.
-        String withTags = text.replaceAll("%img_([a-zA-Z0-9_:]+)%", "<white>:$1:</white>")
-                .replaceAll("%ia_([a-zA-Z0-9_:]+)%", "<white>:$1:</white>");
+        String withTags = text.replaceAll("%img_([a-zA-Z0-9_:]+)%", ":$1:")
+                .replaceAll("%ia_([a-zA-Z0-9_:]+)%", ":$1:");
 
         try {
             Class<?> fontImagesClass = Class.forName("dev.lone.itemsadder.api.FontImages");

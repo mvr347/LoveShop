@@ -174,17 +174,23 @@ public class WandererManager {
             this.active = nowActive;
             if (nowActive) {
                 // Странник пришёл - НИКАКОГО общего оповещения (убрано по требованию: раньше
-                // здесь был Bukkit.broadcast по wanderer.messages.arrival). Вместо этого —
-                // приватный, предвзятый по стилю игры "визит" отдельным игрокам, см.
-                // sendTargetedVisitNotices().
+                // здесь был Bukkit.broadcast по wanderer.messages.arrival). Приватные "визиты"
+                // отдельным игрокам (sendTargetedVisitNotices()) тоже отключены по умолчанию
+                // с 2026-09-26 - владелец попросил, чтобы Странник вообще не показывал текст
+                // ни при появлении, ни при уходе; переключатель wanderer.visit-targeting.enabled
+                // остаётся в конфиге для тех, кто захочет вернуть приватные визиты обратно.
                 sendTargetedVisitNotices();
                 for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {
                     plugin.getNpcManager().spawnNpcEntity(npc);
                 }
             } else {
-                // Wanderer departed!
-                for (String msg : plugin.getConfig().getStringList("wanderer.messages.departure")) {
-                    Bukkit.broadcast(MessageUtils.parse(msg));
+                // Wanderer departed! 2026-09-26: общее оповещение об уходе тоже отключено по
+                // умолчанию (см. комментарий выше про приход) - переключатель
+                // wanderer.messages.departure-enabled.
+                if (plugin.getConfig().getBoolean("wanderer.messages.departure-enabled", false)) {
+                    for (String msg : plugin.getConfig().getStringList("wanderer.messages.departure")) {
+                        Bukkit.broadcast(MessageUtils.parse(msg));
+                    }
                 }
                 for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {
                     plugin.getNpcManager().despawnNpcEntity(npc.uuid());
