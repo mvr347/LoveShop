@@ -1,1 +1,163 @@
-# placeholder - will be replaced
+# ===== ВАЛЮТА =====
+# Валюта — общая для всей экосистемы, настраивается в LoveCore (economy.denominations
+# в его config.yml), а не здесь. LoveShops требует LoveCore и без него не включится.
+
+
+# ===== NPC (привязка к Citizens) =====
+npc:
+  bind-distance: 6.0
+
+# ===== СКУПЩИК =====
+buyer:
+  enabled: true
+  base-price-config:
+    type: "config"
+    default-price: 75
+  price-variance:
+    min-percent: -30
+    max-percent: 30
+  repetition-penalty:
+    enabled: true
+    penalty-per-submit: 5
+    max-penalty: 50
+  reputation-bonus:
+    good-status: 20
+    bad-status: -50
+    aggressive-status: -30
+  messages:
+    reject-bad-reputation:
+      - "Скупщик: Про тебя ходят плохие слухи... Катись своей дорогой!"
+      - "Скупщик: Мне не нравится твоё имя в городе. Уходи."
+      - "Скупщик: С тобой лучше не иметь дел."
+    reject-aggressive:
+      - "Скупщик: Дружок, я не хочу проблем, иди своей дорогой."
+      - "Скупщик: Твой агрессивный тон мне не нравится. Ступай!"
+      - "Скупщик: Спокойнее! Или попросить у меня нечего."
+    accept: "&aСкупщик: Отличный товар! Вот тебе &b{currency_icon}{price} &aмонет!"
+    accept-with-bonus: "&aСкупщик: У тебя хорошая репутация! Вот ещё &b{bonus} &aмонет сверху."
+
+# ===== ТОРГОВЕЦ-БАРАХОЛКА =====
+seller:
+  enabled: true
+  arrival-day: "SUNDAY"
+  arrival-time: "10:00"
+  departure-time: "18:00"
+  min-items-to-spawn: 10
+  markup-percent: 15
+  dynamic-pricing:
+    enabled: true
+    demand-weight-percent: 3
+    supply-weight-percent: 2
+    noise-min-percent: -10
+    noise-max-percent: 10
+    min-multiplier: 0.3
+    trend-threshold-percent: 5
+  messages:
+    arrival:
+      - "&e[Барахолка] &fТорговец приехал! &6Сейчас с 10:00 до 18:00."
+      - "&e[Барахолка] &fВот это новый товар! Приходите покупать!"
+    departure:
+      - "&e[Барахолка] &fТорговец уезжает! Встретимся в следующее воскресенье."
+
+# ===== АУКЦИОН (РЕДКИЕ ПРЕДМЕТЫ) =====
+auctioneer:
+  enabled: true
+  auction-duration-hours: 24
+  price-threshold: 400
+  buyout-multiplier: 2.5
+  route-rare-items: true
+  min-rarity: "RARE"
+  anti-snipe:
+    enabled: true
+    threshold-seconds: 30
+    extension-seconds: 30
+  bid-step:
+    type: "percentage"
+    value: 5
+  messages:
+    auction-started: "&6Аукцион! &eПредмет: {item_name} &eна сумму {starting_price}"
+    auction-ended: "&6Аукцион завершён! &eПобедитель: {winner} за {final_price}"
+    bid-placed: "&a✓ Ставка принята: {bid_amount}"
+    bid-outbid: "&c✗ Ваша ставка перебита на {new_amount}"
+
+# ===== ЗАЩИТА И СИСТЕМНЫЕ ПАРАМЕТРЫ =====
+protection:
+  gui-update-on-purchase: true
+  item-already-sold-message: "&cЭтот предмет уже куплен другим игроком."
+  insufficient-funds: "&cНедостаточно средств!"
+
+placeholders:
+  enabled: true
+
+npc-dialogue:
+  reject:
+    enabled: true
+    terrible-politeness:
+      - "Не люблю таких, как ты. Проваливай."
+      - "О тебе слишком много говорят плохого. Уходи."
+      - "С такими манерами тебе тут не рады."
+    aggressive-playstyle:
+      - "Спокойнее! Или у меня для тебя ничего нет."
+      - "Твой агрессивный настрой мне не нравится. Ступай своей дорогой."
+      - "Не хочу с тобой дел иметь — слишком буйный."
+  ambient:
+    enabled: true
+    chance: 0.35
+    terrible-politeness:
+      - "*смотрит на тебя с презрением*"
+      - "Ну и тип..."
+    aggressive-playstyle:
+      - "*настороженно косится*"
+      - "Только без глупостей."
+    friendly:
+      - "О, рад тебя видеть!"
+      - "С тобой всегда приятно иметь дело."
+      - "Заходи почаще, доброму человеку тут всегда рады."
+
+war-merchant:
+  enabled: true
+  playstyle-threshold: 0
+  messages:
+    deny:
+      - "Военный торговец: Тебе тут делать нечего, миролюбивый. Проваливай."
+      - "Военный торговец: Это не для тебя. Здесь торгуют только с теми, кто не боится крови."
+      - "Военный торговец: Возвращайся, когда перестанешь бояться сражений."
+  items:
+    - material: DIAMOND_SWORD
+      price: 800
+      enchantments: { SHARPNESS: 3, FIRE_ASPECT: 1 }
+    - material: CROSSBOW
+      price: 650
+      enchantments: { QUICK_CHARGE: 2, PIERCING: 2 }
+    - material: NETHERITE_AXE
+      price: 1400
+      enchantments: { SHARPNESS: 2, UNBREAKING: 3 }
+    - material: SHIELD
+      price: 300
+      enchantments: { }
+    - material: TOTEM_OF_UNDYING
+      price: 2000
+      enchantments: { }
+
+merchant-tax:
+  enabled: true
+  percent: 7
+
+prices-config:
+  DIAMOND: 500
+  GOLD_INGOT: 150
+  IRON_INGOT: 50
+  EMERALD: 300
+  NETHERITE_INGOT: 2000
+  COPPER_INGOT: 25
+  AMETHYST_SHARD: 75
+  LAPIS_LAZULI: 40
+  QUARTZ: 35
+  REDSTONE: 20
+
+# ===== БАНКИР =====
+# Обмен физических монет LoveCore между номиналами (укрупнение / размен).
+banker:
+  enabled: true
+  # Комиссия в % при укрупнении (0 = бесплатно). Размен одной монеты — без комиссии.
+  fee-percent: 0
