@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * Банкир — обмен физических монет LoveCore между номиналами.
  * <ul>
- *   <li>Укрупнить — списать весь баланс и выдать обратно крупными номиналами</li>
+ *   <li>Укрупнить — списать весь баланс и выдать обратно крупными номиналами (со сдачей/оптимальной выдачей через {@link LoveEconomy#give})</li>
  *   <li>Разменять — разбить одну монету выбранного номинала на более мелкие</li>
  * </ul>
  */
@@ -74,6 +74,7 @@ public class BankerGui {
         int idx = 0;
         for (Denomination den : dens) {
             if (idx >= BREAK_SLOTS.length) break;
+            // Разменивать имеет смысл только номиналы, у которых есть мельче
             boolean hasSmaller = dens.stream().anyMatch(d -> d.value() < den.value());
             if (!hasSmaller) continue;
             inv.setItem(BREAK_SLOTS[idx++], breakButton(economy, den, currency));
@@ -96,7 +97,8 @@ public class BankerGui {
                 lore.add(MessageUtils.parse("<gray>Комиссия: <green>нет</green></gray>"));
             }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<dark_gray>Монеты физические — в инвентаре.</dark_gray>"));
+            lore.add(MessageUtils.parse("<gray>Укрупнение выдаёт монеты старшими номиналами.</gray>"));
+            lore.add(MessageUtils.parse("<gray>Размен — одна монета → более мелкие.</gray>"));
             meta.lore(lore);
             item.setItemMeta(meta);
         }
@@ -104,23 +106,23 @@ public class BankerGui {
     }
 
     private ItemStack consolidateButton(long balance, int feePercent, String currency) {
-        ItemStack item = new ItemStack(Material.EMERALD);
+        ItemStack item = new ItemStack(Material.EMERALD_BLOCK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(MessageUtils.parse("<green>Укрупнить монеты</green>"));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Собрать мелочь в крупные номиналы.</gray>"));
-            if (feePercent > 0 && balance > 0) {
-                long fee = Math.max(0, balance * feePercent / 100L);
-                long net = Math.max(0, balance - fee);
-                lore.add(MessageUtils.parse("<gray>Получите: <yellow>" + MessageUtils.currencyIcon() + net + " " + currency + "</yellow></gray>"));
-                lore.add(MessageUtils.parse("<gray>Комиссия: <red>" + MessageUtils.currencyIcon() + fee + "</red></gray>"));
-            } else {
-                lore.add(MessageUtils.parse("<gray>Баланс не изменится — только состав монет.</gray>"));
+            lore.add(MessageUtils.parse("<gray>Списать весь баланс и выдать крупными.</gray>"));
+            if (feePercent > 0) {
+                long fee = balance * feePercent / 100L;
+                lore.add(MessageUtils.parse("<gray>Комиссия: <red>" + MessageUtils.currencyIcon() + fee + " " + currency + "</red></gray>"));
             }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— укрупнить</gray>"));
+            if (balance > 0) {
+                lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— укрупнить</gray>"));
+            } else {
+                lore.add(MessageUtils.parse("<red>Кошелёк пуст</red>"));
+            }
             meta.lore(lore);
             item.setItemMeta(meta);
         }
@@ -128,14 +130,15 @@ public class BankerGui {
     }
 
     private ItemStack breakButton(LoveEconomy economy, Denomination den, String currency) {
-        int count = countDenom(player, economy, den);
-        ItemStack item = new ItemStack(Material.GOLD_NUGGET);
+        ItemStack item = den.icon() != null ? den.icon().clone() : new ItemStack(Material.GOLD_NUGGET);
+        item.setAmount(1);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<aqua>Разменять: " + den.itemId() + "</aqua>"));
+            int count = countDenom(player, economy, den);
+            meta.displayName(MessageUtils.parse("<yellow>Разменять: " + den.displayName() + "</yellow>"));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Номинал: <yellow>" + den.value() + " " + currency + "</yellow></gray>"));
+            lore.add(MessageUtils.parse("<gray>Номинал: <white>" + MessageUtils.currencyIcon() + den.value() + "</white></gray>"));
             lore.add(MessageUtils.parse("<gray>У вас: <white>" + count + " шт.</white></gray>"));
             lore.add(MessageUtils.parse("<gray>Разбивает 1 монету на более мелкие.</gray>"));
             lore.add(Component.empty());
@@ -154,6 +157,7 @@ public class BankerGui {
         return item;
     }
 
+    /** Сколько предметов данного номинала в инвентаре (по valueOf). */
     public static int countDenom(Player player, LoveEconomy economy, Denomination den) {
         int count = 0;
         for (ItemStack stack : player.getInventory().getContents()) {
@@ -165,6 +169,10 @@ public class BankerGui {
         return count;
     }
 
+    /**
+     * Укрупнение: charge всего баланса, give остатка после комиссии.
+     * {@link LoveEconomy#give} выдаёт сначала старшими номиналами.
+     */
     public static boolean consolidate(LoveShops plugin, Player player) {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null) return false;
@@ -192,6 +200,11 @@ public class BankerGui {
         return true;
     }
 
+    /**
+     * Размен одной монеты выбранного номинала на более мелкие.
+     * Снимаем ровно одну монету, выдаём сумму кусками ≤ max smaller denom
+     * (чтобы give не вернул ту же крупную).
+     */
     public static boolean breakOne(LoveShops plugin, Player player, long denomValue) {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null || denomValue <= 0) return false;
@@ -212,6 +225,7 @@ public class BankerGui {
             return false;
         }
 
+        // Снимаем ровно одну монету этого номинала
         if (!removeOneCoin(player, economy, denomValue)) {
             MessageUtils.sendMessage(player, "<red>Не удалось изъять монету.</red>");
             return false;
@@ -222,11 +236,12 @@ public class BankerGui {
                 .sorted(Comparator.comparingLong(Denomination::value).reversed())
                 .toList();
         if (smaller.isEmpty()) {
-            economy.give(player, denomValue);
+            economy.give(player, denomValue); // вернуть
             MessageUtils.sendMessage(player, "<red>Этот номинал уже самый мелкий.</red>");
             return false;
         }
-        // give() отдаёт старшими — выдаём кусками не больше max smaller, чтобы не вернуть ту же крупную
+        // give() всегда отдаёт старшими номиналами — чтобы не вернуть ту же крупную,
+        // выдаём сумму кусками не больше максимального «меньшего» номинала.
         long remaining = denomValue;
         long maxSmall = smaller.get(0).value();
         while (remaining > 0) {
