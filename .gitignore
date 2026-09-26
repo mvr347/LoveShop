@@ -3,3 +3,6 @@ target/
 *.db
 .idea/
 *.iml
+
+# Claude Code harness scratch state (agent worktrees, etc.) - never project source.
+.claude/
