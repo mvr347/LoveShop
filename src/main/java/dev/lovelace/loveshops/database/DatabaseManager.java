@@ -39,7 +39,6 @@ public class DatabaseManager {
 
     private void createTables(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            // 1. shops_npcs
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS shops_npcs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +58,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 2. buyer_inventory
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS buyer_inventory (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +72,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 3. buyer_prices_history
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS buyer_prices_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,7 +84,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 4. buyer_reputation_overrides
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS buyer_reputation_overrides (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +96,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 5. auctions
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS auctions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,7 +113,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 6. auction_bids
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS auction_bids (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +124,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 7. reserved_currency
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS reserved_currency (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +133,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 8. seller_price_state (dynamic flea-market pricing: demand + noise per item type)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS seller_price_state (
                     item_type TEXT PRIMARY KEY,
@@ -150,7 +142,6 @@ public class DatabaseManager {
                 );
             """);
 
-            // 9. wanderer_deals (deal negotiation and delivered contraband items)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS wanderer_deals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,13 +154,20 @@ public class DatabaseManager {
                 );
             """);
 
-            // 10. wanderer_schedule_state (single row) - persists the last randomly-picked
-            // arrival day so "never two days in a row" survives a restart. See
-            // WandererManager#decideTodayArrival.
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS wanderer_schedule_state (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     last_arrival_date TEXT
+                );
+            """);
+
+            // 11. banker_fee_overrides — персональная комиссия банкира (%, 0–100)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS banker_fee_overrides (
+                    player_uuid TEXT PRIMARY KEY NOT NULL,
+                    fee_percent INTEGER NOT NULL,
+                    set_by TEXT NOT NULL,
+                    set_at INTEGER DEFAULT (strftime('%s', 'now'))
                 );
             """);
 
@@ -178,17 +176,7 @@ public class DatabaseManager {
             addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
             addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
             addColumnIfMissing(stmt, "wanderer_deals", "requested_category", "TEXT");
-            // Отдельно от status='completed': completed означает «победитель определён»,
-            // delivered_at — «предмет физически выдан и монеты списаны». Раньше выдача
-            // победителю происходила только если он был онлайн ровно в момент завершения
-            // аукциона (см. AuctionManager) — иначе лот пропадал безвозвратно. Теперь
-            // недоставленные завершённые лоты можно безопасно находить и повторять попытку.
             addColumnIfMissing(stmt, "auctions", "delivered_at", "INTEGER");
-            // "Look at NPC, run a bind command" workflow (2026-09-23, /loveshopsadmin npc
-            // create|delete): the admin creates/positions the NPC with Citizens' own commands
-            // and LoveShops only binds a role onto it by Citizens id, instead of creating and
-            // destroying the NPC itself. NULL means a legacy row or a no-Citizens plain Villager
-            // that LoveShops still fully owns.
             addColumnIfMissing(stmt, "shops_npcs", "citizens_id", "INTEGER");
         }
     }
