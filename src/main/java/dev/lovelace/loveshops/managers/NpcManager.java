@@ -275,6 +275,20 @@ public class NpcManager {
         }
 
         net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.remove(npcUuid);
+        if (cNpc == null && Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            // 2026-09-26: citizensNpcs получает запись ТОЛЬКО через spawnCitizensNpc() - а
+            // spawnNpcEntity() для seller/auctioneer/wanderer с неактивным расписанием вызывает
+            // despawnNpcEntity() ДО того, как spawnCitizensNpc успевал отработать хоть раз (см.
+            // ранний return в spawnNpcEntity). Из-за этого только что привязанный NPC (или любой
+            // NPC seller/auctioneer, чьё расписание уже неактивно на старте сервера) оставался
+            // видимым навсегда - Citizens сам держит его заспавненным с /npc create, а этот метод
+            // был no-op'ом, не находя cNpc в ещё пустой карте. Резолвим напрямую по citizens_id
+            // из БД (loadedNpcs уже содержит эту строку к моменту любого вызова despawn).
+            NpcData data = loadedNpcs.get(npcUuid);
+            if (data != null && data.citizensId() != null) {
+                cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(data.citizensId());
+            }
+        }
         if (cNpc != null && cNpc.isSpawned()) {
             cNpc.despawn();
         }
