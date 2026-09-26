@@ -34,7 +34,10 @@ public class BankerGui {
     public static final String DENOM_KEY = "banker_denom_value";
     public static final int SLOT_CONSOLIDATE = 11;
     public static final int SLOT_INFO = 13;
-    public static final int[] BREAK_SLOTS = {19, 20, 21, 22, 23, 24, 25};
+    public static final int SLOT_CLOSE = 26;
+    // gui-gen RULE 2/6: стекло только в Header (0-8) и Footer (18-26), рабочая зона (9-17)
+    // без стекла — только контент. 11 и 13 заняты Consolidate/Info, боковые стенки 9 и 17 пустые.
+    public static final int[] BREAK_SLOTS = {10, 12, 14, 15, 16};
 
     private final LoveShops plugin;
     private final Player player;
@@ -52,7 +55,19 @@ public class BankerGui {
         }
 
         Inventory inv = Bukkit.createInventory(null, 27, MessageUtils.parse("<dark_green>" + TITLE + "</dark_green>"));
-        GuiUtils.fillBorder(inv, Material.BLACK_STAINED_GLASS_PANE);
+
+        // gui-gen RULE 2/6: стекло только в Header (0-8) и Footer (18-26) — та же схема,
+        // что уже используют BuyerGui/SellerGui/WandererDealGui в этом плагине.
+        ItemStack filler = GuiUtils.createFiller();
+        for (int i = 0; i <= 8; i++) {
+            inv.setItem(i, filler);
+        }
+        for (int i = 18; i < 27; i++) {
+            inv.setItem(i, filler);
+        }
+        inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
+        inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>",
+                List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
         String currency = economy.currencyName();
         long balance = economy.balance(player);
@@ -79,7 +94,7 @@ public class BankerGui {
     }
 
     private ItemStack infoItem(LoveEconomy economy, long balance, String currency) {
-        ItemStack item = HeadTextures.bankerHead();
+        ItemStack item = new ItemStack(Material.GOLD_INGOT);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(MessageUtils.parse("<gold>Ваш баланс</gold>"));
