@@ -64,18 +64,20 @@ public class SellerManager {
     }
 
     /**
-     * Flea market's arrival edge. Auctioneer NPCs and the auction/price-cycle plumbing run
-     * unconditionally - they are a separate system (rare/expensive items routed to the
-     * "auction" channel by BuyerManager.processSale) and have their own stock independent of
-     * the ordinary seller channel. Only the seller NPC + arrival broadcast are gated on there
-     * being anything to sell, and only for the natural, time-based transition: an admin using
-     * /loveshopsadmin seller start (forceStartSeller) is explicitly asking to see the market
-     * open regardless, e.g. for testing, so that path is never silently skipped.
+     * Flea market's arrival edge. The auction/price-cycle plumbing (rollSellerPriceCycle,
+     * createAuctionsFromPendingItems) runs unconditionally here - it's a separate system
+     * (rare/expensive items routed to the "auction" channel by BuyerManager.processSale) with
+     * its own stock independent of the ordinary seller channel. The auctioneer NPC itself,
+     * though, is NOT spawned here anymore (2026-09-26, owner request: auctioneer should hide
+     * while inactive) - it's gated purely on real active auctions via checkAuctioneerVisibility(),
+     * called every 30s from ScheduleListener alongside this method, so it reacts both to new
+     * auctions created here and to auctions completing mid-window (checkAndCompleteAuctions).
+     * The seller NPC + arrival broadcast are gated on there being anything to sell, and only for
+     * the natural, time-based transition: an admin using /loveshopsadmin seller start
+     * (forceStartSeller) is explicitly asking to see the market open regardless, e.g. for
+     * testing, so that path is never silently skipped.
      */
     private void handleArrival() {
-        for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
-            plugin.getNpcManager().spawnNpcEntity(npc);
-        }
         plugin.getPriceCalculator().rollSellerPriceCycle();
 
         if (forceActiveOverride != null) {
@@ -137,6 +139,39 @@ public class SellerManager {
         // Whatever wasn't bought stays unsold forever (no buyer NPC is up to sell it again)
         // and must not roll over into next week's flea market alongside fresh stock.
         clearUnsoldStock();
+    }
+
+    /**
+     * Аукционер должен быть виден, только пока есть реальные активные лоты (2026-09-26, просьба
+     * владельца) - раньше NPC стоял весь период расписания Барахолки (seller.arrival-time..
+     * departure-time), даже без единого активного аукциона. Дергается каждые 30 секунд из
+     * ScheduleListener, после AuctionManager#checkAndCompleteAuctions - лот, завершившийся в
+     * этом же тике, обычно уже не попадёт в getActiveAuctions() ниже; в редком случае гонки
+     * (completeAuction коммитит асинхронно) аукционер спрячется на следующем 30-секундном
+     * проходе, что для NPC на глаз не критично. Вне окна Барахолки ничего не делает:
+     * handleDeparture() уже despawn'ит аукционера на границе ухода, а handleArrival() создаёт
+     * новые аукционы ДО первого вызова этого метода в новом окне.
+     */
+    public void checkAuctioneerVisibility() {
+        if (!Bukkit.isPrimaryThread()) {
+            Bukkit.getScheduler().runTask(plugin, this::checkAuctioneerVisibility);
+            return;
+        }
+        if (!isSellerActive()) {
+            return;
+        }
+        plugin.getAuctionManager().getActiveAuctions().thenAccept(auctions ->
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                boolean hasActiveLots = !auctions.isEmpty();
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+                    if (hasActiveLots) {
+                        plugin.getNpcManager().spawnNpcEntity(npc);
+                    } else {
+                        plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+                    }
+                }
+            })
+        );
     }
 
     /**
