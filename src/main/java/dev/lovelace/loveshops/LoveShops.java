@@ -34,6 +34,7 @@ public final class LoveShops extends JavaPlugin {
     private NpcDialogueManager npcDialogueManager;
     private WarMerchantManager warMerchantManager;
     private WandererManager wandererManager;
+    private BankerManager bankerManager;
     private CitizensIntegration citizensIntegration;
 
     @Override
@@ -69,6 +70,7 @@ public final class LoveShops extends JavaPlugin {
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
         this.wandererManager = new WandererManager(this);
+        this.bankerManager = new BankerManager(this);
         this.citizensIntegration = new CitizensIntegration();
 
         // 4. Register Commands
@@ -139,6 +141,7 @@ public final class LoveShops extends JavaPlugin {
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
     public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
     public WandererManager getWandererManager() { return wandererManager; }
+    public BankerManager getBankerManager() { return bankerManager; }
     public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
 
     /**
