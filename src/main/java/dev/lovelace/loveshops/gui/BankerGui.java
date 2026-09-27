@@ -190,13 +190,23 @@ public class BankerGui {
     private static void initItemsAdder() {
         if (iaChecked) return;
         iaChecked = true;
-        try {
-            Class<?> customStackClass = Class.forName("dev.lone.itemsadder.api.CustomStack");
-            iaGetInstance = customStackClass.getMethod("getInstance", String.class);
-            iaGetItemStack = customStackClass.getMethod("getItemStack");
-        } catch (Throwable ignored) {
-            iaGetInstance = null;
-            iaGetItemStack = null;
+        String[] candidates = {
+                "dev.beer.itemsadder.api.CustomStack",
+                "beer.devs.itemsadder.api.CustomStack",
+                "dev.lone.itemsadder.api.CustomStack"
+        };
+        for (String candidate : candidates) {
+            try {
+                Class<?> customStackClass = Class.forName(candidate);
+                iaGetInstance = customStackClass.getMethod("getInstance", String.class);
+                iaGetItemStack = customStackClass.getMethod("getItemStack");
+                if (iaGetInstance != null && iaGetItemStack != null) {
+                    break;
+                }
+            } catch (Throwable ignored) {
+                iaGetInstance = null;
+                iaGetItemStack = null;
+            }
         }
     }
 

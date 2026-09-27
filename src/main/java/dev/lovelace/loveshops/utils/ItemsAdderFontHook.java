@@ -67,7 +67,21 @@ public final class ItemsAdderFontHook {
                 .replaceAll("%ia_([a-zA-Z0-9_:]+)%", ":$1:");
 
         try {
-            Class<?> fontImagesClass = Class.forName("dev.lone.itemsadder.api.FontImages");
+            Class<?> fontImagesClass = null;
+            String[] candidates = {
+                    "dev.beer.itemsadder.api.FontImages",
+                    "beer.devs.itemsadder.api.FontImages",
+                    "dev.lone.itemsadder.api.FontImages"
+            };
+            for (String candidate : candidates) {
+                try {
+                    fontImagesClass = Class.forName(candidate);
+                    break;
+                } catch (ClassNotFoundException ignored) {}
+            }
+            if (fontImagesClass == null) {
+                return withTags;
+            }
             try {
                 Object result = fontImagesClass.getMethod("replacePlaceholders", Player.class, String.class)
                         .invoke(null, player, withTags);
