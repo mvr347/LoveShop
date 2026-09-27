@@ -8,6 +8,7 @@ import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -15,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Банкир — обмен номиналов через слот депозита.
+ * Использует реальные предметы монет ItemsAdder / LoveEconomy вместо голов игроков.
  */
 public class BankerGui {
 
@@ -36,25 +39,12 @@ public class BankerGui {
     public static final int SLOT_CLOSE = 35;
     public static final int[] OPTION_SLOTS = {14, 15, 16, 23, 24, 25};
 
-    private static final String DEPOSIT_HEAD_TEXTURE =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTBkNzM1MmExMzVmMWY1ZDE3ODYzOWE1YTU1ODFlNmYxODk1NWRlMmFmODYzMTQ2ODcxMjkxYWE2NTQ0MTU3YyJ9fX0=";
-
-    public static final String HEAD_COPPER =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDJlZWM1YzVkNTAzMDJmZjEwZDBiZGI2MmQ3OWU2N2EwYWIxMTAxNjk2YWUyN2VmOWQ4MmIzNzk0M2MyYTY1YyJ9fX0=";
-    public static final String HEAD_IRON =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYTM0YjI3YmZjYzhmOWI5NjQ1OTRiNjE4YjExNDZhZjY5ZGUyNzhjZTVlMmUzMDEyY2I0NzFhOWEzY2YzODcxIn19fQ==";
-    public static final String HEAD_GOLD =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjBhN2I5NGM0ZTU4MWI2OTkxNTlkNDg4NDZlYzA5MTM5MjUwNjIzN2M4OWE5N2M5MzI0OGEwZDhhYmM5MTZkNSJ9fX0=";
-    public static final String HEAD_EMERALD =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTY2ZmRhODFhYTMwY2RkMjA3OWRiN2NjOTBkYWU2ZWUzNDZjZTRhYWJmOWU2YTg3ZjFmNTFhZWIxYTQ0MGQifX19";
-    public static final String HEAD_DIAMOND =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzBlMmZhNGE2NzdmNmU4ZWM1MDkzNTVhNmFkNzVhZjczMjJkNzBlZTliZDk2ZjNmYmEyMGM5MDQ4YmYxMjcwOSJ9fX0=";
-    public static final String HEAD_NETHERITE =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNmZhNzY0MTk3N2EzNmE3MTFkZGMxNWE4NTVlZThkZGYyYjQ4ZDY2MWQ4MzczM2FlY2FiZjQ3OTQyZDU3MzkxIn19fQ==";
-    public static final String HEAD_DEFAULT =
-            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjMxMWU4NDIyNDk3NDUxMTMzMzM4NzhmZDVhOGQ4ZWIyMjgwYmNiYWI3Njg5ZTQ3M2YxNjY5NjIzYTExYzk5NyJ9fX0=";
-
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
+
+    // ItemsAdder CustomStack reflection
+    private static Method iaGetInstance = null;
+    private static Method iaGetItemStack = null;
+    private static boolean iaChecked = false;
 
     private final LoveShops plugin;
     private final Player player;
@@ -141,7 +131,7 @@ public class BankerGui {
     }
 
     private ItemStack infoItem(long deposited, int feePercent, boolean personal, String currency) {
-        ItemStack item = new ItemStack(org.bukkit.Material.BOOK);
+        ItemStack item = new ItemStack(Material.BOOK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(MessageUtils.parse("<gold>Как работает банкир</gold>"));
@@ -161,59 +151,124 @@ public class BankerGui {
 
     private ItemStack depositItem(long deposited, String currency) {
         if (deposited <= 0) {
-            ItemStack empty = GuiUtils.createCustomHead(
-                    DEPOSIT_HEAD_TEXTURE,
-                    "<yellow>Слот для монет</yellow>",
-                    List.of("", "<gray>Положите сюда монеты LoveEconomy</gray>", "<gray>(клик монетой или Shift из инвентаря)</gray>")
-            );
+            ItemStack empty = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
             ItemMeta meta = empty.getItemMeta();
             if (meta != null) {
+                meta.displayName(MessageUtils.parse("<yellow>Слот для монет</yellow>"));
+                meta.lore(List.of(
+                        Component.empty(),
+                        MessageUtils.parse("<gray>Положите сюда монеты LoveEconomy</gray>"),
+                        MessageUtils.parse("<gray>(клик монетой или Shift из инвентаря)</gray>")
+                ));
                 meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
                 empty.setItemMeta(meta);
             }
             return empty;
         }
-        ItemStack item = GuiUtils.createCustomHead(
-                HEAD_GOLD,
-                "<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>",
-                List.of(
-                        "",
-                        "<gray>Монеты на столе банкира</gray>",
-                        "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"
-                )
-        );
+
+        ItemStack item = getCustomStack("voidcore:gold_coin");
+        if (item == null) {
+            item = getCustomStack("gold_coin");
+        }
+        if (item == null) {
+            item = new ItemStack(Material.GOLD_INGOT);
+        }
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
+            meta.displayName(MessageUtils.parse("<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>"));
+            meta.lore(List.of(
+                    Component.empty(),
+                    MessageUtils.parse("<gray>Монеты на столе банкира</gray>"),
+                    MessageUtils.parse("<yellow>Клик </yellow><gray>— забрать всё назад</gray>")
+            ));
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    public static String denomHeadTexture(Denomination den) {
-        if (den == null) return HEAD_DEFAULT;
-        String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
-        if (id.contains(":")) id = id.substring(id.indexOf(':') + 1);
+    private static void initItemsAdder() {
+        if (iaChecked) return;
+        iaChecked = true;
+        try {
+            Class<?> customStackClass = Class.forName("dev.lone.itemsadder.api.CustomStack");
+            iaGetInstance = customStackClass.getMethod("getInstance", String.class);
+            iaGetItemStack = customStackClass.getMethod("getItemStack");
+        } catch (Throwable ignored) {
+            iaGetInstance = null;
+            iaGetItemStack = null;
+        }
+    }
 
-        long val = den.value();
-        if (id.contains("netherite") || val >= 1000) return HEAD_NETHERITE;
-        if (id.contains("diamond") || val >= 100) return HEAD_DIAMOND;
-        if (id.contains("emerald") || (val >= 25 && val < 50)) return HEAD_EMERALD;
-        if (id.contains("gold") || val >= 50) return HEAD_GOLD;
-        if (id.contains("iron") || val >= 10) return HEAD_IRON;
-        if (id.contains("copper") || val <= 1) return HEAD_COPPER;
+    private static ItemStack getCustomStack(String id) {
+        if (id == null || id.isBlank()) return null;
+        initItemsAdder();
+        if (iaGetInstance == null || iaGetItemStack == null) return null;
+        try {
+            Object customStack = iaGetInstance.invoke(null, id);
+            if (customStack != null) {
+                ItemStack is = (ItemStack) iaGetItemStack.invoke(customStack);
+                if (is != null) return is.clone();
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
 
-        return HEAD_DEFAULT;
+    public static ItemStack getCoinItem(Denomination den) {
+        if (den != null && den.itemId() != null && !den.itemId().isBlank()) {
+            String id = den.itemId();
+            ItemStack is = getCustomStack(id);
+            if (is != null) return is;
+
+            if (!id.contains(":")) {
+                is = getCustomStack("voidcore:" + id);
+                if (is != null) return is;
+                is = getCustomStack("currency:" + id);
+                if (is != null) return is;
+            } else {
+                String raw = id.substring(id.indexOf(':') + 1);
+                is = getCustomStack(raw);
+                if (is != null) return is;
+            }
+        }
+        return new ItemStack(fallbackMaterial(den));
+    }
+
+    private static Material fallbackMaterial(Denomination den) {
+        if (den != null && den.itemId() != null) {
+            String id = den.itemId().toLowerCase();
+            if (id.contains(":")) id = id.substring(id.indexOf(':') + 1);
+            if (id.contains("netherite")) return Material.NETHERITE_INGOT;
+            if (id.contains("diamond")) return Material.DIAMOND;
+            if (id.contains("gold")) return Material.GOLD_INGOT;
+            if (id.contains("iron")) return Material.IRON_INGOT;
+            if (id.contains("copper")) return Material.COPPER_INGOT;
+
+            Material mat = Material.matchMaterial(id);
+            if (mat != null && !mat.isAir()) return mat;
+        }
+        long unit = den != null ? den.value() : 1;
+        if (unit >= 1000) return Material.NETHERITE_INGOT;
+        if (unit >= 100) return Material.DIAMOND;
+        if (unit >= 50) return Material.GOLD_INGOT;
+        if (unit >= 10) return Material.IRON_INGOT;
+        return Material.COPPER_INGOT;
     }
 
     private ItemStack optionButton(Denomination den, long maxCount, long unit, int feePercent, String currency) {
-        String texture = denomHeadTexture(den);
-        ItemStack item = GuiUtils.createCustomHead(texture, null, null);
+        ItemStack item = getCoinItem(den);
         item.setAmount((int) Math.min(64, Math.max(1, maxCount)));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            String label = den.itemId() != null ? den.itemId() : ("×" + unit);
-            meta.displayName(MessageUtils.parse("<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>"));
+            Component displayName;
+            if (meta.hasDisplayName()) {
+                displayName = meta.displayName().append(MessageUtils.parse(" <gray>(по " + unit + " " + currency + ")</gray>"));
+            } else {
+                String label = den.itemId() != null ? den.itemId() : ("×" + unit);
+                displayName = MessageUtils.parse("<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>");
+            }
+            meta.displayName(displayName);
+
             List<Component> lore = new ArrayList<>();
             lore.add(MessageUtils.parse("<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
             if (feePercent > 0) lore.add(MessageUtils.parse("<dark_gray>Укрупнение может взять комиссию " + feePercent + "%</dark_gray>"));
@@ -221,6 +276,7 @@ public class BankerGui {
             lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— взять 1</gray>"));
             lore.add(MessageUtils.parse("<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
             meta.lore(lore);
+
             meta.getPersistentDataContainer().set(denomKey(), PersistentDataType.LONG, unit);
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "option");
             item.setItemMeta(meta);
