@@ -8,7 +8,6 @@ import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -39,6 +38,21 @@ public class BankerGui {
 
     private static final String DEPOSIT_HEAD_TEXTURE =
             "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTBkNzM1MmExMzVmMWY1ZDE3ODYzOWE1YTU1ODFlNmYxODk1NWRlMmFmODYzMTQ2ODcxMjkxYWE2NTQ0MTU3YyJ9fX0=";
+
+    public static final String HEAD_COPPER =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDJlZWM1YzVkNTAzMDJmZjEwZDBiZGI2MmQ3OWU2N2EwYWIxMTAxNjk2YWUyN2VmOWQ4MmIzNzk0M2MyYTY1YyJ9fX0=";
+    public static final String HEAD_IRON =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYTM0YjI3YmZjYzhmOWI5NjQ1OTRiNjE4YjExNDZhZjY5ZGUyNzhjZTVlMmUzMDEyY2I0NzFhOWEzY2YzODcxIn19fQ==";
+    public static final String HEAD_GOLD =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjBhN2I5NGM0ZTU4MWI2OTkxNTlkNDg4NDZlYzA5MTM5MjUwNjIzN2M4OWE5N2M5MzI0OGEwZDhhYmM5MTZkNSJ9fX0=";
+    public static final String HEAD_EMERALD =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTY2ZmRhODFhYTMwY2RkMjA3OWRiN2NjOTBkYWU2ZWUzNDZjZTRhYWJmOWU2YTg3ZjFmNTFhZWIxYTQ0MGQifX19";
+    public static final String HEAD_DIAMOND =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzBlMmZhNGE2NzdmNmU4ZWM1MDkzNTVhNmFkNzVhZjczMjJkNzBlZTliZDk2ZjNmYmEyMGM5MDQ4YmYxMjcwOSJ9fX0=";
+    public static final String HEAD_NETHERITE =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNmZhNzY0MTk3N2EzNmE3MTFkZGMxNWE4NTVlZThkZGYyYjQ4ZDY2MWQ4MzczM2FlY2FiZjQ3OTQyZDU3MzkxIn19fQ==";
+    public static final String HEAD_DEFAULT =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjMxMWU4NDIyNDk3NDUxMTMzMzM4NzhmZDVhOGQ4ZWIyMjgwYmNiYWI3Njg5ZTQ3M2YxNjY5NjIzYTExYzk5NyJ9fX0=";
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
 
@@ -127,7 +141,7 @@ public class BankerGui {
     }
 
     private ItemStack infoItem(long deposited, int feePercent, boolean personal, String currency) {
-        ItemStack item = new ItemStack(Material.BOOK);
+        ItemStack item = new ItemStack(org.bukkit.Material.BOOK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(MessageUtils.parse("<gold>Как работает банкир</gold>"));
@@ -159,41 +173,42 @@ public class BankerGui {
             }
             return empty;
         }
-        ItemStack item = new ItemStack(Material.SUNFLOWER);
+        ItemStack item = GuiUtils.createCustomHead(
+                HEAD_GOLD,
+                "<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>",
+                List.of(
+                        "",
+                        "<gray>Монеты на столе банкира</gray>",
+                        "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"
+                )
+        );
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>"));
-            meta.lore(List.of(
-                    Component.empty(),
-                    MessageUtils.parse("<gray>Монеты на столе банкира</gray>"),
-                    MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— забрать всё назад</gray>")
-            ));
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    private Material denomMaterial(Denomination den) {
-        if (den != null && den.itemId() != null) {
-            String id = den.itemId();
-            if (id.contains(":")) id = id.substring(id.indexOf(':') + 1);
-            Material mat = Material.matchMaterial(id);
-            if (mat != null && !mat.isAir()) return mat;
-        }
-        long unit = den != null ? den.value() : 1;
-        if (unit >= 1000) return Material.NETHERITE_INGOT;
-        if (unit >= 100) return Material.DIAMOND;
-        if (unit >= 50) return Material.EMERALD;
-        if (unit >= 10) return Material.GOLD_INGOT;
-        if (unit >= 5) return Material.IRON_INGOT;
-        if (unit >= 2) return Material.GOLD_NUGGET;
-        return Material.COPPER_INGOT;
+    public static String denomHeadTexture(Denomination den) {
+        if (den == null) return HEAD_DEFAULT;
+        String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
+        if (id.contains(":")) id = id.substring(id.indexOf(':') + 1);
+
+        long val = den.value();
+        if (id.contains("netherite") || val >= 1000) return HEAD_NETHERITE;
+        if (id.contains("diamond") || val >= 100) return HEAD_DIAMOND;
+        if (id.contains("emerald") || (val >= 25 && val < 50)) return HEAD_EMERALD;
+        if (id.contains("gold") || val >= 50) return HEAD_GOLD;
+        if (id.contains("iron") || val >= 10) return HEAD_IRON;
+        if (id.contains("copper") || val <= 1) return HEAD_COPPER;
+
+        return HEAD_DEFAULT;
     }
 
     private ItemStack optionButton(Denomination den, long maxCount, long unit, int feePercent, String currency) {
-        Material mat = denomMaterial(den);
-        ItemStack item = new ItemStack(mat);
+        String texture = denomHeadTexture(den);
+        ItemStack item = GuiUtils.createCustomHead(texture, null, null);
         item.setAmount((int) Math.min(64, Math.max(1, maxCount)));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -288,7 +303,16 @@ public class BankerGui {
             }
             long totalCost = need + fee;
             session.deposited -= totalCost;
-            economy.give(player, need);
+
+            // Выдаём номинал порциями не больше unitValue, чтобы LoveEconomy
+            // не укрупняла монеты обратно в старший номинал при выдаче
+            long remaining = need;
+            while (remaining > 0) {
+                long chunk = Math.min(remaining, unitValue);
+                economy.give(player, chunk);
+                remaining -= chunk;
+            }
+
             if (fee > 0) {
                 MessageUtils.sendMessage(player, "<green>Получено <yellow>" + count + "×" + unitValue + "</yellow>, комиссия <red>" + MessageUtils.currencyIcon() + fee + "</red>.</green>");
             } else {

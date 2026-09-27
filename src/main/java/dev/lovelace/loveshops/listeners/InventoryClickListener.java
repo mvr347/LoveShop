@@ -294,24 +294,70 @@ public class InventoryClickListener implements Listener {
             return;
         }
 
+        // Клик по слоту депозита (слот 11)
         if (raw == BankerGui.SLOT_DEPOSIT) {
+            // Если игрок нажал цифровую клавишу (1-9) над слотом депозита
+            if (event.getClick() == ClickType.NUMBER_KEY) {
+                int button = event.getHotbarButton();
+                if (button >= 0 && button < 9) {
+                    ItemStack hotbarItem = player.getInventory().getItem(button);
+                    if (hotbarItem != null && !hotbarItem.getType().isAir()) {
+                        long added = BankerGui.depositStack(plugin, player, hotbarItem.clone());
+                        if (added > 0) {
+                            player.getInventory().setItem(button, null);
+                            player.updateInventory();
+                            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
+                        } else {
+                            MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                        }
+                    }
+                }
+                return;
+            }
+
             ItemStack cursor = event.getCursor();
             if (cursor != null && !cursor.getType().isAir()) {
-                long added = BankerGui.depositStack(plugin, player, cursor);
+                if (event.getClick() == ClickType.RIGHT) {
+                    // ПКМ курсором — положить ровно 1 монету
+                    ItemStack single = cursor.clone();
+                    single.setAmount(1);
+                    long added = BankerGui.depositStack(plugin, player, single);
+                    if (added > 0) {
+                        if (cursor.getAmount() > 1) {
+                            cursor.setAmount(cursor.getAmount() - 1);
+                            player.setItemOnCursor(cursor);
+                        } else {
+                            player.setItemOnCursor(null);
+                        }
+                        player.updateInventory();
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
+                    } else {
+                        MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                    }
+                    return;
+                }
+
+                // ЛКМ (или другой клик) курсором — положить весь стак
+                long added = BankerGui.depositStack(plugin, player, cursor.clone());
                 if (added > 0) {
-                    event.getView().setCursor(null);
+                    player.setItemOnCursor(null);
+                    player.updateInventory();
                     org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
                 } else {
                     MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
                 }
                 return;
             }
+
+            // Клик с пустым курсором по слоту депозита — забрать всё назад
             if (BankerGui.withdrawAll(plugin, player)) {
+                player.updateInventory();
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
             }
             return;
         }
 
+        // Клик по слоту опций обмена
         if (BankerGui.isOptionSlot(raw)) {
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || !clicked.hasItemMeta()) return;
@@ -322,21 +368,30 @@ public class InventoryClickListener implements Listener {
             long count = shift ? Long.MAX_VALUE / unit : 1L;
             if (count <= 0) count = 1;
             if (BankerGui.takeOption(plugin, player, unit, count)) {
+                player.updateInventory();
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
             }
             return;
         }
 
-        if (raw >= topSize && (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT)) {
-            ItemStack current = event.getCurrentItem();
-            if (current == null || current.getType().isAir()) return;
-            long added = BankerGui.depositStack(plugin, player, current.clone());
-            if (added > 0) {
-                event.setCurrentItem(null);
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
-            } else {
-                MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+        // Клики в нижнем инвентаре (инвентарь игрока)
+        if (raw >= topSize) {
+            if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
+                ItemStack current = event.getCurrentItem();
+                if (current == null || current.getType().isAir()) return;
+                long added = BankerGui.depositStack(plugin, player, current.clone());
+                if (added > 0) {
+                    event.setCurrentItem(null);
+                    player.updateInventory();
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
+                } else {
+                    MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                }
+                return;
             }
+
+            // Разрешаем обычные клики в нижнем инвентаре (взять/положить на курсор)
+            event.setCancelled(false);
         }
     }
 
