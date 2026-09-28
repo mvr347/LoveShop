@@ -35,7 +35,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "price", "event", "banker", "help");
     private static final List<String> PRICE_TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer", "all");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
-    private static final List<String> NPC_ACTIONS = List.of("create", "delete", "list");
+    private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "list");
     private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer", "warmerchant", "wanderer", "banker");
     private static final List<String> BUYER_STATUSES = List.of("default", "good", "bad", "aggressive");
     private static final List<String> ITEM_ACTIONS = List.of("allow", "deny", "rarity", "price");
@@ -103,14 +103,15 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpc(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|delete|list> ...</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|list> ...</yellow>"));
             return;
         }
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "create" -> handleNpcCreate(sender, args);
+            case "bind" -> handleNpcBind(sender, args);
             case "delete" -> handleNpcDelete(sender, args);
             case "list" -> handleNpcList(sender);
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|delete|list> ...</yellow>"));
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|list> ...</yellow>"));
         }
     }
 
@@ -132,17 +133,52 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: " + String.join(", ", NPC_TYPES) + "</red>"));
             return;
         }
+
+        CitizensIntegration citizens = plugin.getCitizensIntegration();
+        if (!citizens.isAvailable()) {
+            player.sendMessage(MessageUtils.parse("<red>Citizens не установлен! Для создания NPC требуется Citizens.</red>"));
+            return;
+        }
+
+        String finalName = args.length > 3 ? String.join(" ", List.of(args).subList(3, args.length)) : defaultNpcName(type);
+        String skinOwner = defaultSkinForType(type, player.getName());
+
+        plugin.getNpcManager().createNpc(type, finalName, player.getLocation(), skinOwner).thenAccept(npc -> {
+            boolean activeNow = plugin.getNpcManager().isNpcAllowedToSpawn(npc);
+            String extra = activeNow
+                    ? " и заспавнен на вашей позиции!"
+                    : " (скрыт, пока ивент не активен).";
+            player.sendMessage(MessageUtils.parse("<green>NPC <gold>" + finalName + "</gold> (<yellow>" + type + "</yellow>) создан" + extra + "</green>"));
+        }).exceptionally(ex -> {
+            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+            player.sendMessage(MessageUtils.parse("<red>Не удалось создать NPC: " + msg + "</red>"));
+            return null;
+        });
+    }
+
+    private void handleNpcBind(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            return;
+        }
+        if (!player.hasPermission("loveshops.admin.create") && !player.hasPermission("loveshops.admin")) {
+            player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return;
+        }
+        if (args.length < 3) {
+            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc bind <buyer|seller|auctioneer|warmerchant|wanderer|banker> [имя]</yellow>"));
+            return;
+        }
+        String type = args[2].toLowerCase(Locale.ROOT);
+        if (!NPC_TYPES.contains(type)) {
+            player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: " + String.join(", ", NPC_TYPES) + "</red>"));
+            return;
+        }
         String name = args.length > 3 ? String.join(" ", List.of(args).subList(3, args.length)) : null;
 
         CitizensIntegration citizens = plugin.getCitizensIntegration();
         if (!citizens.isAvailable()) {
-            if (name == null) {
-                player.sendMessage(MessageUtils.parse("<yellow>Citizens не установлен - укажите имя: /loveshopsadmin npc create <тип> <имя></yellow>"));
-                return;
-            }
-            plugin.getNpcManager().createNpc(type, name, player.getLocation(), player.getName()).thenAccept(npc ->
-                player.sendMessage(plugin.getLangManager().getMessage("commands.npc-created", "<green>NPC создан!</green>",
-                    java.util.Map.of("type", type, "name", name))));
+            player.sendMessage(MessageUtils.parse("<red>Citizens не установлен! Для привязки требуется Citizens.</red>"));
             return;
         }
 
@@ -153,14 +189,37 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        plugin.getNpcManager().bindNpc(type, ref.id(), name, player.getName()).thenAccept(npc ->
+        plugin.getNpcManager().bindNpc(type, ref.id(), name, player.getName()).thenAccept(npc -> {
+            boolean activeNow = plugin.getNpcManager().isNpcAllowedToSpawn(npc);
+            String extra = activeNow ? "" : " <gray>(скрыт, пока ивент не активен)</gray>";
             player.sendMessage(plugin.getLangManager().getMessage("commands.npc-created",
-                "<green>NPC #" + ref.id() + " («" + ref.name() + "») привязан как <gold>{type}</gold>!</green>",
-                java.util.Map.of("type", type, "name", npc.name())))
-        ).exceptionally(ex -> {
-            player.sendMessage(MessageUtils.parse("<red>Не удалось привязать NPC: " + ex.getCause().getMessage() + "</red>"));
+                "<green>NPC #" + ref.id() + " («" + ref.name() + "») привязан как <gold>{type}</gold>!" + extra + "</green>",
+                java.util.Map.of("type", type, "name", npc.name())));
+        }).exceptionally(ex -> {
+            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+            player.sendMessage(MessageUtils.parse("<red>Не удалось привязать NPC: " + msg + "</red>"));
             return null;
         });
+    }
+
+    private String defaultNpcName(String type) {
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "buyer" -> "Скупщик";
+            case "seller" -> "Барахольщик";
+            case "auctioneer" -> "Аукционист";
+            case "banker" -> "Банкир";
+            case "wanderer" -> "Странник";
+            case "warmerchant" -> "Военный торговец";
+            default -> "Торговец";
+        };
+    }
+
+    private String defaultSkinForType(String type, String fallbackSkin) {
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "wanderer" -> plugin.getConfig().getString("wanderer.skin-owner", "Wanderer");
+            default -> plugin.getConfig().getString(type + ".skin-owner",
+                    plugin.getConfig().getString("npc.skins." + type, fallbackSkin));
+        };
     }
 
     private void handleNpcDelete(CommandSender sender, String[] args) {
@@ -586,7 +645,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-header", "<dark_gray>========== <gold>LoveShops Admin</gold> ==========</dark_gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-reload", "<gold>/loveshopsadmin reload</gold> <gray>- Перезагрузить конфигурацию</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|delete|list></gold> <gray>- Управление NPC-торговцами (привязка к Citizens)</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|bind|delete|list></gold> <gray>- Управление NPC (create создаёт на вашей позиции, bind привязывает)</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-status", "<gold>/loveshopsadmin status <игрок> <статус> [сообщение]</gold> <gray>- Статус игрока у скупщика</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-item", "<gold>/loveshopsadmin item <allow|deny|rarity|price></gold> <gray>- Правила по предмету в руке</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <торговец|all> <цена> [материал/id]</gold> <gray>- Настройка цены конкретному торговцу или всем</gray>"));
@@ -608,7 +667,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
             return StringUtil.copyPartialMatches(args[1], NPC_ACTIONS, new ArrayList<>());
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("npc") && args[1].equalsIgnoreCase("create")) {
+        if (args.length == 3 && args[0].equalsIgnoreCase("npc") && (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("bind"))) {
             return StringUtil.copyPartialMatches(args[2], NPC_TYPES, new ArrayList<>());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("status")) {

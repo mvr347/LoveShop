@@ -70,7 +70,7 @@ public class NpcManager {
                     net.citizensnpcs.trait.SkinTrait skinTrait = cNpc.getOrAddTrait(net.citizensnpcs.trait.SkinTrait.class);
                     skinTrait.setSkinName(skinOwner);
                 }
-                cNpc.data().setPersistent("loveshops_type", type.toLowerCase());
+                cNpc.data().setPersistent("loveshops_type", type.toLowerCase(Locale.ROOT));
                 int citizensId = cNpc.getId();
                 insertNpc(type, name, loc, skinOwner, citizensId).whenComplete((npc, err) -> {
                     if (err != null) {
@@ -78,6 +78,7 @@ public class NpcManager {
                         future.completeExceptionally(err);
                     } else {
                         cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());
+                        citizensNpcs.put(npc.uuid(), cNpc);
                         future.complete(npc);
                     }
                 });
@@ -107,7 +108,13 @@ public class NpcManager {
         if (loc == null || loc.getWorld() == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("У Citizens NPC #" + citizensId + " нет известного местоположения"));
         }
-        return insertNpc(type, name, loc, boundBy, citizensId);
+        return insertNpc(type, name, loc, boundBy, citizensId).whenComplete((npc, err) -> {
+            if (err == null && npc != null) {
+                cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());
+                cNpc.data().setPersistent("loveshops_type", npc.type().toLowerCase(Locale.ROOT));
+                citizensNpcs.put(npc.uuid(), cNpc);
+            }
+        });
     }
 
     private CompletableFuture<NpcData> insertNpc(String type, String name, Location loc, String skinOwner, Integer citizensId) {
@@ -185,6 +192,29 @@ public class NpcManager {
         return future;
     }
 
+    public boolean isNpcAllowedToSpawn(NpcData npc) {
+        if (npc == null) return false;
+        return isTypeAllowedToSpawn(npc.type());
+    }
+
+    public boolean isTypeAllowedToSpawn(String type) {
+        if (type == null) return false;
+        String t = type.toLowerCase(Locale.ROOT);
+        if (t.equals("seller")) {
+            return plugin.getSellerManager().isSellerArrived();
+        }
+        if (t.equals("auctioneer")) {
+            return plugin.getSellerManager().hasActiveAuctionLots();
+        }
+        if (t.equals("wanderer")) {
+            return plugin.getWandererManager().isWandererActive();
+        }
+        if (t.equals("buyer")) {
+            return !plugin.getSellerManager().isSellerArrived();
+        }
+        return true;
+    }
+
     public void spawnNpcEntity(NpcData npc) {
         if (npc == null) return;
         if (!Bukkit.isPrimaryThread()) {
@@ -192,19 +222,8 @@ public class NpcManager {
             return;
         }
 
-        if ((npc.type().equalsIgnoreCase("seller") || npc.type().equalsIgnoreCase("auctioneer"))
-            && !plugin.getSellerManager().isSellerActive()) {
-            despawnNpcEntity(npc.uuid());
-            return;
-        }
-
-        if (npc.type().equalsIgnoreCase("wanderer") && !plugin.getWandererManager().isWandererActive()) {
-            despawnNpcEntity(npc.uuid());
-            return;
-        }
-
-        if (npc.type().equalsIgnoreCase("buyer") && plugin.getSellerManager().isSellerActive()) {
-            despawnNpcEntity(npc.uuid());
+        if (!isNpcAllowedToSpawn(npc)) {
+            ensureNpcDespawned(npc.uuid());
             return;
         }
 
@@ -215,8 +234,6 @@ public class NpcManager {
             plugin.getLogger().warning("Citizens не установлен — NPC " + npc.type() + " не может быть показан.");
             return;
         }
-
-        despawnNpcEntity(npc.uuid());
 
         Location loc = new Location(world, npc.x(), npc.y(), npc.z(), npc.yaw(), npc.pitch());
         if (!loc.getChunk().isLoaded()) {
@@ -229,18 +246,17 @@ public class NpcManager {
     private void spawnCitizensNpc(NpcData npc, Location loc) {
         try {
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
-            net.citizensnpcs.api.npc.NPC cNpc;
+            net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.get(npc.uuid());
             boolean bound = npc.citizensId() != null;
 
-            if (bound) {
+            if (cNpc == null && bound) {
                 cNpc = registry.getById(npc.citizensId());
                 if (cNpc == null) {
                     plugin.getLogger().warning("LoveShops NPC #" + npc.id() + " (" + npc.type()
                         + ") привязан к Citizens NPC #" + npc.citizensId() + ", но такого NPC нет. Удалите запись #" + npc.id());
                     return;
                 }
-            } else {
-                cNpc = null;
+            } else if (cNpc == null) {
                 for (net.citizensnpcs.api.npc.NPC existing : registry) {
                     if (npc.uuid().toString().equals(existing.data().get("loveshops_uuid", null))) {
                         cNpc = existing;
@@ -257,45 +273,58 @@ public class NpcManager {
             }
 
             cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());
-            cNpc.data().setPersistent("loveshops_type", npc.type());
+            cNpc.data().setPersistent("loveshops_type", npc.type().toLowerCase(Locale.ROOT));
 
-            if (bound) {
-                if (!cNpc.isSpawned()) {
-                    Location spawnAt = cNpc.getStoredLocation() != null ? cNpc.getStoredLocation() : loc;
-                    cNpc.spawn(spawnAt);
-                }
-            } else if (!cNpc.isSpawned()) {
-                cNpc.spawn(loc);
+            citizensNpcs.put(npc.uuid(), cNpc);
+
+            if (!cNpc.isSpawned()) {
+                Location spawnAt = (bound && cNpc.getStoredLocation() != null) ? cNpc.getStoredLocation() : loc;
+                cNpc.spawn(spawnAt);
             } else {
                 cNpc.teleport(loc, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN);
             }
-
-            citizensNpcs.put(npc.uuid(), cNpc);
         } catch (Exception e) {
             plugin.getLogger().warning("Ошибка спавна Citizens NPC: " + e.getMessage());
         }
     }
 
-    public void despawnNpcEntity(UUID npcUuid) {
+    public void ensureNpcDespawned(UUID npcUuid) {
         if (!Bukkit.isPrimaryThread()) {
-            Bukkit.getScheduler().runTask(plugin, () -> despawnNpcEntity(npcUuid));
+            Bukkit.getScheduler().runTask(plugin, () -> ensureNpcDespawned(npcUuid));
             return;
         }
-        Entity entity = spawnedEntities.remove(npcUuid);
+        Entity entity = spawnedEntities.get(npcUuid);
         if (entity != null && entity.isValid()) {
             entity.remove();
+            spawnedEntities.remove(npcUuid);
         }
 
-        net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.remove(npcUuid);
+        net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.get(npcUuid);
         if (cNpc == null && Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
             NpcData data = loadedNpcs.get(npcUuid);
             if (data != null && data.citizensId() != null) {
                 cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(data.citizensId());
+                if (cNpc != null) {
+                    citizensNpcs.put(npcUuid, cNpc);
+                }
+            }
+            if (cNpc == null) {
+                for (net.citizensnpcs.api.npc.NPC existing : net.citizensnpcs.api.CitizensAPI.getNPCRegistry()) {
+                    if (npcUuid.toString().equals(existing.data().get("loveshops_uuid", null))) {
+                        cNpc = existing;
+                        citizensNpcs.put(npcUuid, cNpc);
+                        break;
+                    }
+                }
             }
         }
         if (cNpc != null && cNpc.isSpawned()) {
             cNpc.despawn();
         }
+    }
+
+    public void despawnNpcEntity(UUID npcUuid) {
+        ensureNpcDespawned(npcUuid);
     }
 
     private void unbindNpcEntity(UUID npcUuid, Integer citizensId) {

@@ -9,9 +9,11 @@ import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.citizensnpcs.api.event.NPCRightClickEvent;
+import net.citizensnpcs.api.event.NPCSpawnEvent;
 import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
 import java.util.UUID;
@@ -24,21 +26,34 @@ public class CitizensListener implements Listener {
         this.plugin = plugin;
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCitizensSpawn(NPCSpawnEvent event) {
+        NPC npc = event.getNPC();
+        if (npc == null) return;
+
+        NpcData npcData = resolveNpcData(npc);
+        if (npcData != null) {
+            if (!plugin.getNpcManager().isNpcAllowedToSpawn(npcData)) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+
+        // Direct metadata check as fallback
+        if (npc.data().has("loveshops_type")) {
+            String type = npc.data().get("loveshops_type", null);
+            if (!plugin.getNpcManager().isTypeAllowedToSpawn(type)) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
     @EventHandler
     public void onCitizensRightClick(NPCRightClickEvent event) {
         NPC npc = event.getNPC();
         if (npc == null) return;
 
-        String uuidStr = npc.data().get("loveshops_uuid", null);
-        NpcData npcData = null;
-
-        if (uuidStr != null) {
-            try {
-                UUID uuid = UUID.fromString(uuidStr);
-                npcData = plugin.getNpcManager().getNpcByUuid(uuid);
-            } catch (IllegalArgumentException ignored) {}
-        }
-
+        NpcData npcData = resolveNpcData(npc);
         if (npcData == null) {
             npcData = plugin.getNpcManager().getNpcNear(event.getClicker().getLocation(), 3.0).orElse(null);
         }
@@ -86,5 +101,18 @@ public class CitizensListener implements Listener {
             }
             dialogue.maybeSayAmbient(player, mood);
         }
+    }
+
+    private NpcData resolveNpcData(NPC npc) {
+        if (npc == null) return null;
+        String uuidStr = npc.data().get("loveshops_uuid", null);
+        if (uuidStr != null) {
+            try {
+                UUID uuid = UUID.fromString(uuidStr);
+                NpcData data = plugin.getNpcManager().getNpcByUuid(uuid);
+                if (data != null) return data;
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return plugin.getNpcManager().getNpcByCitizensId(npc.getId()).orElse(null);
     }
 }

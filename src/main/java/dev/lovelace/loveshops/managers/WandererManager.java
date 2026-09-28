@@ -193,8 +193,12 @@ public class WandererManager {
                     }
                 }
                 for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {
-                    plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+                    plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
                 }
+            }
+        } else if (!nowActive) {
+            for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {
+                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
             }
         }
     }

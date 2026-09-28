@@ -63,13 +63,13 @@ public final class LoveShops extends JavaPlugin {
         this.forbiddenManager = new ForbiddenManager(this);
         this.forbiddenManager.load();
         this.priceCalculator = new PriceCalculator(this);
+        this.sellerManager = new SellerManager(this);
+        this.wandererManager = new WandererManager(this);
         this.npcManager = new NpcManager(this);
         this.buyerManager = new BuyerManager(this, priceCalculator);
-        this.sellerManager = new SellerManager(this);
         this.auctionManager = new AuctionManager(this);
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
-        this.wandererManager = new WandererManager(this);
         this.bankerManager = new BankerManager(this);
         this.citizensIntegration = new CitizensIntegration();
 

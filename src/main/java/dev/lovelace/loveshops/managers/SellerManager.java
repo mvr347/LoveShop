@@ -24,6 +24,8 @@ public class SellerManager {
 
     private final LoveShops plugin;
     private boolean active = false;
+    private boolean sellerArrived = false;
+    private volatile boolean hasActiveAuctionLots = false;
     private Boolean forceActiveOverride = null;
 
     public SellerManager(LoveShops plugin) {
@@ -42,6 +44,14 @@ public class SellerManager {
         return TimeUtils.isSellerTimeWindow(day, arrival, departure);
     }
 
+    public boolean isSellerArrived() {
+        return isSellerActive() && sellerArrived;
+    }
+
+    public boolean hasActiveAuctionLots() {
+        return isSellerActive() && hasActiveAuctionLots;
+    }
+
     public void checkSellerStatus() {
         // ScheduleListener drives this from Bukkit.getAsyncScheduler(), not the main thread -
         // hop over before touching Bukkit.broadcast()/NPC spawn-despawn below, same self-guard
@@ -51,15 +61,28 @@ public class SellerManager {
             return;
         }
         boolean nowActive = isSellerActive();
-        if (nowActive == active) {
-            return;
-        }
-        this.active = nowActive;
-
-        if (nowActive) {
-            handleArrival();
+        if (nowActive != active) {
+            this.active = nowActive;
+            if (nowActive) {
+                handleArrival();
+            } else {
+                handleDeparture();
+            }
+        } else if (!nowActive || !sellerArrived) {
+            // Guarantee flea market NPCs stay despawned while closed or before stock check passes
+            for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+            }
+            if (!nowActive) {
+                for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+                    plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+                }
+            }
         } else {
-            handleDeparture();
+            // Flea market is running and seller arrived; ensure buyer NPCs stay despawned
+            for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
+                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+            }
         }
     }
 
@@ -105,13 +128,14 @@ public class SellerManager {
     }
 
     private void performSellerArrival() {
+        this.sellerArrived = true;
         // Seller arrived (Flea market event active)
         for (String msg : plugin.getConfig().getStringList("seller.messages.arrival")) {
             Bukkit.broadcast(MessageUtils.parse(msg));
         }
         // Despawn buyer NPCs during event
         for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
-            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+            plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
         }
         // Spawn seller NPCs
         for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
@@ -120,17 +144,19 @@ public class SellerManager {
     }
 
     private void handleDeparture() {
+        this.sellerArrived = false;
+        this.hasActiveAuctionLots = false;
         // Seller departed (Flea market event ended)
         for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
             Bukkit.broadcast(MessageUtils.parse(msg));
         }
         // Despawn seller NPCs
         for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
-            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+            plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
         }
         // Despawn auctioneer NPCs
         for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
-            plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+            plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
         }
         // Respawn buyer NPCs
         for (var npc : plugin.getNpcManager().getNpcsByType("buyer")) {
@@ -158,16 +184,21 @@ public class SellerManager {
             return;
         }
         if (!isSellerActive()) {
+            this.hasActiveAuctionLots = false;
+            for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
+                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+            }
             return;
         }
         plugin.getAuctionManager().getActiveAuctions().thenAccept(auctions ->
             Bukkit.getScheduler().runTask(plugin, () -> {
-                boolean hasActiveLots = !auctions.isEmpty();
+                boolean hasLots = !auctions.isEmpty();
+                this.hasActiveAuctionLots = hasLots;
                 for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
-                    if (hasActiveLots) {
+                    if (hasLots) {
                         plugin.getNpcManager().spawnNpcEntity(npc);
                     } else {
-                        plugin.getNpcManager().despawnNpcEntity(npc.uuid());
+                        plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
                     }
                 }
             })
