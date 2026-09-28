@@ -121,9 +121,26 @@ public class PriceCalculator {
     }
 
     public double getRandomVariancePercent() {
+        return getRandomVariancePercent(null);
+    }
+
+    public double getRandomVariancePercent(String itemType) {
         double min = plugin.getConfig().getDouble("buyer.price-variance.min-percent", -40.0);
         double max = plugin.getConfig().getDouble("buyer.price-variance.max-percent", 10.0);
-        return min + (max - min) * random.nextDouble();
+        int durationMinutes = plugin.getConfig().getInt("buyer.price-variance.duration-minutes", 60);
+        if (durationMinutes <= 0) {
+            return min + (max - min) * random.nextDouble();
+        }
+
+        long durationMillis = durationMinutes * 60L * 1000L;
+        long timeBucket = System.currentTimeMillis() / durationMillis;
+
+        long seed = timeBucket * 1000003L;
+        if (itemType != null) {
+            seed ^= (long) itemType.hashCode() * 31L;
+        }
+        Random bucketRandom = new Random(seed);
+        return min + (max - min) * bucketRandom.nextDouble();
     }
 
     public double getPenaltyPercent(UUID playerUuid, String itemType) {
@@ -232,7 +249,7 @@ public class PriceCalculator {
         if (item == null) return 0;
 
         int basePrice = getBasePrice(item);
-        double variancePercent = getRandomVariancePercent();
+        double variancePercent = getRandomVariancePercent(item.getType().name());
         double penaltyPercent = getPenaltyPercent(player.getUniqueId(), item.getType().name());
         int repBonusPercent = getReputationBonusPercent(player);
 

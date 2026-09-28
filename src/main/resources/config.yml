@@ -23,6 +23,7 @@ buyer:
   price-variance:
     min-percent: -40                          # минимальная вариативность (-40%)
     max-percent: 10                           # максимальная вариативность (+10%)
+    duration-minutes: 60                      # время фиксации разброса цен (в минутах), по умолчанию 60 мин
   
   repetition-penalty:
     enabled: true
