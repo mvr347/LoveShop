@@ -3,9 +3,9 @@ package dev.lovelace.loveshops.gui;
 import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.util.GuiUtils;
-import dev.lovelace.loveshops.util.HeadTextures;
-import dev.lovelace.loveshops.util.MessageUtils;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -33,10 +33,10 @@ public class BankerGui {
 
     public static final String TITLE = "Банкир";
     private static final int SLOT_INFO = 4;
-    private static final int SLOT_DEPOSIT = 13;
-    private static final int SLOT_CLOSE = 31;
+    public static final int SLOT_DEPOSIT = 13;
+    public static final int SLOT_CLOSE = 31;
     private static final int[] OPTION_SLOTS = {15, 16, 17, 24, 25, 26};
-    private static final String DENOM_KEY = "banker_denom";
+    public static final String DENOM_KEY = "banker_denom";
     private static final String ACTION_KEY = "banker_action";
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
@@ -259,20 +259,31 @@ public class BankerGui {
 
     public static Session session(UUID uuid) { return SESSIONS.get(uuid); }
 
-    public static boolean deposit(LoveShops plugin, Player player, ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) return false;
+    /**
+     * @return сколько единиц валюты добавлено на стол (0, если стек не является монетой
+     *         известного номинала LoveEconomy)
+     */
+    public static long depositStack(LoveShops plugin, Player player, ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) return 0;
         LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy == null) return false;
+        if (economy == null) return 0;
+        long unit = economy.valueOf(stack);
+        if (unit <= 0) return 0;
+        long value = unit * stack.getAmount();
         Session session = SESSIONS.computeIfAbsent(player.getUniqueId(), id -> new Session());
-        if (!session.lock.compareAndSet(false, true)) return false;
+        if (!session.lock.compareAndSet(false, true)) return 0;
         try {
-            long value = economy.getValue(stack);
-            if (value <= 0) return false;
             session.deposited += value;
-            long unit = economy.getUnitValue(stack);
             if (unit > session.maxInputUnit) session.maxInputUnit = unit;
-            return true;
+            return value;
         } finally { session.lock.set(false); }
+    }
+
+    public static boolean isOptionSlot(int slot) {
+        for (int s : OPTION_SLOTS) {
+            if (s == slot) return true;
+        }
+        return false;
     }
 
     public static boolean withdrawAll(LoveShops plugin, Player player) {
