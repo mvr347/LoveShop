@@ -1,40 +1,195 @@
 # ==========================================
 #   LoveShops — цены скупщика (prices.yml)
 # ==========================================
-# Вынесено из config.yml в отдельный файл, чтобы правки баланса цен не путались с
-# остальными настройками плагина. Перезагружается вместе с остальным конфигом
-# (/loveshopsadmin reload).
+# Жёсткий баланс: мусор очень дёшево, инструменты/броня дороже,
+# редкие/сложные в добыче — близко к 1 алмазной монете (макс.).
+# Зачарованные алмазные и очень редкие уходят на аукцион.
 
-# Обычные предметы: цена скупки по материалу. Редактируется вручную или командой
-# /loveshopsadmin price <сумма> (держа предмет в руке) — если у материала нет метки
-# редкости ниже, цена меняется здесь.
 common:
-  DIAMOND: 375
-  GOLD_INGOT: 112
-  IRON_INGOT: 38
-  EMERALD: 225
-  NETHERITE_INGOT: 1500
-  COPPER_INGOT: 19
-  AMETHYST_SHARD: 56
-  LAPIS_LAZULI: 30
-  QUARTZ: 26
-  REDSTONE: 15
+  # ===== МУСОР / БЛОКИ (очень дёшево) =====
+  DIRT: 1
+  GRASS_BLOCK: 1
+  COBBLESTONE: 1
+  STONE: 2
+  ANDESITE: 1
+  DIORITE: 1
+  GRANITE: 1
+  NETHERRACK: 1
+  END_STONE: 3
+  SAND: 1
+  GRAVEL: 1
+  CLAY: 3
+  OAK_LOG: 2
+  BIRCH_LOG: 2
+  SPRUCE_LOG: 2
+  JUNGLE_LOG: 2
+  ACACIA_LOG: 2
+  DARK_OAK_LOG: 2
+  MANGROVE_LOG: 3
+  CHERRY_LOG: 3
+  OAK_PLANKS: 1
+  STICK: 1
+  WHEAT_SEEDS: 1
+  BEETROOT_SEEDS: 1
+  MELON_SEEDS: 1
+  PUMPKIN_SEEDS: 1
+  SUGAR_CANE: 2
+  CACTUS: 2
+  BAMBOO: 1
+  KELP: 1
+  SEAGRASS: 1
+  VINE: 1
+  ROTTEN_FLESH: 1
+  BONE: 2
+  STRING: 2
+  FEATHER: 2
+  LEATHER: 4
+  RABBIT_HIDE: 3
+  SPIDER_EYE: 3
+  GUNPOWDER: 5
+  SLIME_BALL: 6
+  MAGMA_CREAM: 8
+  BLAZE_ROD: 12
+  GHAST_TEAR: 25
+  ENDER_PEARL: 15
+  PHANTOM_MEMBRANE: 18
+  SHULKER_SHELL: 40
 
-# Редкие предметы: ручная метка поверх автоматического определения редкости
-# (org.bukkit.inventory.ItemRarity и зачарования, см. PriceCalculator#isRareItem).
-#
-#   rare: true   — принудительно считать материал редким (уходит на аукцион), даже
-#                  если авто-проверка его не заметила.
-#   rare: false  — принудительно ИСКЛЮЧИТЬ материал из авто-определения, даже если
-#                  он зачарован или несёт компонент редкости (например, авто-проверка
-#                  ошибочно посчитала что-то редким).
-#   price        — стартовая цена лота на аукционе для этого материала вместо цены
-#                  по формуле. Необязательно — без неё используется обычная формула.
-#
-# Заполняется командами /loveshopsadmin rarity <common|uncommon|rare|epic> и
-# /loveshopsadmin price <сумма> (обе — держа предмет в руке).
-rare: {}
-  # Пример:
-  # NETHERITE_SWORD:
-  #   rare: true
-  #   price: 1000
+  # ===== РУДЫ / СЛИТКИ =====
+  COAL: 3
+  RAW_COPPER: 2
+  COPPER_INGOT: 4
+  RAW_IRON: 5
+  IRON_INGOT: 8
+  RAW_GOLD: 12
+  GOLD_INGOT: 20
+  REDSTONE: 3
+  LAPIS_LAZULI: 5
+  QUARTZ: 4
+  AMETHYST_SHARD: 8
+  EMERALD: 35
+  DIAMOND: 60
+  NETHERITE_SCRAP: 80
+  NETHERITE_INGOT: 120
+
+  # ===== ЕДА =====
+  BREAD: 3
+  COOKED_BEEF: 4
+  COOKED_PORKCHOP: 4
+  COOKED_CHICKEN: 3
+  GOLDEN_CARROT: 12
+  GOLDEN_APPLE: 40
+  ENCHANTED_GOLDEN_APPLE: 90
+
+  # ===== ИНСТРУМЕНТЫ (дешёвые) =====
+  WOODEN_PICKAXE: 2
+  WOODEN_AXE: 2
+  WOODEN_SWORD: 2
+  STONE_PICKAXE: 4
+  STONE_AXE: 4
+  STONE_SWORD: 5
+  IRON_PICKAXE: 15
+  IRON_AXE: 15
+  IRON_SWORD: 18
+  IRON_SHOVEL: 12
+  IRON_HOE: 12
+  GOLDEN_PICKAXE: 10
+  GOLDEN_SWORD: 12
+  DIAMOND_PICKAXE: 55
+  DIAMOND_AXE: 55
+  DIAMOND_SWORD: 60
+  DIAMOND_SHOVEL: 45
+  DIAMOND_HOE: 45
+  NETHERITE_PICKAXE: 95
+  NETHERITE_AXE: 95
+  NETHERITE_SWORD: 100
+  NETHERITE_SHOVEL: 85
+  NETHERITE_HOE: 85
+  BOW: 20
+  CROSSBOW: 25
+  TRIDENT: 70
+  SHIELD: 15
+  FISHING_ROD: 8
+  FLINT_AND_STEEL: 6
+  SHEARS: 8
+
+  # ===== БРОНЯ =====
+  LEATHER_HELMET: 6
+  LEATHER_CHESTPLATE: 10
+  LEATHER_LEGGINGS: 8
+  LEATHER_BOOTS: 5
+  IRON_HELMET: 18
+  IRON_CHESTPLATE: 30
+  IRON_LEGGINGS: 25
+  IRON_BOOTS: 15
+  GOLDEN_HELMET: 12
+  GOLDEN_CHESTPLATE: 20
+  GOLDEN_LEGGINGS: 16
+  GOLDEN_BOOTS: 10
+  DIAMOND_HELMET: 50
+  DIAMOND_CHESTPLATE: 80
+  DIAMOND_LEGGINGS: 70
+  DIAMOND_BOOTS: 45
+  NETHERITE_HELMET: 90
+  NETHERITE_CHESTPLATE: 110
+  NETHERITE_LEGGINGS: 100
+  NETHERITE_BOOTS: 85
+  TURTLE_HELMET: 25
+  ELYTRA: 100
+
+  # ===== РЕДКИЕ / СЛОЖНЫЕ =====
+  NETHER_STAR: 100
+  DRAGON_EGG: 100
+  DRAGON_BREATH: 30
+  TOTEM_OF_UNDYING: 85
+  HEART_OF_THE_SEA: 50
+  NAUTILUS_SHELL: 20
+  SCUTE: 15
+  ECHO_SHARD: 35
+  RECOVERY_COMPASS: 40
+  SADDLE: 25
+  NAME_TAG: 20
+  EXPERIENCE_BOTTLE: 8
+  ENCHANTED_BOOK: 30
+
+  # ===== ПРОЧЕЕ =====
+  OBSIDIAN: 8
+  CRYING_OBSIDIAN: 12
+  ANCIENT_DEBRIS: 70
+  GLOWSTONE_DUST: 3
+  BLAZE_POWDER: 6
+  ENDER_EYE: 20
+  FIRE_CHARGE: 4
+  TNT: 10
+
+# Редкие предметы: принудительно на аукцион + стартовая цена лота
+rare:
+  NETHERITE_SWORD:
+    rare: true
+    price: 100
+  NETHERITE_PICKAXE:
+    rare: true
+    price: 95
+  NETHERITE_AXE:
+    rare: true
+    price: 95
+  NETHERITE_CHESTPLATE:
+    rare: true
+    price: 110
+  DIAMOND_SWORD:
+    rare: false
+  ELYTRA:
+    rare: true
+    price: 100
+  TOTEM_OF_UNDYING:
+    rare: true
+    price: 85
+  NETHER_STAR:
+    rare: true
+    price: 100
+  DRAGON_EGG:
+    rare: true
+    price: 100
+  ENCHANTED_GOLDEN_APPLE:
+    rare: true
+    price: 90
