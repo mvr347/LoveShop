@@ -32,7 +32,8 @@ import java.util.UUID;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "event", "banker", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "price", "event", "banker", "help");
+    private static final List<String> PRICE_TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer", "all");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
     private static final List<String> NPC_ACTIONS = List.of("create", "delete", "list");
     private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer", "warmerchant", "wanderer", "banker");
@@ -67,6 +68,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             case "npc" -> handleNpc(sender, args);
             case "status" -> handleStatus(sender, args);
             case "item" -> handleItem(sender, args);
+            case "price" -> handlePriceCommand(sender, args);
             case "event" -> handleEvent(sender, args);
             case "banker" -> handleBanker(sender, args);
             default -> sendHelp(sender);
@@ -356,23 +358,111 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         ItemStack hand = requireHeldItem(sender, "loveshops.admin.price");
         if (hand == null) return;
         if (args.length < 3) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin item price <цена></yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin item price [buyer|seller|war_merchant|wanderer|auctioneer|all] <цена></yellow>"));
             return;
         }
+
+        String target = "buyer";
         int price;
-        try {
-            price = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(MessageUtils.parse("<red>Цена должна быть целым числом!</red>"));
-            return;
+
+        if (args.length >= 4) {
+            target = args[2].toLowerCase(Locale.ROOT);
+            try {
+                price = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(MessageUtils.parse("<red>Цена должна быть целым числом!</red>"));
+                return;
+            }
+        } else {
+            try {
+                price = Integer.parseInt(args[2]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(MessageUtils.parse("<red>Цена должна быть целым числом! /loveshopsadmin item price [торговец|all] <цена></red>"));
+                return;
+            }
         }
+
         if (price < 0) {
             sender.sendMessage(MessageUtils.parse("<red>Цена не может быть отрицательной!</red>"));
             return;
         }
+
         String material = hand.getType().name();
-        plugin.getPricesManager().setItemPrice(material, price);
-        sender.sendMessage(MessageUtils.parse("<green>Цена " + material + " установлена: <gold>" + price + "</gold></green>"));
+        List<String> affected = plugin.getPricesManager().setNpcPrice(target, material, price);
+        sender.sendMessage(MessageUtils.parse("<green>Цена предмета <gold>" + material + "</gold> установлена: <gold>" + price + "</gold> для: <aqua>" + String.join(", ", affected) + "</aqua></green>"));
+    }
+
+    private void handlePriceCommand(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("loveshops.admin.price") && !sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование команды настройки цен:</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <buyer|seller|war_merchant|wanderer|auctioneer|all> <цена></gold> <gray>(предмет в руке)</gray>"));
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <buyer|seller|war_merchant|wanderer|auctioneer|all> <материал/id> <цена></gold>"));
+            return;
+        }
+
+        // Если указали просто число: /loveshopsadmin price <цена> (в руке предмет, по умолчанию скупщик)
+        if (args.length == 2) {
+            try {
+                int price = Integer.parseInt(args[1]);
+                ItemStack hand = (sender instanceof Player p) ? p.getInventory().getItemInMainHand() : null;
+                if (hand == null || hand.getType().isAir()) {
+                    sender.sendMessage(MessageUtils.parse("<red>Возьмите предмет в руку или укажите: /loveshopsadmin price <торговец> <материал> <цена></red>"));
+                    return;
+                }
+                String material = hand.getType().name();
+                List<String> affected = plugin.getPricesManager().setNpcPrice("buyer", material, price);
+                sender.sendMessage(MessageUtils.parse("<green>Цена <gold>" + material + "</gold> установлена: <gold>" + price + "</gold> для: <aqua>" + String.join(", ", affected) + "</aqua></green>"));
+                return;
+            } catch (NumberFormatException ignored) {}
+        }
+
+        String target = args[1].toLowerCase(Locale.ROOT);
+        String itemKey;
+        int price;
+
+        if (args.length == 3) {
+            // /loveshopsadmin price <target> <цена> (предмет в руке)
+            try {
+                price = Integer.parseInt(args[2]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(MessageUtils.parse("<red>Цена должна быть числом!</red>"));
+                return;
+            }
+
+            ItemStack hand = (sender instanceof Player p) ? p.getInventory().getItemInMainHand() : null;
+            if (hand == null || hand.getType().isAir()) {
+                sender.sendMessage(MessageUtils.parse("<red>Возьмите предмет в руку или укажите: /loveshopsadmin price " + target + " <материал/id> <цена></red>"));
+                return;
+            }
+            itemKey = hand.getType().name();
+        } else {
+            // /loveshopsadmin price <target> <материал/id> <цена>
+            itemKey = args[2];
+            try {
+                price = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(MessageUtils.parse("<red>Цена должна быть числом!</red>"));
+                return;
+            }
+        }
+
+        if (price < 0) {
+            sender.sendMessage(MessageUtils.parse("<red>Цена не может быть отрицательной!</red>"));
+            return;
+        }
+
+        List<String> affected = plugin.getPricesManager().setNpcPrice(target, itemKey, price);
+        if (affected.isEmpty()) {
+            sender.sendMessage(MessageUtils.parse("<red>Неизвестный торговец '" + target + "'. Доступные: buyer, seller, war_merchant, wanderer, auctioneer, all</red>"));
+            return;
+        }
+
+        sender.sendMessage(MessageUtils.parse("<green>Цена <gold>" + itemKey.toUpperCase(Locale.ROOT) + "</gold> установлена: <gold>" + price + "</gold> для: <aqua>" + String.join(", ", affected) + "</aqua></green>"));
     }
 
     private void handleItemRarity(CommandSender sender, String[] args) {
@@ -499,6 +589,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|delete|list></gold> <gray>- Управление NPC-торговцами (привязка к Citizens)</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-status", "<gold>/loveshopsadmin status <игрок> <статус> [сообщение]</gold> <gray>- Статус игрока у скупщика</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-item", "<gold>/loveshopsadmin item <allow|deny|rarity|price></gold> <gray>- Правила по предмету в руке</gray>"));
+        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <торговец|all> <цена> [материал/id]</gold> <gray>- Настройка цены конкретному торговцу или всем</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-flea", "<gold>/loveshopsadmin event flea <start|stop|reset></gold> <gray>- Управление барахолкой</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-wanderer", "<gold>/loveshopsadmin event wanderer <start|stop|reset|status></gold> <gray>- Управление Странником</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin banker fee <игрок> [0-100|reset]</gold> <gray>- Комиссия банкира игроку</gray>"));
@@ -532,6 +623,19 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("item") && args[1].equalsIgnoreCase("rarity")) {
             return StringUtil.copyPartialMatches(args[2], RARITY_TIERS, new ArrayList<>());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("price")) {
+            return StringUtil.copyPartialMatches(args[1], PRICE_TARGETS, new ArrayList<>());
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("price")) {
+            List<String> mats = new ArrayList<>(List.of("1", "5", "10", "25", "50", "100", "200", "500"));
+            for (Material m : Material.values()) {
+                if (m.isItem() && !m.isAir()) mats.add(m.name().toLowerCase(Locale.ROOT));
+            }
+            return StringUtil.copyPartialMatches(args[2], mats, new ArrayList<>());
+        }
+        if (args.length == 4 && args[0].equalsIgnoreCase("price")) {
+            return StringUtil.copyPartialMatches(args[3], List.of("1", "5", "10", "25", "50", "100", "200", "500"), new ArrayList<>());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("event")) {
             return StringUtil.copyPartialMatches(args[1], EVENT_TYPES, new ArrayList<>());

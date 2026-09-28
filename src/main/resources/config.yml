@@ -381,6 +381,7 @@ wanderer:
   # Пул предметов, которые может принести Странник. category — см. personal-request выше:
   # TOOLS / ARMOR / ENCHANTMENTS / RARE (по умолчанию RARE, если не указано).
   items-pool:
+    # --- RARE (Редкие предметы, артефакты и расходники) ---
     - id: "blood_sword"
       material: "NETHERITE_SWORD"
       name: "<red><bold>Клинок Кровавого Странника</bold></red>"
@@ -423,6 +424,46 @@ wanderer:
       weight: 20
       category: "RARE"
 
+    - id: "storm_trident"
+      material: "TRIDENT"
+      name: "<aqua><bold>Штормовой Трезубец</bold></aqua>"
+      lore:
+        - "<gray>Заряжен яростью бушующего океана.</gray>"
+      enchants:
+        RIPTIDE: 3
+        UNBREAKING: 3
+      price: 400
+      amount: 1
+      weight: 15
+      category: "RARE"
+
+    - id: "heavy_mace"
+      material: "MACE"
+      name: "<yellow><bold>Сокрушительная Булава</bold></yellow>"
+      lore:
+        - "<gray>Орудие для сокрушения тяжелых доспехов.</gray>"
+      enchants:
+        DENSITY: 4
+        BREACH: 3
+        UNBREAKING: 3
+      price: 450
+      amount: 1
+      weight: 10
+      category: "RARE"
+
+    - id: "glider_elytra"
+      material: "ELYTRA"
+      name: "<light_purple><bold>Потрёпанные Элитры Странника</bold></light_purple>"
+      lore:
+        - "<gray>Испещрены ветрами дальних земель.</gray>"
+      enchants:
+        UNBREAKING: 3
+        MENDING: 1
+      price: 450
+      amount: 1
+      weight: 12
+      category: "RARE"
+
     - id: "enchanted_apple_pack"
       material: "ENCHANTED_GOLDEN_APPLE"
       name: "<light_purple><bold>Зачарованное Золотое Яблоко</bold></light_purple>"
@@ -456,7 +497,7 @@ wanderer:
         - "<gray>Для мощнейших тактических взрывов.</gray>"
       price: 150
       amount: 2
-      weight: 40
+      weight: 35
       category: "RARE"
 
     - id: "netherite_scrap_pack"
@@ -465,6 +506,14 @@ wanderer:
       price: 140
       amount: 3
       weight: 40
+      category: "RARE"
+
+    - id: "ancient_debris_ore"
+      material: "ANCIENT_DEBRIS"
+      name: "<dark_purple>Древние Обломки Недр</dark_purple>"
+      price: 160
+      amount: 2
+      weight: 30
       category: "RARE"
 
     - id: "experience_bottles"
@@ -483,6 +532,31 @@ wanderer:
       weight: 55
       category: "RARE"
 
+    - id: "void_pearls"
+      material: "ENDER_PEARL"
+      name: "<dark_aqua>Жемчуг Тёмных Глубин</dark_aqua>"
+      price: 60
+      amount: 8
+      weight: 45
+      category: "RARE"
+
+    - id: "golden_carrot_crate"
+      material: "GOLDEN_CARROT"
+      name: "<gold>Золотой Запас Путника</gold>"
+      price: 45
+      amount: 32
+      weight: 50
+      category: "RARE"
+
+    - id: "wind_charge_pack"
+      material: "WIND_CHARGE"
+      name: "<aqua>Ветровые Заряды Вихря</aqua>"
+      price: 50
+      amount: 16
+      weight: 40
+      category: "RARE"
+
+    # --- TOOLS (Инструменты) ---
     - id: "wanderer_pickaxe"
       material: "NETHERITE_PICKAXE"
       name: "<aqua><bold>Кирка Старателя Странника</bold></aqua>"
@@ -493,6 +567,20 @@ wanderer:
         FORTUNE: 3
         UNBREAKING: 3
       price: 250
+      amount: 1
+      weight: 25
+      category: "TOOLS"
+
+    - id: "wanderer_silk_pickaxe"
+      material: "DIAMOND_PICKAXE"
+      name: "<aqua>Шёлковая Кирка Геолога</aqua>"
+      lore:
+        - "<gray>Аккуратно извлекает самые хрупкие минералы.</gray>"
+      enchants:
+        EFFICIENCY: 5
+        SILK_TOUCH: 1
+        UNBREAKING: 3
+      price: 220
       amount: 1
       weight: 25
       category: "TOOLS"
@@ -508,6 +596,17 @@ wanderer:
       weight: 30
       category: "TOOLS"
 
+    - id: "dwarf_shovel"
+      material: "DIAMOND_SHOVEL"
+      name: "<yellow>Подземная Лопата Гномов</yellow>"
+      enchants:
+        EFFICIENCY: 5
+        UNBREAKING: 3
+      price: 110
+      amount: 1
+      weight: 30
+      category: "TOOLS"
+
     - id: "wanderer_shears"
       material: "SHEARS"
       name: "<green>Верные Ножницы Странника</green>"
@@ -516,9 +615,22 @@ wanderer:
         MENDING: 1
       price: 50
       amount: 1
+      weight: 35
+      category: "TOOLS"
+
+    - id: "deep_angler_rod"
+      material: "FISHING_ROD"
+      name: "<blue>Глубоководная Удочка Следопыта</blue>"
+      enchants:
+        LUCK_OF_THE_SEA: 3
+        LURE: 3
+        UNBREAKING: 3
+      price: 80
+      amount: 1
       weight: 30
       category: "TOOLS"
 
+    # --- ARMOR (Броня и защита) ---
     - id: "wanderer_chestplate"
       material: "NETHERITE_CHESTPLATE"
       name: "<dark_purple><bold>Нагрудник Скитальца</bold></dark_purple>"
@@ -544,16 +656,53 @@ wanderer:
       weight: 30
       category: "ARMOR"
 
+    - id: "abyssal_helmet"
+      material: "DIAMOND_HELMET"
+      name: "<aqua>Шлем Подводного Разведчика</aqua>"
+      enchants:
+        RESPIRATION: 3
+        AQUA_AFFINITY: 1
+        PROTECTION: 4
+      price: 190
+      amount: 1
+      weight: 25
+      category: "ARMOR"
+
+    - id: "nomad_leggings"
+      material: "DIAMOND_LEGGINGS"
+      name: "<gold>Поножи Кочевника Пустошей</gold>"
+      enchants:
+        PROTECTION: 4
+        UNBREAKING: 3
+      price: 240
+      amount: 1
+      weight: 25
+      category: "ARMOR"
+
+    - id: "frost_walker_boots"
+      material: "DIAMOND_BOOTS"
+      name: "<blue>Ледоходные Сапоги Севера</blue>"
+      enchants:
+        FROST_WALKER: 2
+        PROTECTION: 3
+        UNBREAKING: 3
+      price: 170
+      amount: 1
+      weight: 25
+      category: "ARMOR"
+
     - id: "wanderer_shield"
       material: "SHIELD"
       name: "<gold>Щит Пограничника</gold>"
       enchants:
         UNBREAKING: 3
+        MENDING: 1
       price: 80
       amount: 1
       weight: 30
       category: "ARMOR"
 
+    # --- ENCHANTMENTS (Зачарованные книги) ---
     - id: "book_mending"
       material: "ENCHANTED_BOOK"
       name: "<light_purple><bold>Книга: Починка</bold></light_purple>"
@@ -592,4 +741,54 @@ wanderer:
       price: 140
       amount: 1
       weight: 30
+      category: "ENCHANTMENTS"
+
+    - id: "book_looting_3"
+      material: "ENCHANTED_BOOK"
+      name: "<gold>Книга: Добыча III</gold>"
+      enchants:
+        LOOTING: 3
+      price: 160
+      amount: 1
+      weight: 25
+      category: "ENCHANTMENTS"
+
+    - id: "book_unbreaking_3"
+      material: "ENCHANTED_BOOK"
+      name: "<gray>Книга: Прочность III</gray>"
+      enchants:
+        UNBREAKING: 3
+      price: 130
+      amount: 1
+      weight: 30
+      category: "ENCHANTMENTS"
+
+    - id: "book_infinity"
+      material: "ENCHANTED_BOOK"
+      name: "<aqua>Книга: Бесконечность</aqua>"
+      enchants:
+        INFINITY: 1
+      price: 140
+      amount: 1
+      weight: 25
+      category: "ENCHANTMENTS"
+
+    - id: "book_feather_falling_4"
+      material: "ENCHANTED_BOOK"
+      name: "<white>Книга: Невесомость IV</white>"
+      enchants:
+        FEATHER_FALLING: 4
+      price: 120
+      amount: 1
+      weight: 30
+      category: "ENCHANTMENTS"
+
+    - id: "book_silk_touch"
+      material: "ENCHANTED_BOOK"
+      name: "<light_purple>Книга: Шёлковое касание</light_purple>"
+      enchants:
+        SILK_TOUCH: 1
+      price: 130
+      amount: 1
+      weight: 25
       category: "ENCHANTMENTS"

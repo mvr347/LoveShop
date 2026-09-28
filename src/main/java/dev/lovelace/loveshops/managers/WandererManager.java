@@ -396,7 +396,8 @@ public class WandererManager {
                     }
                 }
 
-                int price = map.get("price") != null ? Integer.parseInt(String.valueOf(map.get("price"))) : 100;
+                int basePrice = map.get("price") != null ? Integer.parseInt(String.valueOf(map.get("price"))) : 100;
+                int price = plugin.getPricesManager().getWandererPrice(id, plugin.getPricesManager().getWandererPrice(material, basePrice));
                 int amount = map.get("amount") != null ? Integer.parseInt(String.valueOf(map.get("amount"))) : 1;
                 int weight = map.get("weight") != null ? Integer.parseInt(String.valueOf(map.get("weight"))) : 10;
                 Integer customModelData = map.containsKey("custom-model-data") ? Integer.parseInt(String.valueOf(map.get("custom-model-data"))) : null;

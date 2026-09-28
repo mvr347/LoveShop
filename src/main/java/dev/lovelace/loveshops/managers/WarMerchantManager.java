@@ -55,7 +55,8 @@ public class WarMerchantManager {
         for (Map<?, ?> entry : plugin.getConfig().getMapList("war-merchant.items")) {
             try {
                 Material material = Material.valueOf(String.valueOf(entry.get("material")).toUpperCase());
-                int price = entry.get("price") instanceof Number number ? number.intValue() : 0;
+                int configPrice = entry.get("price") instanceof Number number ? number.intValue() : 0;
+                int price = plugin.getPricesManager().getWarMerchantPrice(material.name(), configPrice);
 
                 ItemStack item = new ItemStack(material);
                 Object enchantsRaw = entry.get("enchantments");
