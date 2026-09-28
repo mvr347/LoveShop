@@ -420,7 +420,6 @@ public class BankerGui {
             session.maxInputUnit = 0;
             session.minInputUnit = 0;
             if (value > 0) economy.give(player, value);
-            MessageUtils.sendMessage(player, "<green>Депозит возвращён: <yellow>" + MessageUtils.currencyIcon() + value + "</yellow>.</green>");
             return true;
         } finally { session.lock.set(false); }
     }
@@ -515,7 +514,6 @@ public class BankerGui {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy != null) {
             economy.give(player, left);
-            MessageUtils.sendMessage(player, "<yellow>Банкир вернул вам <gold>" + MessageUtils.currencyIcon() + left + "</gold>.</yellow>");
         }
         plugin.getNpcDialogueManager().sayBankerClose(player);
     }
