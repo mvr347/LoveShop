@@ -35,9 +35,9 @@ public class BankerGui {
     public static final String DENOM_KEY = "banker_denom_value";
     public static final String ACTION_KEY = "banker_action";
     public static final int SLOT_DEPOSIT = 11;
-    public static final int SLOT_INFO = 13;
+    public static final int SLOT_INFO = 34;
     public static final int SLOT_CLOSE = 35;
-    public static final int[] OPTION_SLOTS = {14, 15, 16, 23, 24, 25};
+    public static final int[] OPTION_SLOTS = {13, 14, 15, 16, 22, 23, 24, 25};
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
 
@@ -114,16 +114,30 @@ public class BankerGui {
         int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
         boolean personal = plugin.getBankerManager().hasOverride(player.getUniqueId());
         inv.setItem(SLOT_INFO, infoItem(session.deposited, feePercent, personal, currency));
-        inv.setItem(SLOT_DEPOSIT, depositItem(session.deposited, currency));
+        inv.setItem(SLOT_DEPOSIT, depositItem(economy, session.deposited, currency));
         for (int slot : OPTION_SLOTS) inv.setItem(slot, null);
         if (session.deposited <= 0) return;
         List<Denomination> dens = new ArrayList<>(economy.denominations());
         dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+        long maxDenomValue = dens.isEmpty() ? 0 : dens.get(0).value();
+        long minDenomValue = dens.isEmpty() ? 0 : dens.get(dens.size() - 1).value();
+
         int idx = 0;
         for (Denomination den : dens) {
             if (idx >= OPTION_SLOTS.length) break;
             long unit = den.value();
             if (unit <= 0 || unit > session.deposited) continue;
+
+            // Незеритовая монета (максимальный номинал) никогда не показывается как вариант укрупнения
+            if (unit == maxDenomValue && session.maxInputUnit < maxDenomValue) {
+                continue;
+            }
+
+            // Медная монета (минимальный номинал) самая маленькая, не уменьшается, только вверх, если есть
+            if (unit == minDenomValue && session.maxInputUnit == minDenomValue) {
+                continue;
+            }
+
             long maxCount = session.deposited / unit;
             if (maxCount <= 0) continue;
             inv.setItem(OPTION_SLOTS[idx++], optionButton(den, maxCount, unit, feePercent, currency));
@@ -131,60 +145,79 @@ public class BankerGui {
     }
 
     private ItemStack infoItem(long deposited, int feePercent, boolean personal, String currency) {
-        ItemStack item = new ItemStack(Material.BOOK);
+        List<String> lore = new ArrayList<>();
+        lore.add("");
+        lore.add("<gray>1. Положите монеты в слот слева</gray>");
+        lore.add("<gray>2. Справа выберите номинал</gray>");
+        lore.add("<gray>ЛКМ — одна монета, Shift — максимум</gray>");
+        lore.add("<gray>Клик по «Ваша валюта» — забрать всё назад</gray>");
+        lore.add("");
+        lore.add("<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>");
+        lore.add("<gray>Комиссия размена/укрупнения: <yellow>" + feePercent + "%" + (personal ? " <dark_gray>(личная)</dark_gray>" : "") + "</yellow></gray>");
+        ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, "<gold>Как работает банкир</gold>", lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<gold>Как работает банкир</gold>"));
-            List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse("<gray>1. Положите монеты в слот слева</gray>"));
-            lore.add(MessageUtils.parse("<gray>2. Справа выберите номинал</gray>"));
-            lore.add(MessageUtils.parse("<gray>ЛКМ — одна монета, Shift — максимум</gray>"));
-            lore.add(MessageUtils.parse("<gray>Клик по депозиту — забрать всё назад</gray>"));
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>"));
-            lore.add(MessageUtils.parse("<gray>Комиссия укрупнения: <yellow>" + feePercent + "%" + (personal ? " <dark_gray>(личная)</dark_gray>" : "") + "</yellow></gray>"));
-            meta.lore(lore);
+            meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "info");
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    private ItemStack depositItem(long deposited, String currency) {
+    private ItemStack depositItem(LoveEconomy economy, long deposited, String currency) {
         if (deposited <= 0) {
-            ItemStack empty = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+            ItemStack empty = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_EMPTY,
+                    "<yellow>Ваша валюта</yellow>",
+                    List.of(
+                            "",
+                            "<gray>Положите сюда монеты LoveEconomy</gray>",
+                            "<gray>(клик монетой или Shift из инвентаря)</gray>"
+                    ));
             ItemMeta meta = empty.getItemMeta();
             if (meta != null) {
-                meta.displayName(MessageUtils.parse("<yellow>Слот для монет</yellow>"));
-                meta.lore(List.of(
-                        Component.empty(),
-                        MessageUtils.parse("<gray>Положите сюда монеты LoveEconomy</gray>"),
-                        MessageUtils.parse("<gray>(клик монетой или Shift из инвентаря)</gray>")
-                ));
                 meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
                 empty.setItemMeta(meta);
             }
             return empty;
         }
 
-        ItemStack item = getCustomStack("voidcore:gold_coin");
-        if (item == null) {
-            item = getCustomStack("gold_coin");
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(MessageUtils.parse(player, "<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>"));
+        lore.add(MessageUtils.parse(player, "<gray>Состав монет:</gray>"));
+
+        long remaining = deposited;
+        List<Denomination> dens = new ArrayList<>(economy.denominations());
+        dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+        for (Denomination den : dens) {
+            if (den.value() <= 0) continue;
+            long count = remaining / den.value();
+            if (count > 0) {
+                remaining %= den.value();
+                String glyph = getCoinGlyph(den);
+                lore.add(MessageUtils.parse(player, glyph + " <yellow>x" + count + "</yellow>"));
+            }
         }
-        if (item == null) {
-            item = new ItemStack(Material.GOLD_INGOT);
-        }
-        ItemMeta meta = item.getItemMeta();
+        lore.add(Component.empty());
+        lore.add(MessageUtils.parse(player, "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"));
+
+        ItemStack filled = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_FILLED,
+                "<gold>Ваша валюта: </gold><yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow>",
+                List.of());
+        ItemMeta meta = filled.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>"));
-            meta.lore(List.of(
-                    Component.empty(),
-                    MessageUtils.parse("<gray>Монеты на столе банкира</gray>"),
-                    MessageUtils.parse("<yellow>Клик </yellow><gray>— забрать всё назад</gray>")
-            ));
+            meta.lore(lore);
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
-            item.setItemMeta(meta);
+            filled.setItemMeta(meta);
         }
-        return item;
+        return filled;
+    }
+
+    public static String getCoinGlyph(Denomination den) {
+        if (den == null || den.itemId() == null) return "%img_copper_coin%";
+        String id = den.itemId();
+        int colon = id.indexOf(':');
+        String tag = colon >= 0 ? id.substring(colon + 1) : id;
+        return "%img_" + tag + "%";
     }
 
     private static void initItemsAdder() {
@@ -270,21 +303,24 @@ public class BankerGui {
         item.setAmount((int) Math.min(64, Math.max(1, maxCount)));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
+            String countSuffix = maxCount > 64 ? " <yellow>(" + maxCount + " шт)</yellow>" : "";
             Component displayName;
             if (meta.hasDisplayName()) {
-                displayName = meta.displayName().append(MessageUtils.parse(" <gray>(по " + unit + " " + currency + ")</gray>"));
+                displayName = meta.displayName().append(MessageUtils.parse(player, " <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix));
             } else {
                 String label = den.itemId() != null ? den.itemId() : ("×" + unit);
-                displayName = MessageUtils.parse("<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>");
+                displayName = MessageUtils.parse(player, "<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix);
             }
             meta.displayName(displayName);
 
             List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse("<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
-            if (feePercent > 0) lore.add(MessageUtils.parse("<dark_gray>Укрупнение может взять комиссию " + feePercent + "%</dark_gray>"));
+            lore.add(MessageUtils.parse(player, "<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
+            if (feePercent > 0) {
+                lore.add(MessageUtils.parse(player, "<dark_gray>Комиссия операции: " + feePercent + "%</dark_gray>"));
+            }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— взять 1</gray>"));
-            lore.add(MessageUtils.parse("<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>ЛКМ </green><gray>— взять 1</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
             meta.lore(lore);
 
             meta.getPersistentDataContainer().set(denomKey(), PersistentDataType.LONG, unit);
@@ -355,12 +391,12 @@ public class BankerGui {
             long need = unitValue * count;
             int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
             long fee = 0;
-            if (feePercent > 0 && unitValue > session.maxInputUnit) {
-                fee = need * feePercent / 100;
+            if (feePercent > 0) {
+                fee = (need * feePercent + 99) / 100;
                 while (need + fee > session.deposited && count > 0) {
                     count--;
                     need = unitValue * count;
-                    fee = need * feePercent / 100;
+                    fee = (need * feePercent + 99) / 100;
                 }
                 if (count <= 0) {
                     MessageUtils.sendMessage(player, "<red>Не хватает с учётом комиссии.</red>");
@@ -379,11 +415,7 @@ public class BankerGui {
                 remaining -= chunk;
             }
 
-            if (fee > 0) {
-                MessageUtils.sendMessage(player, "<green>Получено <yellow>" + count + "×" + unitValue + "</yellow>, комиссия <red>" + MessageUtils.currencyIcon() + fee + "</red>.</green>");
-            } else {
-                MessageUtils.sendMessage(player, "<green>Получено <yellow>" + count + "×" + unitValue + "</yellow>.</green>");
-            }
+            // Убраны сообщения «Получено …» — игрок видит результат в GUI сам
             return true;
         } finally { session.lock.set(false); }
     }
@@ -396,12 +428,16 @@ public class BankerGui {
         long left = session.deposited;
         session.deposited = 0;
         session.maxInputUnit = 0;
-        if (left <= 0) return;
+        if (left <= 0) {
+            plugin.getNpcDialogueManager().sayBankerClose(player);
+            return;
+        }
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy != null) {
             economy.give(player, left);
             MessageUtils.sendMessage(player, "<yellow>Банкир вернул вам <gold>" + MessageUtils.currencyIcon() + left + "</gold>.</yellow>");
         }
+        plugin.getNpcDialogueManager().sayBankerClose(player);
     }
 
     public static boolean isOptionSlot(int slot) {

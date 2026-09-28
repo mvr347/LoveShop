@@ -366,12 +366,7 @@ public class WandererManager {
     }
 
     public void rejectPlayer(Player player) {
-        List<String> messages = plugin.getConfig().getStringList("wanderer.messages.not-aggressive");
-        if (messages.isEmpty()) {
-            messages = List.of("<red>Странник:</red> <gray>Я веду дела только с игроками агрессивного стиля!</gray>");
-        }
-        String chosen = messages.get(random.nextInt(messages.size()));
-        MessageUtils.sendMessage(player, chosen);
+        plugin.getNpcDialogueManager().sayWandererDismiss(player);
     }
 
     // ==========================================
@@ -931,6 +926,7 @@ public class WandererManager {
 
                 getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
                     Bukkit.getScheduler().runTask(plugin, () -> {
+                        plugin.getNpcDialogueManager().sayWandererGreeting(player);
                         if (optDeal.isEmpty() || optDeal.get().status().equalsIgnoreCase("COMPLETED") || optDeal.get().isExpired()) {
                             new dev.lovelace.loveshops.gui.WandererDealGui(plugin, player).open();
                         } else {

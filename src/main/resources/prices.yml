@@ -8,17 +8,128 @@
 # Обычные предметы: цена скупки по материалу. Редактируется вручную или командой
 # /loveshopsadmin price <сумма> (держа предмет в руке) — если у материала нет метки
 # редкости ниже, цена меняется здесь.
+#
+# Баланс экономики:
+# - Мусор и строительные блоки: 1-2 монеты
+# - Сельхоз и фермы: 1-3 монеты
+# - Дроп мобов: 1-5 монет
+# - Минералы/слитки: 2-50 монет
+# - Инструменты и броня: 10-95 монет
+# - Потолок обычной скупки ~ 100 монет (1 алмазная монета)
+# - Редкие/зачарованные/незеритовые вещи уходят на аукцион
 common:
-  DIAMOND: 375
-  GOLD_INGOT: 112
-  IRON_INGOT: 38
-  EMERALD: 225
-  NETHERITE_INGOT: 1500
-  COPPER_INGOT: 19
-  AMETHYST_SHARD: 56
-  LAPIS_LAZULI: 30
-  QUARTZ: 26
-  REDSTONE: 15
+  # Мусор и базовые строительные блоки (1-2)
+  DIRT: 1
+  GRASS_BLOCK: 1
+  COBBLESTONE: 1
+  STONE: 1
+  ANDESITE: 1
+  DIORITE: 1
+  GRANITE: 1
+  GRAVEL: 1
+  SAND: 1
+  RED_SAND: 1
+  CLAY: 2
+  WHEAT_SEEDS: 1
+  PUMPKIN_SEEDS: 1
+  MELON_SEEDS: 1
+  BEETROOT_SEEDS: 1
+  OAK_SAPLING: 1
+  SPRUCE_SAPLING: 1
+  BIRCH_SAPLING: 1
+  JUNGLE_SAPLING: 1
+  ACACIA_SAPLING: 1
+  DARK_OAK_SAPLING: 1
+  MANGROVE_PROPAGULE: 1
+  CHERRY_SAPLING: 1
+  OAK_LOG: 2
+  SPRUCE_LOG: 2
+  BIRCH_LOG: 2
+  JUNGLE_LOG: 2
+  ACACIA_LOG: 2
+  DARK_OAK_LOG: 2
+  MANGROVE_LOG: 2
+  CHERRY_LOG: 2
+  OAK_PLANKS: 1
+  SPRUCE_PLANKS: 1
+  BIRCH_PLANKS: 1
+  NETHERRACK: 1
+  BASALT: 1
+  BLACKSTONE: 1
+  END_STONE: 2
+
+  # Еда и урожай (1-3)
+  WHEAT: 1
+  CARROT: 1
+  POTATO: 1
+  BEETROOT: 1
+  PUMPKIN: 2
+  MELON_SLICE: 1
+  SUGAR_CANE: 1
+  BAMBOO: 1
+  CACTUS: 1
+  SWEET_BERRIES: 1
+  GLOW_BERRIES: 1
+  APPLE: 2
+  BREAD: 2
+  COOKED_BEEF: 3
+  COOKED_PORKCHOP: 3
+  COOKED_MUTTON: 3
+  COOKED_CHICKEN: 2
+  COOKED_COD: 2
+  COOKED_SALMON: 2
+
+  # Дроп с мобов (1-6)
+  ROTTEN_FLESH: 1
+  BONE: 2
+  STRING: 2
+  SPIDER_EYE: 2
+  GUNPOWDER: 3
+  ENDER_PEARL: 5
+  BLAZE_ROD: 6
+  GHAST_TEAR: 15
+  SLIME_BALL: 4
+  MAGMA_CREAM: 4
+  LEATHER: 2
+  FEATHER: 1
+
+  # Минералы и слитки (2-50, незеритовый слиток 100)
+  COAL: 2
+  CHARCOAL: 2
+  COPPER_INGOT: 2
+  REDSTONE: 2
+  LAPIS_LAZULI: 3
+  QUARTZ: 3
+  AMETHYST_SHARD: 4
+  IRON_INGOT: 8
+  GOLD_INGOT: 15
+  EMERALD: 25
+  DIAMOND: 50
+  NETHERITE_SCRAP: 75
+  NETHERITE_INGOT: 100
+
+  # Базовая экипировка (10-95)
+  IRON_SHOVEL: 10
+  IRON_PICKAXE: 18
+  IRON_AXE: 18
+  IRON_SWORD: 15
+  IRON_HOE: 12
+  IRON_HELMET: 25
+  IRON_CHESTPLATE: 35
+  IRON_LEGGINGS: 30
+  IRON_BOOTS: 20
+  SHIELD: 15
+  BOW: 12
+  CROSSBOW: 20
+  DIAMOND_SHOVEL: 45
+  DIAMOND_PICKAXE: 75
+  DIAMOND_AXE: 75
+  DIAMOND_SWORD: 65
+  DIAMOND_HOE: 50
+  DIAMOND_HELMET: 85
+  DIAMOND_CHESTPLATE: 95
+  DIAMOND_LEGGINGS: 90
+  DIAMOND_BOOTS: 80
 
 # Редкие предметы: ручная метка поверх автоматического определения редкости
 # (org.bukkit.inventory.ItemRarity и зачарования, см. PriceCalculator#isRareItem).
@@ -30,11 +141,49 @@ common:
 #                  ошибочно посчитала что-то редким).
 #   price        — стартовая цена лота на аукционе для этого материала вместо цены
 #                  по формуле. Необязательно — без неё используется обычная формула.
-#
-# Заполняется командами /loveshopsadmin rarity <common|uncommon|rare|epic> и
-# /loveshopsadmin price <сумма> (обе — держа предмет в руке).
-rare: {}
-  # Пример:
-  # NETHERITE_SWORD:
-  #   rare: true
-  #   price: 1000
+rare:
+  NETHERITE_SWORD:
+    rare: true
+    price: 250
+  NETHERITE_PICKAXE:
+    rare: true
+    price: 300
+  NETHERITE_AXE:
+    rare: true
+    price: 300
+  NETHERITE_SHOVEL:
+    rare: true
+    price: 200
+  NETHERITE_HOE:
+    rare: true
+    price: 180
+  NETHERITE_HELMET:
+    rare: true
+    price: 350
+  NETHERITE_CHESTPLATE:
+    rare: true
+    price: 450
+  NETHERITE_LEGGINGS:
+    rare: true
+    price: 400
+  NETHERITE_BOOTS:
+    rare: true
+    price: 350
+  ELYTRA:
+    rare: true
+    price: 500
+  TRIDENT:
+    rare: true
+    price: 400
+  TOTEM_OF_UNDYING:
+    rare: true
+    price: 250
+  HEAVY_CORE:
+    rare: true
+    price: 600
+  MACE:
+    rare: true
+    price: 700
+  ENCHANTED_GOLDEN_APPLE:
+    rare: true
+    price: 200

@@ -89,10 +89,77 @@ public class NpcDialogueManager {
         }
     }
 
+    public void sayBankerGreeting(Player player) {
+        say(player, "banker.dialogues.greeting", List.of(
+                "<gold>[Банкир]</gold> <gray>Приветствую! Звонкая монета всегда в цене. Желаете разменять или укрупнить капитал?</gray>",
+                "<gold>[Банкир]</gold> <gray>Добро пожаловать в хранилище. Все номиналы в наличии, комиссия минимальна!</gray>",
+                "<gold>[Банкир]</gold> <gray>Деньги любят счёт и порядок. Выкладывайте монеты на стол — всё пересчитаем без обмана.</gray>"
+        ));
+    }
+
+    public void sayBankerDismiss(Player player) {
+        say(player, "banker.dialogues.dismiss", List.of(
+                "<red>[Банкир]</red> <gray>С такими сомнительными личностями я дел не веду. Убирайтесь от сейфа!</gray>",
+                "<red>[Банкир]</red> <gray>Охрана! Следите за этим типом. Никаких операций для вас сегодня!</gray>",
+                "<red>[Банкир]</red> <gray>Твоя дурная репутация идёт впереди тебя. Я не доверяю свои сундуки подозрительным бродягам.</gray>"
+        ));
+    }
+
+    public void sayBankerClose(Player player) {
+        say(player, "banker.dialogues.close", List.of(
+                "<gold>[Банкир]</gold> <gray>Всего доброго! Не забывайте свои монеты, берегите сбережения.</gray>",
+                "<gold>[Банкир]</gold> <gray>Удачных сделок! Возвращайтесь, если потребуется размен.</gray>"
+        ));
+    }
+
+    public void sayBankerError(Player player) {
+        say(player, "banker.dialogues.error", List.of(
+                "<red>[Банкир]</red> <gray>Здесь какая-то ошибка в расчётах. Проверьте сумму на столе.</gray>",
+                "<red>[Банкир]</red> <gray>Не хватает монет с учётом комиссии. Положите больше средств.</gray>"
+        ));
+    }
+
+    public void sayWandererGreeting(Player player) {
+        say(player, "wanderer.dialogues.greeting", List.of(
+                "<dark_purple>[Странник]</dark_purple> <gray>Тише... Я принёс диковинки из далёких земель, каких в этих краях ещё не видали.</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Дороги были опасны, но товар того стоит. Взгляни, путник, пока я не ушёл дальше.</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Шёпот ветров привёл меня сюда. Ищешь нечто особенное? Загляни в мой мешок.</gray>"
+        ));
+    }
+
+    public void sayWandererDismiss(Player player) {
+        say(player, "wanderer.dialogues.dismiss", List.of(
+                "<dark_purple>[Странник]</dark_purple> <gray>От тебя разит бедой. Я странствую не для того, чтобы связываться со слабаками или бандитами. Прочь!</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Мои товары не для тебя. Скройся с глаз, пока я не растворился в тенях.</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Не подходи! Чутьё никогда не подводило меня — от тебя не жди добра.</gray>"
+        ));
+    }
+
+    public void sayWandererClose(Player player) {
+        say(player, "wanderer.dialogues.close", List.of(
+                "<dark_purple>[Странник]</dark_purple> <gray>Ветер снова зовёт меня в дорогу... До новой встречи, если судьбе будет угодно.</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Береги то, что приобрёл. В этих краях такие сокровища — редкость.</gray>"
+        ));
+    }
+
+    public void sayWandererError(Player player) {
+        say(player, "wanderer.dialogues.error", List.of(
+                "<dark_purple>[Странник]</dark_purple> <gray>Ты предлагаешь слишком мало за такие редкости. Приходи с полной мошной.</gray>",
+                "<dark_purple>[Странник]</dark_purple> <gray>Сделка не может состояться. Дорога не терпит пустых обещаний.</gray>"
+        ));
+    }
+
     /** @return true, если фраза реально была отправлена (список в конфиге не пуст). */
     private boolean say(Player player, String configPath) {
+        return say(player, configPath, List.of());
+    }
+
+    private boolean say(Player player, String configPath, List<String> defaults) {
         List<String> messages = plugin.getConfig().getStringList(configPath);
         if (messages.isEmpty()) {
+            messages = defaults;
+        }
+        if (messages == null || messages.isEmpty()) {
             return false;
         }
         MessageUtils.sendMessage(player, messages.get(random.nextInt(messages.size())));
