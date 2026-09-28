@@ -8,7 +8,6 @@ import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.Villager;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.Connection;
@@ -52,8 +51,43 @@ public class NpcManager {
         });
     }
 
+    /**
+     * Создаёт новый Citizens NPC (PLAYER) на указанной локации и регистрирует его в LoveShops.
+     * Видимость дальше управляется расписанием (spawnNpcEntity / despawnNpcEntity).
+     * Citizens обязателен.
+     */
     public CompletableFuture<NpcData> createNpc(String type, String name, Location loc, String skinOwner) {
-        return insertNpc(type, name, loc, skinOwner, null);
+        CompletableFuture<NpcData> future = new CompletableFuture<>();
+        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            future.completeExceptionally(new IllegalStateException("Citizens обязателен для создания NPC"));
+            return future;
+        }
+        Runnable work = () -> {
+            try {
+                net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
+                net.citizensnpcs.api.npc.NPC cNpc = registry.createNPC(org.bukkit.entity.EntityType.PLAYER, name);
+                if (skinOwner != null && !skinOwner.isEmpty()) {
+                    net.citizensnpcs.trait.SkinTrait skinTrait = cNpc.getOrAddTrait(net.citizensnpcs.trait.SkinTrait.class);
+                    skinTrait.setSkinName(skinOwner);
+                }
+                cNpc.data().setPersistent("loveshops_type", type.toLowerCase());
+                int citizensId = cNpc.getId();
+                insertNpc(type, name, loc, skinOwner, citizensId).whenComplete((npc, err) -> {
+                    if (err != null) {
+                        try { registry.deregister(cNpc); } catch (Exception ignored) {}
+                        future.completeExceptionally(err);
+                    } else {
+                        cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());
+                        future.complete(npc);
+                    }
+                });
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        };
+        if (Bukkit.isPrimaryThread()) work.run();
+        else Bukkit.getScheduler().runTask(plugin, work);
+        return future;
     }
 
     public CompletableFuture<NpcData> bindNpc(String type, int citizensId, String displayNameOverride, String boundBy) {
@@ -138,7 +172,7 @@ public class NpcManager {
                 int rows = ps.executeUpdate();
                 if (rows > 0) {
                     loadedNpcs.remove(npcUuid);
-                    Bukkit.getScheduler().runTask(plugin, () -> unbindNpcEntity(npcUuid, citizensId));
+                    Bukkit.getScheduler().runTask(plugin, () -> destroyNpcEntity(npcUuid, citizensId));
                     future.complete(true);
                 } else {
                     future.complete(false);
@@ -177,6 +211,11 @@ public class NpcManager {
         World world = Bukkit.getWorld(npc.world());
         if (world == null) return;
 
+        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            plugin.getLogger().warning("Citizens не установлен — NPC " + npc.type() + " не может быть показан.");
+            return;
+        }
+
         despawnNpcEntity(npc.uuid());
 
         Location loc = new Location(world, npc.x(), npc.y(), npc.z(), npc.yaw(), npc.pitch());
@@ -184,32 +223,7 @@ public class NpcManager {
             loc.getChunk().load();
         }
 
-        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
-            spawnCitizensNpc(npc, loc);
-            return;
-        }
-
-        Villager villager = world.spawn(loc, Villager.class, v -> {
-            v.customName(MessageUtils.parse(npc.displayName()));
-            v.setCustomNameVisible(true);
-            v.setAI(false);
-            v.setInvulnerable(true);
-            v.setSilent(true);
-            v.setCollidable(false);
-            v.setRemoveWhenFarAway(false);
-            v.getPersistentDataContainer().set(npcKey, PersistentDataType.STRING, npc.uuid().toString());
-
-            switch (npc.type().toLowerCase()) {
-                case "buyer" -> v.setProfession(Villager.Profession.WEAPONSMITH);
-                case "seller" -> v.setProfession(Villager.Profession.ARMORER);
-                case "auctioneer" -> v.setProfession(Villager.Profession.LIBRARIAN);
-                case "wanderer" -> v.setProfession(Villager.Profession.FLETCHER);
-                case "warmerchant" -> v.setProfession(Villager.Profession.TOOLSMITH);
-                case "banker" -> v.setProfession(Villager.Profession.CARTOGRAPHER);
-            }
-        });
-
-        spawnedEntities.put(npc.uuid(), villager);
+        spawnCitizensNpc(npc, loc);
     }
 
     private void spawnCitizensNpc(NpcData npc, Location loc) {
@@ -222,9 +236,7 @@ public class NpcManager {
                 cNpc = registry.getById(npc.citizensId());
                 if (cNpc == null) {
                     plugin.getLogger().warning("LoveShops NPC #" + npc.id() + " (" + npc.type()
-                        + ") привязан к Citizens NPC #" + npc.citizensId() + ", но такого NPC "
-                        + "больше нет в Citizens. Пересоздайте привязку: /loveshopsadmin npc create "
-                        + npc.type() + " (глядя на нужный Citizens NPC), затем /loveshopsadmin npc delete " + npc.id() + ".");
+                        + ") привязан к Citizens NPC #" + npc.citizensId() + ", но такого NPC нет. Удалите запись #" + npc.id());
                     return;
                 }
             } else {
@@ -276,14 +288,6 @@ public class NpcManager {
 
         net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.remove(npcUuid);
         if (cNpc == null && Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
-            // 2026-09-26: citizensNpcs получает запись ТОЛЬКО через spawnCitizensNpc() - а
-            // spawnNpcEntity() для seller/auctioneer/wanderer с неактивным расписанием вызывает
-            // despawnNpcEntity() ДО того, как spawnCitizensNpc успевал отработать хоть раз (см.
-            // ранний return в spawnNpcEntity). Из-за этого только что привязанный NPC (или любой
-            // NPC seller/auctioneer, чьё расписание уже неактивно на старте сервера) оставался
-            // видимым навсегда - Citizens сам держит его заспавненным с /npc create, а этот метод
-            // был no-op'ом, не находя cNpc в ещё пустой карте. Резолвим напрямую по citizens_id
-            // из БД (loadedNpcs уже содержит эту строку к моменту любого вызова despawn).
             NpcData data = loadedNpcs.get(npcUuid);
             if (data != null && data.citizensId() != null) {
                 cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(data.citizensId());
@@ -311,6 +315,30 @@ public class NpcManager {
         if (cNpc != null) {
             cNpc.data().remove("loveshops_uuid");
             cNpc.data().remove("loveshops_type");
+        }
+    }
+
+    /** Полностью уничтожает Citizens NPC (для delete). */
+    private void destroyNpcEntity(UUID npcUuid, Integer citizensId) {
+        if (!Bukkit.isPrimaryThread()) {
+            Bukkit.getScheduler().runTask(plugin, () -> destroyNpcEntity(npcUuid, citizensId));
+            return;
+        }
+        Entity entity = spawnedEntities.remove(npcUuid);
+        if (entity != null && entity.isValid()) {
+            entity.remove();
+        }
+        net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.remove(npcUuid);
+        if (cNpc == null && citizensId != null && Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(citizensId);
+        }
+        if (cNpc != null) {
+            try {
+                if (cNpc.isSpawned()) cNpc.despawn();
+                net.citizensnpcs.api.CitizensAPI.getNPCRegistry().deregister(cNpc);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Не удалось уничтожить Citizens NPC: " + e.getMessage());
+            }
         }
     }
 
