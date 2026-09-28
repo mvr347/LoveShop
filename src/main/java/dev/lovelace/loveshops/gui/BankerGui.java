@@ -3,8 +3,8 @@ package dev.lovelace.loveshops.gui;
 import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -26,22 +26,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * GUI банкира: размен и укрупнение монет.
+ * Банкир — обмен номиналов через слот депозита.
  * Использует реальные предметы монет ItemsAdder / LoveEconomy вместо голов игроков.
  */
 public class BankerGui {
 
     public static final String TITLE = "Банкир";
-    private static final int SLOT_INFO = 4;
-    public static final int SLOT_DEPOSIT = 13;
-    public static final int SLOT_CLOSE = 31;
-    private static final int[] OPTION_SLOTS = {15, 16, 17, 24, 25, 26};
-    public static final String DENOM_KEY = "banker_denom";
-    private static final String ACTION_KEY = "banker_action";
+    public static final String DENOM_KEY = "banker_denom_value";
+    public static final String ACTION_KEY = "banker_action";
+    public static final int SLOT_DEPOSIT = 11;
+    public static final int SLOT_INFO = 34;
+    public static final int SLOT_CLOSE = 35;
+    public static final int[] OPTION_SLOTS = {13, 14, 15, 16, 22, 23, 24, 25};
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
 
-    // ItemsAdder reflection
+    // ItemsAdder CustomStack reflection
     private static Method iaGetInstance = null;
     private static Method iaGetItemStack = null;
     private static boolean iaChecked = false;
@@ -114,20 +114,30 @@ public class BankerGui {
         int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
         boolean personal = plugin.getBankerManager().hasOverride(player.getUniqueId());
         inv.setItem(SLOT_INFO, infoItem(session.deposited, feePercent, personal, currency));
-        inv.setItem(SLOT_DEPOSIT, depositItem(session.deposited, currency));
+        inv.setItem(SLOT_DEPOSIT, depositItem(economy, session.deposited, currency));
         for (int slot : OPTION_SLOTS) inv.setItem(slot, null);
         if (session.deposited <= 0) return;
         List<Denomination> dens = new ArrayList<>(economy.denominations());
         dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+        long maxDenomValue = dens.isEmpty() ? 0 : dens.get(0).value();
+        long minDenomValue = dens.isEmpty() ? 0 : dens.get(dens.size() - 1).value();
+
         int idx = 0;
-        // Находим максимальный номинал экономики (незеритовая монета) — её нельзя «укрупнять»
-        long highestUnit = dens.isEmpty() ? 0 : dens.get(0).value();
         for (Denomination den : dens) {
             if (idx >= OPTION_SLOTS.length) break;
             long unit = den.value();
             if (unit <= 0 || unit > session.deposited) continue;
-            // Незеритовая (максимальная) монета не показывается как вариант укрупнения
-            if (unit == highestUnit && unit > session.maxInputUnit) continue;
+
+            // Незеритовая монета (максимальный номинал) никогда не показывается как вариант укрупнения
+            if (unit == maxDenomValue && session.maxInputUnit < maxDenomValue) {
+                continue;
+            }
+
+            // Медная монета (минимальный номинал) самая маленькая, не уменьшается, только вверх, если есть
+            if (unit == minDenomValue && session.maxInputUnit == minDenomValue) {
+                continue;
+            }
+
             long maxCount = session.deposited / unit;
             if (maxCount <= 0) continue;
             inv.setItem(OPTION_SLOTS[idx++], optionButton(den, maxCount, unit, feePercent, currency));
@@ -135,87 +145,151 @@ public class BankerGui {
     }
 
     private ItemStack infoItem(long deposited, int feePercent, boolean personal, String currency) {
-        ItemStack item = new ItemStack(Material.BOOK);
+        List<String> lore = new ArrayList<>();
+        lore.add("");
+        lore.add("<gray>1. Положите монеты в слот слева</gray>");
+        lore.add("<gray>2. Справа выберите номинал</gray>");
+        lore.add("<gray>ЛКМ — одна монета, Shift — максимум</gray>");
+        lore.add("<gray>Клик по «Ваша валюта» — забрать всё назад</gray>");
+        lore.add("");
+        lore.add("<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>");
+        lore.add("<gray>Комиссия размена/укрупнения: <yellow>" + feePercent + "%" + (personal ? " <dark_gray>(личная)</dark_gray>" : "") + "</yellow></gray>");
+        ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, "<gold>Как работает банкир</gold>", lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<gold>Как работает банкир</gold>"));
-            List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse("<gray>1. Положите монеты в слот слева</gray>"));
-            lore.add(MessageUtils.parse("<gray>2. Справа выберите номинал</gray>"));
-            lore.add(MessageUtils.parse("<gray>ЛКМ — одна монета, Shift — максимум</gray>"));
-            lore.add(MessageUtils.parse("<gray>Клик по депозиту — забрать всё назад</gray>"));
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>"));
-            lore.add(MessageUtils.parse("<gray>Комиссия: <yellow>" + feePercent + "%" + (personal ? " <dark_gray>(личная)</dark_gray>" : "") + "</yellow></gray>"));
-            meta.lore(lore);
+            meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "info");
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    private ItemStack depositItem(long deposited, String currency) {
+    private ItemStack depositItem(LoveEconomy economy, long deposited, String currency) {
         if (deposited <= 0) {
-            ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-            ItemMeta meta = item.getItemMeta();
+            ItemStack empty = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_EMPTY,
+                    "<yellow>Ваша валюта</yellow>",
+                    List.of(
+                            "",
+                            "<gray>Положите сюда монеты LoveEconomy</gray>",
+                            "<gray>(клик монетой или Shift из инвентаря)</gray>"
+                    ));
+            ItemMeta meta = empty.getItemMeta();
             if (meta != null) {
-                meta.displayName(MessageUtils.parse("<yellow>Слот для монет</yellow>"));
-                meta.lore(List.of(
-                        Component.empty(),
-                        MessageUtils.parse("<gray>Положите сюда монеты LoveEconomy</gray>"),
-                        MessageUtils.parse("<gray>(клик монетой или Shift из инвентаря)</gray>")
-                ));
                 meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
-                item.setItemMeta(meta);
+                empty.setItemMeta(meta);
             }
-            return item;
+            return empty;
         }
-        ItemStack item = new ItemStack(Material.GOLD_INGOT);
-        ItemMeta meta = item.getItemMeta();
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(MessageUtils.parse(player, "<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>"));
+        lore.add(MessageUtils.parse(player, "<gray>Состав монет:</gray>"));
+
+        long remaining = deposited;
+        List<Denomination> dens = new ArrayList<>(economy.denominations());
+        dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+        for (Denomination den : dens) {
+            if (den.value() <= 0) continue;
+            long count = remaining / den.value();
+            if (count > 0) {
+                remaining %= den.value();
+                String glyph = getCoinGlyph(den);
+                lore.add(MessageUtils.parse(player, glyph + " <yellow>x" + count + "</yellow>"));
+            }
+        }
+        lore.add(Component.empty());
+        lore.add(MessageUtils.parse(player, "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"));
+
+        ItemStack filled = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_FILLED,
+                "<gold>Ваша валюта: </gold><yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow>",
+                List.of());
+        ItemMeta meta = filled.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<green>Депозит: " + MessageUtils.currencyIcon() + deposited + " " + currency + "</green>"));
-            meta.lore(List.of(
-                    Component.empty(),
-                    MessageUtils.parse("<gray>Клик — забрать всё назад</gray>")
-            ));
-            meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "withdraw");
-            item.setItemMeta(meta);
+            meta.lore(lore);
+            meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
+            filled.setItemMeta(meta);
         }
-        return item;
+        return filled;
     }
 
-    private ItemStack getCoinItem(Denomination den) {
-        ItemStack ia = tryItemsAdder(den);
-        if (ia != null) return ia;
-        Material mat = materialForUnit(den);
-        return new ItemStack(mat);
+    public static String getCoinGlyph(Denomination den) {
+        if (den == null || den.itemId() == null) return "%img_copper_coin%";
+        String id = den.itemId();
+        int colon = id.indexOf(':');
+        String tag = colon >= 0 ? id.substring(colon + 1) : id;
+        return "%img_" + tag + "%";
     }
 
-    private ItemStack tryItemsAdder(Denomination den) {
-        if (den.itemId() == null) return null;
-        try {
-            if (!iaChecked) {
-                iaChecked = true;
-                Class<?> iaClass = Class.forName("dev.lone.itemsadder.api.ItemsAdder");
-                iaGetInstance = iaClass.getMethod("getInstance");
-                Object inst = iaGetInstance.invoke(null);
-                iaGetItemStack = inst.getClass().getMethod("getItemStack", String.class);
+    private static void initItemsAdder() {
+        if (iaChecked) return;
+        iaChecked = true;
+        String[] candidates = {
+                "dev.beer.itemsadder.api.CustomStack",
+                "beer.devs.itemsadder.api.CustomStack",
+                "dev.lone.itemsadder.api.CustomStack"
+        };
+        for (String candidate : candidates) {
+            try {
+                Class<?> customStackClass = Class.forName(candidate);
+                iaGetInstance = customStackClass.getMethod("getInstance", String.class);
+                iaGetItemStack = customStackClass.getMethod("getItemStack");
+                if (iaGetInstance != null && iaGetItemStack != null) {
+                    break;
+                }
+            } catch (Throwable ignored) {
+                iaGetInstance = null;
+                iaGetItemStack = null;
             }
-            if (iaGetInstance == null || iaGetItemStack == null) return null;
-            Object inst = iaGetInstance.invoke(null);
-            Object stack = iaGetItemStack.invoke(inst, den.itemId());
-            if (stack instanceof ItemStack is && !is.getType().isAir()) {
-                return is.clone();
+        }
+    }
+
+    private static ItemStack getCustomStack(String id) {
+        if (id == null || id.isBlank()) return null;
+        initItemsAdder();
+        if (iaGetInstance == null || iaGetItemStack == null) return null;
+        try {
+            Object customStack = iaGetInstance.invoke(null, id);
+            if (customStack != null) {
+                ItemStack is = (ItemStack) iaGetItemStack.invoke(customStack);
+                if (is != null) return is.clone();
             }
         } catch (Throwable ignored) {}
         return null;
     }
 
-    private Material materialForUnit(Denomination den) {
-        String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
-        if (id.contains("netherite")) return Material.NETHERITE_INGOT;
-        if (id.contains("diamond")) return Material.DIAMOND;
-        if (id.contains("gold")) return Material.GOLD_INGOT;
-        if (id.contains("iron")) return Material.IRON_INGOT;
+    public static ItemStack getCoinItem(Denomination den) {
+        if (den != null && den.itemId() != null && !den.itemId().isBlank()) {
+            String id = den.itemId();
+            ItemStack is = getCustomStack(id);
+            if (is != null) return is;
+
+            if (!id.contains(":")) {
+                is = getCustomStack("voidcore:" + id);
+                if (is != null) return is;
+                is = getCustomStack("currency:" + id);
+                if (is != null) return is;
+            } else {
+                String raw = id.substring(id.indexOf(':') + 1);
+                is = getCustomStack(raw);
+                if (is != null) return is;
+            }
+        }
+        return new ItemStack(fallbackMaterial(den));
+    }
+
+    private static Material fallbackMaterial(Denomination den) {
+        if (den != null && den.itemId() != null) {
+            String id = den.itemId().toLowerCase();
+            if (id.contains(":")) id = id.substring(id.indexOf(':') + 1);
+            if (id.contains("netherite")) return Material.NETHERITE_INGOT;
+            if (id.contains("diamond")) return Material.DIAMOND;
+            if (id.contains("gold")) return Material.GOLD_INGOT;
+            if (id.contains("iron")) return Material.IRON_INGOT;
+            if (id.contains("copper")) return Material.COPPER_INGOT;
+
+            Material mat = Material.matchMaterial(id);
+            if (mat != null && !mat.isAir()) return mat;
+        }
         long unit = den != null ? den.value() : 1;
         if (unit >= 1000) return Material.NETHERITE_INGOT;
         if (unit >= 100) return Material.DIAMOND;
@@ -229,22 +303,24 @@ public class BankerGui {
         item.setAmount((int) Math.min(64, Math.max(1, maxCount)));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
+            String countSuffix = maxCount > 64 ? " <yellow>(" + maxCount + " шт)</yellow>" : "";
             Component displayName;
-            String countSuffix = " <gray>(" + maxCount + " шт.)</gray>";
             if (meta.hasDisplayName()) {
-                displayName = meta.displayName().append(MessageUtils.parse(countSuffix));
+                displayName = meta.displayName().append(MessageUtils.parse(player, " <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix));
             } else {
                 String label = den.itemId() != null ? den.itemId() : ("×" + unit);
-                displayName = MessageUtils.parse("<aqua>" + label + "</aqua>" + countSuffix);
+                displayName = MessageUtils.parse(player, "<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix);
             }
             meta.displayName(displayName);
 
             List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse("<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
-            if (feePercent > 0) lore.add(MessageUtils.parse("<dark_gray>Комиссия " + feePercent + "%</dark_gray>"));
+            lore.add(MessageUtils.parse(player, "<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
+            if (feePercent > 0) {
+                lore.add(MessageUtils.parse(player, "<dark_gray>Комиссия операции: " + feePercent + "%</dark_gray>"));
+            }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— взять 1</gray>"));
-            lore.add(MessageUtils.parse("<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>ЛКМ </green><gray>— взять 1</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
             meta.lore(lore);
 
             meta.getPersistentDataContainer().set(denomKey(), PersistentDataType.LONG, unit);
@@ -258,57 +334,50 @@ public class BankerGui {
     private NamespacedKey actionKey() { return new NamespacedKey(plugin, ACTION_KEY); }
 
     public static Session session(UUID uuid) { return SESSIONS.get(uuid); }
+    public static void clearSession(UUID uuid) { SESSIONS.remove(uuid); }
 
-    /**
-     * @return сколько единиц валюты добавлено на стол (0, если стек не является монетой
-     *         известного номинала LoveEconomy)
-     */
     public static long depositStack(LoveShops plugin, Player player, ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) return 0;
         LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy == null) return 0;
+        if (economy == null || stack == null || stack.getType().isAir()) return 0;
         long unit = economy.valueOf(stack);
         if (unit <= 0) return 0;
-        long value = unit * stack.getAmount();
+        int amount = stack.getAmount();
+        long add = unit * (long) amount;
+        if (add <= 0) return 0;
         Session session = SESSIONS.computeIfAbsent(player.getUniqueId(), id -> new Session());
         if (!session.lock.compareAndSet(false, true)) return 0;
         try {
-            session.deposited += value;
+            if (session.deposited > Long.MAX_VALUE - add) return 0;
+            session.deposited += add;
             if (unit > session.maxInputUnit) session.maxInputUnit = unit;
-            return value;
+            return add;
         } finally { session.lock.set(false); }
     }
 
-    public static boolean isOptionSlot(int slot) {
-        for (int s : OPTION_SLOTS) {
-            if (s == slot) return true;
-        }
-        return false;
-    }
-
     public static boolean withdrawAll(LoveShops plugin, Player player) {
+        LoveEconomy economy = plugin.getEconomy().orElse(null);
+        if (economy == null) return false;
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null || session.deposited <= 0) return false;
         if (!session.lock.compareAndSet(false, true)) return false;
         try {
-            LoveEconomy economy = plugin.getEconomy().orElse(null);
-            if (economy == null) return false;
-            long left = session.deposited;
+            long value = session.deposited;
             session.deposited = 0;
             session.maxInputUnit = 0;
-            economy.give(player, left);
+            if (value > 0) economy.give(player, value);
+            MessageUtils.sendMessage(player, "<green>Депозит возвращён: <yellow>" + MessageUtils.currencyIcon() + value + "</yellow>.</green>");
             return true;
         } finally { session.lock.set(false); }
     }
 
     public static boolean takeOption(LoveShops plugin, Player player, long unitValue, long count) {
         if (unitValue <= 0 || count <= 0) return false;
+        LoveEconomy economy = plugin.getEconomy().orElse(null);
+        if (economy == null) return false;
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null) return false;
-        if (!session.lock.compareAndSet(false, true)) return false;
-        LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy == null) {
-            session.lock.set(false);
+        if (!session.lock.compareAndSet(false, true)) {
+            MessageUtils.sendMessage(player, "<red>Подождите, операция ещё выполняется.</red>");
             return false;
         }
         try {
@@ -322,12 +391,12 @@ public class BankerGui {
             long need = unitValue * count;
             int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
             long fee = 0;
-            if (feePercent > 0 && unitValue > session.maxInputUnit) {
-                fee = (need * feePercent + 99) / 100; // округление вверх в пользу сервера
+            if (feePercent > 0) {
+                fee = (need * feePercent + 99) / 100;
                 while (need + fee > session.deposited && count > 0) {
                     count--;
                     need = unitValue * count;
-                    fee = (need * feePercent + 99) / 100; // округление вверх в пользу сервера
+                    fee = (need * feePercent + 99) / 100;
                 }
                 if (count <= 0) {
                     MessageUtils.sendMessage(player, "<red>Не хватает с учётом комиссии.</red>");
@@ -346,7 +415,7 @@ public class BankerGui {
                 remaining -= chunk;
             }
 
-            // Сообщения «Получено» убраны — игрок видит результат в GUI
+            // Убраны сообщения «Получено …» — игрок видит результат в GUI сам
             return true;
         } finally { session.lock.set(false); }
     }
@@ -359,15 +428,27 @@ public class BankerGui {
         long left = session.deposited;
         session.deposited = 0;
         session.maxInputUnit = 0;
-        if (left <= 0) return;
+        if (left <= 0) {
+            plugin.getNpcDialogueManager().sayBankerClose(player);
+            return;
+        }
         LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy != null) economy.give(player, left);
+        if (economy != null) {
+            economy.give(player, left);
+            MessageUtils.sendMessage(player, "<yellow>Банкир вернул вам <gold>" + MessageUtils.currencyIcon() + left + "</gold>.</yellow>");
+        }
+        plugin.getNpcDialogueManager().sayBankerClose(player);
     }
 
-    public static class Session {
-        long deposited;
-        long maxInputUnit;
-        final AtomicBoolean lock = new AtomicBoolean(false);
-        boolean ignoreNextClose;
+    public static boolean isOptionSlot(int slot) {
+        for (int s : OPTION_SLOTS) if (s == slot) return true;
+        return false;
+    }
+
+    public static final class Session {
+        private long deposited;
+        private long maxInputUnit;
+        private boolean ignoreNextClose;
+        private final AtomicBoolean lock = new AtomicBoolean(false);
     }
 }

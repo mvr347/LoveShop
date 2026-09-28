@@ -366,12 +366,7 @@ public class WandererManager {
     }
 
     public void rejectPlayer(Player player) {
-        List<String> messages = plugin.getConfig().getStringList("wanderer.messages.not-aggressive");
-        if (messages.isEmpty()) {
-            messages = List.of("<red>Странник:</red> <gray>Я веду дела только с игроками агрессивного стиля!</gray>");
-        }
-        String chosen = messages.get(random.nextInt(messages.size()));
-        MessageUtils.sendMessage(player, chosen);
+        plugin.getNpcDialogueManager().sayWandererDismiss(player);
     }
 
     // ==========================================
@@ -401,7 +396,8 @@ public class WandererManager {
                     }
                 }
 
-                int price = map.get("price") != null ? Integer.parseInt(String.valueOf(map.get("price"))) : 100;
+                int basePrice = map.get("price") != null ? Integer.parseInt(String.valueOf(map.get("price"))) : 100;
+                int price = plugin.getPricesManager().getWandererPrice(id, plugin.getPricesManager().getWandererPrice(material, basePrice));
                 int amount = map.get("amount") != null ? Integer.parseInt(String.valueOf(map.get("amount"))) : 1;
                 int weight = map.get("weight") != null ? Integer.parseInt(String.valueOf(map.get("weight"))) : 10;
                 Integer customModelData = map.containsKey("custom-model-data") ? Integer.parseInt(String.valueOf(map.get("custom-model-data"))) : null;
@@ -931,6 +927,7 @@ public class WandererManager {
 
                 getPlayerDeal(player.getUniqueId()).thenAccept(optDeal -> {
                     Bukkit.getScheduler().runTask(plugin, () -> {
+                        plugin.getNpcDialogueManager().sayWandererGreeting(player);
                         if (optDeal.isEmpty() || optDeal.get().status().equalsIgnoreCase("COMPLETED") || optDeal.get().isExpired()) {
                             new dev.lovelace.loveshops.gui.WandererDealGui(plugin, player).open();
                         } else {

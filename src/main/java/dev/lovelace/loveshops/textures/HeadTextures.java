@@ -72,4 +72,22 @@ public final class HeadTextures {
      */
     public static final String WANDERER_RESET =
             HeadsConfig.get("wanderer-reset", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNmZhNzY0MTk3N2EzNmE3MTFkZGMxNWE4NTVlZThkZGYyYjQ4ZDY2MWQ4MzczM2FlY2FiZjQ3OTQyZDU3MzkxIn19fQ==");
+
+    /**
+     * Слот «Ваша валюта» у Банкира: пусто (депозит = 0).
+     */
+    public static final String BANKER_DEPOSIT_EMPTY =
+            HeadsConfig.get("banker-deposit-empty", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjRjMTY0YmFjMjE4NGE3NmExZWU5NjkxMzI0MmUzMzVmMWQ0MTFjYWZmNTEyMDVlYTM5YjIwNWU2ZjhmMDU4YSJ9fX0=");
+
+    /**
+     * Слот «Ваша валюта» у Банкира: есть монеты (депозит > 0).
+     */
+    public static final String BANKER_DEPOSIT_FILLED =
+            HeadsConfig.get("banker-deposit-filled", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTVmZDY3ZDU2ZmZjNTNmYjM2MGExNzg3OWQ5YjUzMzhkNzMzMmQ4ZjEyOTQ5MWE1ZTE3ZThkNmU4YWVhNmMzYSJ9fX0=");
+
+    /**
+     * Кнопка «Как работает банкир» (информация).
+     */
+    public static final String BANKER_INFO =
+            HeadsConfig.get("banker-info", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmFkYzA0OGE3Y2U3OGY3ZGFkNzJhMDdkYTI3ZDg1YzA5MTY4ODFlNTUyMmVlZWQxZTNkYWYyMTdhMzhjMWEifX19");
 }

@@ -262,8 +262,8 @@ public class BuyerManager {
     }
 
     private void trackSubmission(Connection conn, UUID playerUuid, String itemType) throws SQLException {
-        double penaltyPerSubmit = plugin.getConfig().getDouble("buyer.repetition-penalty.penalty-per-submit", 5.0);
-        double maxPenalty = plugin.getConfig().getDouble("buyer.repetition-penalty.max-penalty", 50.0);
+        double penaltyPerSubmit = plugin.getConfig().getDouble("buyer.repetition-penalty.penalty-per-submit", 10.0);
+        double maxPenalty = plugin.getConfig().getDouble("buyer.repetition-penalty.max-penalty", 70.0);
 
         String sql = """
             INSERT INTO buyer_prices_history (player_uuid, item_type, submit_count, price_penalty_percent)

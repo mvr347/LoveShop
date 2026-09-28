@@ -69,6 +69,9 @@ public class CitizensListener implements Listener {
             var dialogue = plugin.getNpcDialogueManager();
             var mood = dialogue.moodOf(player.getUniqueId());
             if (dialogue.tryReject(player, mood)) {
+                if (npcData.type().equalsIgnoreCase("banker")) {
+                    dialogue.sayBankerDismiss(player);
+                }
                 return;
             }
 
@@ -76,7 +79,10 @@ public class CitizensListener implements Listener {
                 case "buyer" -> new BuyerGui(plugin, player).open();
                 case "seller" -> new SellerGui(plugin, player).open();
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
-                case "banker" -> new BankerGui(plugin, player).open();
+                case "banker" -> {
+                    dialogue.sayBankerGreeting(player);
+                    new BankerGui(plugin, player).open();
+                }
             }
             dialogue.maybeSayAmbient(player, mood);
         }

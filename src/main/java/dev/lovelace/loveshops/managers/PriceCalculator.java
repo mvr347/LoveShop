@@ -56,7 +56,7 @@ public class PriceCalculator {
         if (configuredPrice > 0) {
             return configuredPrice;
         }
-        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 75);
+        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 1);
     }
 
     /**
@@ -121,8 +121,8 @@ public class PriceCalculator {
     }
 
     public double getRandomVariancePercent() {
-        double min = plugin.getConfig().getDouble("buyer.price-variance.min-percent", -30.0);
-        double max = plugin.getConfig().getDouble("buyer.price-variance.max-percent", 30.0);
+        double min = plugin.getConfig().getDouble("buyer.price-variance.min-percent", -40.0);
+        double max = plugin.getConfig().getDouble("buyer.price-variance.max-percent", 10.0);
         return min + (max - min) * random.nextDouble();
     }
 

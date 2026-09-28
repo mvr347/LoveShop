@@ -418,6 +418,18 @@ public class InventoryClickListener implements Listener {
         BankerGui.onClose(plugin, event.getPlayer());
     }
 
+    @EventHandler
+    public void onWandererClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (event.getView().title() == null) return;
+        String titleText = serializer.serialize(event.getView().title());
+        if (titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)
+                || titleText.contains(dev.lovelace.loveshops.gui.WandererDealGui.TITLE)
+                || titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)) {
+            plugin.getNpcDialogueManager().sayWandererClose(player);
+        }
+    }
+
     /** Shared by the standard deal button and the cycling category button's ПКМ confirm. */
     private void startWandererDeal(Player player, dev.lovelace.loveshops.models.WandererRequestCategory requestedCategory) {
         plugin.getWandererManager().startDeal(player, requestedCategory).thenAccept(success -> {

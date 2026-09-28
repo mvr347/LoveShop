@@ -28,7 +28,7 @@ public class BankerManager {
     }
 
     public int getBaseFeePercent() {
-        return Math.max(0, Math.min(100, plugin.getConfig().getInt("banker.fee-percent", 5)));
+        return Math.max(0, Math.min(100, plugin.getConfig().getInt("banker.fee-percent", 7)));
     }
 
     /**
