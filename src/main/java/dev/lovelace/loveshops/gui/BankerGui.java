@@ -113,7 +113,7 @@ public class BankerGui {
         String currency = economy.currencyName();
         int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
         boolean personal = plugin.getBankerManager().hasOverride(player.getUniqueId());
-        inv.setItem(SLOT_INFO, infoItem(session.deposited, feePercent, personal, currency));
+        inv.setItem(SLOT_INFO, infoItem(economy, session.deposited, feePercent, personal, currency, session.showExchangeRates));
         inv.setItem(SLOT_DEPOSIT, depositItem(economy, session.deposited, currency));
         for (int slot : OPTION_SLOTS) inv.setItem(slot, null);
         if (session.deposited <= 0) return;
@@ -128,12 +128,17 @@ public class BankerGui {
             long unit = den.value();
             if (unit <= 0 || unit > session.deposited) continue;
 
-            // Незеритовая монета (максимальный номинал) никогда не показывается как вариант укрупнения
-            if (unit == maxDenomValue && session.maxInputUnit < maxDenomValue) {
+            // Если внесены монеты только одного номинала — нельзя разменивать монету на саму себя
+            if (session.minInputUnit == session.maxInputUnit && unit == session.maxInputUnit) {
                 continue;
             }
 
-            // Медная монета (минимальный номинал) самая маленькая, не уменьшается, только вверх, если есть
+            // Незеритовая монета (максимальный номинал) — если внесён только незерит, нельзя брать незерит
+            if (unit == maxDenomValue && session.minInputUnit == maxDenomValue) {
+                continue;
+            }
+
+            // Медная монета (минимальный номинал) — если внесена только медь, нельзя брать медь
             if (unit == minDenomValue && session.maxInputUnit == minDenomValue) {
                 continue;
             }
@@ -144,17 +149,44 @@ public class BankerGui {
         }
     }
 
-    private ItemStack infoItem(long deposited, int feePercent, boolean personal, String currency) {
+    private ItemStack infoItem(LoveEconomy economy, long deposited, int feePercent, boolean personal, String currency, boolean showRates) {
         List<String> lore = new ArrayList<>();
         lore.add("");
-        lore.add("<gray>1. Положите монеты в слот слева</gray>");
-        lore.add("<gray>2. Справа выберите номинал</gray>");
-        lore.add("<gray>ЛКМ — одна монета, Shift — максимум</gray>");
-        lore.add("<gray>Клик по «Ваша валюта» — забрать всё назад</gray>");
-        lore.add("");
-        lore.add("<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>");
-        lore.add("<gray>Комиссия размена/укрупнения: <yellow>" + feePercent + "%" + (personal ? " <dark_gray>(личная)</dark_gray>" : "") + "</yellow></gray>");
-        ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, "<gold>Как работает банкир</gold>", lore);
+        String title;
+        if (showRates) {
+            title = "<gold>Курс и размен валют</gold>";
+            List<Denomination> dens = new ArrayList<>(economy.denominations());
+            dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+            if (dens.size() > 1) {
+                // Показываем размен для каждого номинала, кроме самого младшего (меди)
+                for (int i = 0; i < dens.size() - 1; i++) {
+                    Denomination higher = dens.get(i);
+                    lore.add(getCoinGlyph(higher) + " " + getCoinName(higher) + " <gray>равна:</gray>");
+                    List<String> parts = new ArrayList<>();
+                    for (int j = i + 1; j < dens.size(); j++) {
+                        Denomination lower = dens.get(j);
+                        if (lower.value() <= 0) continue;
+                        long ratio = higher.value() / lower.value();
+                        parts.add(getCoinGlyph(lower) + " <yellow>" + ratio + " шт.</yellow>");
+                    }
+                    lore.add("  <gray>•</gray> " + String.join(" <dark_gray>/</dark_gray> ", parts));
+                    lore.add("");
+                }
+            }
+            lore.add("<yellow>⚡ ЛКМ </yellow><gray>— показать правила банкира</gray>");
+        } else {
+            title = "<gold>Как работает банкир</gold>";
+            lore.add("<gray>• <yellow>Внесение:</yellow> положите монеты в слот <gold>«Ваша валюта»</gold></gray>");
+            lore.add("<gray>• <yellow>Выбор:</yellow> справа выберите желаемый номинал</gray>");
+            lore.add("<gray>• <green>ЛКМ </green><gray>— получить <aqua>1 монету</aqua></gray></gray>");
+            lore.add("<gray>• <green>Shift+ЛКМ </green><gray>— получить <gold>максимум</gold></gray></gray>");
+            lore.add("<gray>• <yellow>Возврат:</yellow> клик по слоту валюты вернёт всё назад</gray>");
+            lore.add("");
+            lore.add("<gray>Банковский сбор: <gold>" + feePercent + "%" + (personal ? " <dark_gray>(личный)</dark_gray>" : "") + "</gold></gray>");
+            lore.add("");
+            lore.add("<yellow>⚡ ЛКМ </yellow><gray>— посмотреть курс размена монет</gray>");
+        }
+        ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, title, lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "info");
@@ -166,11 +198,11 @@ public class BankerGui {
     private ItemStack depositItem(LoveEconomy economy, long deposited, String currency) {
         if (deposited <= 0) {
             ItemStack empty = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_EMPTY,
-                    "<yellow>Ваша валюта</yellow>",
+                    "<gold>Ваша валюта</gold>",
                     List.of(
                             "",
-                            "<gray>Положите сюда монеты LoveEconomy</gray>",
-                            "<gray>(клик монетой или Shift из инвентаря)</gray>"
+                            "<gray>Положите сюда монеты для обмена</gray>",
+                            "<dark_gray>(клик монетой из инвентаря или Shift)</dark_gray>"
                     ));
             ItemMeta meta = empty.getItemMeta();
             if (meta != null) {
@@ -182,8 +214,7 @@ public class BankerGui {
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(MessageUtils.parse(player, "<gray>На столе: <yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow></gray>"));
-        lore.add(MessageUtils.parse(player, "<gray>Состав монет:</gray>"));
+        lore.add(MessageUtils.parse(player, "<gray>Внесённые монеты:</gray>"));
 
         long remaining = deposited;
         List<Denomination> dens = new ArrayList<>(economy.denominations());
@@ -201,7 +232,7 @@ public class BankerGui {
         lore.add(MessageUtils.parse(player, "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"));
 
         ItemStack filled = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_FILLED,
-                "<gold>Ваша валюта: </gold><yellow>" + MessageUtils.currencyIcon() + deposited + " " + currency + "</yellow>",
+                "<gold>Ваша валюта</gold>",
                 List.of());
         ItemMeta meta = filled.getItemMeta();
         if (meta != null) {
@@ -210,6 +241,17 @@ public class BankerGui {
             filled.setItemMeta(meta);
         }
         return filled;
+    }
+
+    public static String getCoinName(Denomination den) {
+        if (den == null) return "Монета";
+        String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
+        long val = den.value();
+        if (id.contains("netherite") || val >= 1000) return "<gradient:#9B51E0:#BB6BD9>Незеритовая монета</gradient>";
+        if (id.contains("diamond") || val >= 100) return "<gradient:#00C9FF:#92FE9D>Алмазная монета</gradient>";
+        if (id.contains("gold") || val >= 50) return "<gradient:#FFE000:#799F0C>Золотая монета</gradient>";
+        if (id.contains("iron") || val >= 10) return "<gradient:#E0E0E0:#F2F2F2>Железная монета</gradient>";
+        return "<gradient:#E67E22:#D35400>Медная монета</gradient>";
     }
 
     public static String getCoinGlyph(Denomination den) {
@@ -306,20 +348,20 @@ public class BankerGui {
             String countSuffix = maxCount > 64 ? " <yellow>(" + maxCount + " шт)</yellow>" : "";
             Component displayName;
             if (meta.hasDisplayName()) {
-                displayName = meta.displayName().append(MessageUtils.parse(player, " <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix));
+                displayName = countSuffix.isEmpty() ? meta.displayName() : meta.displayName().append(MessageUtils.parse(player, countSuffix));
             } else {
-                String label = den.itemId() != null ? den.itemId() : ("×" + unit);
-                displayName = MessageUtils.parse(player, "<aqua>" + label + "</aqua> <gray>(по " + unit + " " + currency + ")</gray>" + countSuffix);
+                displayName = MessageUtils.parse(player, getCoinName(den) + countSuffix);
             }
             meta.displayName(displayName);
 
             List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse(player, "<gray>Можно получить: <yellow>до " + maxCount + " шт.</yellow></gray>"));
+            lore.add(Component.empty());
+            lore.add(MessageUtils.parse(player, "<gray>Доступно: <yellow>до " + maxCount + " шт.</yellow></gray>"));
             if (feePercent > 0) {
-                lore.add(MessageUtils.parse(player, "<dark_gray>Комиссия операции: " + feePercent + "%</dark_gray>"));
+                lore.add(MessageUtils.parse(player, "<dark_gray>Банковский сбор: " + feePercent + "%</dark_gray>"));
             }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse(player, "<green>ЛКМ </green><gray>— взять 1</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>ЛКМ </green><gray>— взять 1 шт.</gray>"));
             lore.add(MessageUtils.parse(player, "<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
             meta.lore(lore);
 
@@ -336,6 +378,13 @@ public class BankerGui {
     public static Session session(UUID uuid) { return SESSIONS.get(uuid); }
     public static void clearSession(UUID uuid) { SESSIONS.remove(uuid); }
 
+    public static void toggleInfoMode(Player player) {
+        Session session = SESSIONS.get(player.getUniqueId());
+        if (session != null) {
+            session.showExchangeRates = !session.showExchangeRates;
+        }
+    }
+
     public static long depositStack(LoveShops plugin, Player player, ItemStack stack) {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null || stack == null || stack.getType().isAir()) return 0;
@@ -349,7 +398,12 @@ public class BankerGui {
         try {
             if (session.deposited > Long.MAX_VALUE - add) return 0;
             session.deposited += add;
-            if (unit > session.maxInputUnit) session.maxInputUnit = unit;
+            if (session.minInputUnit == 0 || unit < session.minInputUnit) {
+                session.minInputUnit = unit;
+            }
+            if (unit > session.maxInputUnit) {
+                session.maxInputUnit = unit;
+            }
             return add;
         } finally { session.lock.set(false); }
     }
@@ -364,6 +418,7 @@ public class BankerGui {
             long value = session.deposited;
             session.deposited = 0;
             session.maxInputUnit = 0;
+            session.minInputUnit = 0;
             if (value > 0) economy.give(player, value);
             MessageUtils.sendMessage(player, "<green>Депозит возвращён: <yellow>" + MessageUtils.currencyIcon() + value + "</yellow>.</green>");
             return true;
@@ -390,21 +445,45 @@ public class BankerGui {
             if (count <= 0) return false;
             long need = unitValue * count;
             int feePercent = plugin.getBankerManager().getFeePercent(player.getUniqueId());
-            long fee = 0;
-            if (feePercent > 0) {
-                fee = (need * feePercent + 99) / 100;
-                while (need + fee > session.deposited && count > 0) {
-                    count--;
-                    need = unitValue * count;
-                    fee = (need * feePercent + 99) / 100;
+            long fee = feePercent > 0 ? (need * feePercent + 99) / 100 : 0;
+            long totalCost = need + fee;
+
+            long fromDeposit = Math.min(session.deposited, totalCost);
+            long fromInventory = totalCost - fromDeposit;
+
+            // Если средств на столе не хватает на оплату полной стоимости с комиссией
+            if (fromInventory > 0) {
+                // Если на столе не хватает даже на чистый номинал (need), уменьшаем count
+                if (session.deposited < need) {
+                    while (need + fee > session.deposited && count > 0) {
+                        count--;
+                        need = unitValue * count;
+                        fee = feePercent > 0 ? (need * feePercent + 99) / 100 : 0;
+                    }
+                    if (count <= 0) {
+                        MessageUtils.sendMessage(player, "<red>Не хватает с учётом комиссии.</red>");
+                        return false;
+                    }
+                    totalCost = need + fee;
+                    fromDeposit = Math.min(session.deposited, totalCost);
+                    fromInventory = totalCost - fromDeposit;
                 }
-                if (count <= 0) {
-                    MessageUtils.sendMessage(player, "<red>Не хватает с учётом комиссии.</red>");
+            }
+
+            // Доплата комиссии из инвентаря игрока, если депозита на столе хватило на номинал, но не на сбор
+            if (fromInventory > 0) {
+                if (!economy.charge(player, fromInventory)) {
+                    MessageUtils.sendMessage(player, "<red>Для операции требуется комиссия " + feePercent + "%: <yellow>" + fee + " " + economy.currencyName() + "</yellow> (не хватает " + fromInventory + ").</red>");
                     return false;
                 }
             }
-            long totalCost = need + fee;
-            session.deposited -= totalCost;
+
+            session.deposited -= fromDeposit;
+            if (session.deposited <= 0) {
+                session.deposited = 0;
+                session.maxInputUnit = 0;
+                session.minInputUnit = 0;
+            }
 
             // Выдаём номинал порциями не больше unitValue, чтобы LoveEconomy
             // не укрупняла монеты обратно в старший номинал при выдаче
@@ -428,6 +507,7 @@ public class BankerGui {
         long left = session.deposited;
         session.deposited = 0;
         session.maxInputUnit = 0;
+        session.minInputUnit = 0;
         if (left <= 0) {
             plugin.getNpcDialogueManager().sayBankerClose(player);
             return;
@@ -448,6 +528,8 @@ public class BankerGui {
     public static final class Session {
         private long deposited;
         private long maxInputUnit;
+        private long minInputUnit;
+        private boolean showExchangeRates;
         private boolean ignoreNextClose;
         private final AtomicBoolean lock = new AtomicBoolean(false);
     }

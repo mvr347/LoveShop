@@ -294,6 +294,14 @@ public class InventoryClickListener implements Listener {
             return;
         }
 
+        // Клик по слоту «Как работает банкир» / «Курс и размен валют»
+        if (raw == BankerGui.SLOT_INFO) {
+            BankerGui.toggleInfoMode(player);
+            player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.6f, 1.2f);
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
+            return;
+        }
+
         // Клик по слоту депозита (слот 11)
         if (raw == BankerGui.SLOT_DEPOSIT) {
             // Если игрок нажал цифровую клавишу (1-9) над слотом депозита
