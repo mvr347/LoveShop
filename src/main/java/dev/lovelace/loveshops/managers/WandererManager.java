@@ -40,7 +40,6 @@ public class WandererManager {
 
     private boolean active = false;
     private Boolean forceActiveOverride = null;
-    private final Map<UUID, WandererDeal> dealCache = new ConcurrentHashMap<>();
 
     // Randomized arrival schedule (см. isTodayArrivalDay) - персистится, чтобы "не два дня
     // подряд" переживало рестарт сервера, а не пересчитывалось с чистого листа. decision
@@ -605,10 +604,8 @@ public class WandererManager {
                         updateDealStatus(playerUuid, "READY");
                     }
 
-                    dealCache.put(playerUuid, deal);
                     future.complete(Optional.of(deal));
                 } else {
-                    dealCache.remove(playerUuid);
                     future.complete(Optional.empty());
                 }
             } catch (SQLException e) {
@@ -716,7 +713,6 @@ public class WandererManager {
                 ps.executeUpdate();
 
                 WandererDeal deal = new WandererDeal(0, player.getUniqueId(), "WAITING", now, readyAt, expiresAt, items, finalCategory != null ? finalCategory.name() : null);
-                dealCache.put(player.getUniqueId(), deal);
 
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     String timeText = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
@@ -811,7 +807,6 @@ public class WandererManager {
                 }
 
                 WandererDeal updatedDeal = deal.withItems(updatedItems);
-                dealCache.put(player.getUniqueId(), updatedDeal);
 
                 // Save to database async
                 Bukkit.getAsyncScheduler().runNow(plugin, saveTask -> {
@@ -835,7 +830,6 @@ public class WandererManager {
 
     public CompletableFuture<Void> resetDeal(UUID playerUuid) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        dealCache.remove(playerUuid);
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             String sql = "DELETE FROM wanderer_deals WHERE player_uuid = ?";
@@ -865,7 +859,6 @@ public class WandererManager {
                 ps.setString(2, playerUuid.toString());
                 int rows = ps.executeUpdate();
                 if (rows > 0) {
-                    dealCache.computeIfPresent(playerUuid, (k, v) -> new WandererDeal(v.id(), v.playerUuid(), "READY", v.orderedAt(), now - 5, v.expiresAt(), v.items(), v.requestedCategory()));
                     future.complete(true);
                 } else {
                     future.complete(false);

@@ -76,11 +76,21 @@ public class BankerGui {
                             "<gray>Несданные монеты вернутся вам.</gray>",
                             "<red>ЛКМ </red><gray>— закрыть</gray>")));
             renderContent(inv, economy, session);
-            session.ignoreNextClose = true;
+            // The flag swallows the InventoryCloseEvent Bukkit fires for the banker view this call replaces.
+            // When no banker view is open that event never comes, and an unconditional flag ate the player's
+            // first real close instead: the deposited coins were not refunded until a second close or quit.
+            session.ignoreNextClose = isBankerViewOpen(player);
             player.openInventory(inv);
         } finally {
             session.lock.set(false);
         }
+    }
+
+    private static boolean isBankerViewOpen(Player player) {
+        var title = player.getOpenInventory().title();
+        return title != null
+                && net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                        .serialize(title).contains(TITLE);
     }
 
     public static void refresh(LoveShops plugin, Player player) {
