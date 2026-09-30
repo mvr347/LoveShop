@@ -52,7 +52,7 @@ public class InventoryClickListener implements Listener {
         if (npcOpt.isPresent()) {
             event.setCancelled(true);
             NpcData npc = npcOpt.get();
-            if (npc.type().equalsIgnoreCase("seller") && !plugin.getSellerManager().isSellerActive()) {
+            if (npc.type().equalsIgnoreCase("seller") && !plugin.isFleaPermanent() && !plugin.getSellerManager().isSellerActive()) {
                 MessageUtils.sendMessage(player, "<red>Торговец-барахолка открыт только по воскресеньям с 10:00 до 18:00!</red>");
                 return;
             }
@@ -70,7 +70,10 @@ public class InventoryClickListener implements Listener {
             }
             switch (npc.type().toLowerCase()) {
                 case "buyer" -> new BuyerGui(plugin, player).open();
-                case "seller" -> new SellerGui(plugin, player).open();
+                case "seller" -> {
+                    if (plugin.isFleaPermanent()) plugin.getTradePointManager().openFlea(player);
+                    else new SellerGui(plugin, player).open();
+                }
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "warmerchant" -> new WarMerchantGui(plugin, player).open();
                 case "banker" -> new BankerGui(plugin, player).open();

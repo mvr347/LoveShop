@@ -851,6 +851,86 @@ market:
     new-account-weight: 0.3
     max-comment-length: 100
 
+  robbery:
+    # Ограбление палаток агрессорами (только палатки игроков; серверные NPC не грабятся).
+    enabled: true
+    # Шанс на первом клике за «день» — 1%: одиночный клик почти безопасен, ограбление — итог настойчивости.
+    base-chance: 0.01
+    # +0,5% за каждый следующий клик того же дня: «чем чаще, тем выше», но понемногу.
+    step: 0.005
+    chance-cap: 0.20
+    # Бюджет кликов в день. Не выпало за 12 — сегодня не выпадет: бесконечный спам ничего не даёт (~37% за день).
+    attempts-per-day: 12
+    # «День» доставания начинается в 4:00 серверного времени, а не в полночь: вечерняя сессия — один день.
+    day-reset-hour: 4
+    # Несколько агрессоров в течение этих минут считаются нападающими вместе: шанс 1−∏(1−p), но не 100%.
+    co-attack-window-minutes: 15
+    max-combined-chance: 0.90
+    # Не больше двух ограблений одной точки за день — иначе группа выжмет кассу, пока владелец спит.
+    max-robberies-per-point-per-day: 2
+    max-robberies-per-day: 3
+    # Добыча — либо деньги, либо вещи (не всё сразу).
+    coins-chance: 0.5
+    max-till-percent: 15
+    max-stock-percent: 10
+    max-items: 8
+    robbery-cooldown-hours: 6
+    hostility-minutes: 30
+    # Штраф вежливости грабителю (ReputationOracle#modify).
+    robbery-reputation-penalty: 5
+
+  guard:
+    enabled: true
+    # Зарплата раз в период: постоянные расходы делают стражу выбором, а не разовой покупкой.
+    salary: 800
+    salary-period-hours: 24
+    # Слишком настойчивых выводят с рынка (не с сервера): 5 кликов за 10 минут — бан на точку на 30 минут.
+    harassment-limit: 5
+    harassment-window-minutes: 10
+    harassment-ban-minutes: 30
+
+  # Куда отправляют нарушителей. Не задан или мира нет — только бан на точку, без телепорта.
+  exit:
+    world: "world"
+    x: 0
+    y: 64
+    z: 0
+
+  flea:
+    # Барахольщик — постоянный NPC (тип seller): игроки продают друг другу без аренды, серверные товары — вкладка.
+    max-listings-per-player: 10
+    # true — вернуть старое поведение: Барахольщик виден только в воскресное окно (seller.arrival-day/time).
+    schedule-enabled: false
+
+  daily-buyer:
+    # Скупщик дня: раз в сутки на несколько часов обычный Скупщик доплачивает за товары двух случайных
+    # категорий — стимул строить фермы под то, что нужно сегодня. Работает и без Citizens/LoveClaims.
+    enabled: true
+    # Окно открывается в 18:00 серверного времени и идёт 6 часов — вечерний онлайн.
+    start-hour: 18
+    duration-hours: 6
+    categories-per-day: 2
+    # +15% к цене скупки: «чуть выше рыночной», заметно, но не ломает экономику скупщика.
+    bonus-percent: 15
+    # Сколько предметов игрок может продать по повышенной цене за день, иначе бонус — бесконечный источник денег.
+    limit-per-player: 256
+    categories:
+      ORES:
+        title: "Руды и слитки"
+        materials: [COAL, RAW_IRON, RAW_COPPER, RAW_GOLD, IRON_INGOT, COPPER_INGOT, GOLD_INGOT, LAPIS_LAZULI, REDSTONE, DIAMOND, EMERALD]
+      FOOD:
+        title: "Еда"
+        materials: [BREAD, BAKED_POTATO, COOKED_BEEF, COOKED_PORKCHOP, COOKED_CHICKEN, COOKED_MUTTON, COOKED_COD, COOKED_SALMON, PUMPKIN_PIE, GOLDEN_CARROT]
+      MOB_DROPS:
+        title: "Добыча с мобов"
+        materials: [BONE, STRING, SPIDER_EYE, GUNPOWDER, ROTTEN_FLESH, ENDER_PEARL, BLAZE_ROD, SLIME_BALL, LEATHER, FEATHER]
+      FARM:
+        title: "Урожай"
+        materials: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, PUMPKIN, MELON_SLICE, SWEET_BERRIES, COCOA_BEANS, NETHER_WART]
+      WOOD:
+        title: "Дерево"
+        materials: [OAK_LOG, SPRUCE_LOG, BIRCH_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG, CHERRY_LOG, MANGROVE_LOG]
+
   prompt:
     # Столько секунд даётся на ввод цены в чат: дольше — игрок забыл, промпт не должен висеть вечно.
     timeout-seconds: 60

@@ -31,24 +31,42 @@ public final class TaxService {
         return LoveCore.service(TaxOracle.class).map(oracle -> oracle.tradeRate(seller)).orElse(0.0);
     }
 
+    /** Last live rates seen while players were online; bounded so it cannot grow with every player ever seen. */
+    private static final int REMEMBER_MAX = 1024;
+    private final java.util.Map<UUID, Double> remembered = new java.util.LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<UUID, Double> eldest) {
+            return size() > REMEMBER_MAX;
+        }
+    };
+
     /**
-     * Rate for the owner of a stall. Online: live, and remembered. Offline: LoveBehavior has no data
-     * for them (reads neutral), so the rate seen last time they were online is used instead.
+     * Rate for a seller who may be offline. Online: live, and remembered. Offline: LoveBehavior has
+     * no data for them (reads neutral), so the rate seen last time they were online is used instead.
      */
-    public double rateForOwner(TradePoint point) {
-        UUID owner = point.ownerUuid();
-        if (owner == null) return 0.0;
-        if (Bukkit.getPlayer(owner) != null) {
-            double rate = liveRate(owner);
-            point.lastTaxRate(rate);
+    public double rateForPlayer(UUID player) {
+        if (player == null) return 0.0;
+        if (Bukkit.getPlayer(player) != null) {
+            double rate = liveRate(player);
+            remembered.put(player, rate);
             return rate;
         }
-        Double remembered = point.lastTaxRate();
-        return remembered != null ? remembered : liveRate(owner);
+        Double last = remembered.get(player);
+        return last != null ? last : liveRate(player);
+    }
+
+    /** Rate for the owner of a stall (see {@link #rateForPlayer}). */
+    public double rateForOwner(TradePoint point) {
+        return rateForPlayer(point.ownerUuid());
     }
 
     public TaxMath.Split splitForOwner(long total, TradePoint point) {
         return TaxMath.split(total, plugin.getMarketConfig().taxEnabled() ? rateForOwner(point) : 0.0);
+    }
+
+    /** Split for a flea seller who may be offline. */
+    public TaxMath.Split splitForSeller(long total, UUID seller) {
+        return TaxMath.split(total, plugin.getMarketConfig().taxEnabled() ? rateForPlayer(seller) : 0.0);
     }
 
     /** For a player who is online right now (a customer selling to a stall). */

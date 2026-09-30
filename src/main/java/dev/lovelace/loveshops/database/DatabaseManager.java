@@ -342,6 +342,15 @@ public class DatabaseManager {
         """);
 
         stmt.execute("""
+            CREATE TABLE IF NOT EXISTS daily_buyer_usage (
+                player_uuid TEXT NOT NULL,
+                day_key TEXT NOT NULL,
+                items INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (player_uuid, day_key)
+            );
+        """);
+
+        stmt.execute("""
             CREATE TABLE IF NOT EXISTS flea_listings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 seller_uuid TEXT NOT NULL,

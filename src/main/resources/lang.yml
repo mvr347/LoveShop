@@ -122,4 +122,47 @@ market:
   rating-self: "<red>Свой магазин оценивать нельзя.</red>"
   rating-need-trade: "<red>Сначала поторгуйте с этим магазином:</red> <gray>нужны сделки от {amount} монет.</gray>"
   rating-cooldown: "<red>Оценить снова можно через {hours} ч после прошлой оценки.</red>"
+  # --- ограбление и стража ---
+  patience-calm:
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gray>Слушай, мне надо работать…</gray>"
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gray>Тебе чего? Некогда мне.</gray>"
+  patience-annoyed:
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <yellow>Хватит, я сказал!</yellow>"
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <yellow>Ты мне надоел. Отойди.</yellow>"
+  patience-warning:
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gold>Ещё раз — и мало не покажется…</gold>"
+    - "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gold>Не доводи до греха!</gold>"
+  guard-patience-calm:
+    - "{i_guard} <gradient:#90A4AE:#455A64>Стража:</gradient> <gray>Отойди от торговца.</gray>"
+  guard-patience-annoyed:
+    - "{i_guard} <gradient:#90A4AE:#455A64>Стража:</gradient> <yellow>Я сказал — отойди.</yellow>"
+  guard-patience-warning:
+    - "{i_guard} <gradient:#90A4AE:#455A64>Стража:</gradient> <gold>Последнее предупреждение.</gold>"
+  guard-kicked:
+    - "{i_guard} <gradient:#90A4AE:#455A64>Стража:</gradient> <red>Вон с рынка!</red> <gray>Вернуться можно позже.</gray>"
+  guard-idle: "{i_guard} <gradient:#90A4AE:#455A64>Стража:</gradient> <gray>Порядок на рынке — наша забота.</gray>"
+  robber-locked: "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gray>Сегодня я тебя больше слушать не буду.</gray>"
+  robber-hostile: "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <red>Я тебя запомнил. Проваливай.</red>"
+  robber-banned: "{i_guard} <red>Вам закрыт вход на рынок на время.</red>"
+  robbery-success: "{i_robbery} <gradient:#B71C1C:#7F0000>Торговец:</gradient> <red>Забирай и уходи!</red>"
+  robbery-nothing: "{i_stall} <gradient:#E67E22:#D35400>Торговец:</gradient> <gray>У меня нечего взять.</gray>"
+  shop-robbed: "{i_robbery} <red>Ваш магазин ограбил</red> <white>{player}</white><red>!</red> <gray>Он закрыт — откройте его в меню, когда будете готовы.</gray>"
+  notice-robbed: "{i_robbery} <red>Пока вас не было, магазин ограбил {player}.</red> <gray>Он закрыт — откройте его в меню.</gray>"
+  guard-hired: "{i_guard} <green>Стража нанята и заступила на пост.</green>"
+  guard-fired: "{i_guard} <yellow>Стража уволена.</yellow>"
+  guard-no-money: "<red>Не хватает денег на зарплату стражи.</red>"
+  guard-disabled: "<gray>Стража сейчас недоступна.</gray>"
+  guard-unpaid: "{i_guard} <red>Стража ушла:</red> <gray>не хватило денег на зарплату. Магазин снова беззащитен.</gray>"
+  # --- Барахольщик ---
+  flea-outcast-refused:
+    - "{i_flea} <gradient:#FFE000:#799F0C>Барахольщик:</gradient> <gray>С тобой я не торгую. Ступай.</gray>"
+  flea-aggressor-refused:
+    - "{i_flea} <gradient:#FFE000:#799F0C>Барахольщик:</gradient> <gray>Не сегодня, друг. Нет настроения.</gray>"
+  flea-added: "{i_flea} <green>Лот выставлен.</green>"
+  flea-cancelled: "{i_flea} <green>Лот снят.</green> <gray>Возвращено: {count} шт.</gray>"
+  flea-limit: "<red>Больше {max} лотов выставить нельзя.</red>"
+  flea-sold: "{i_flea} <green>{player}</green> <gray>купил ваш лот:</gray> <white>{item} x{amount}</white><gray>. К выплате:</gray> {money}"
+  # --- Скупщик дня ---
+  daily-buyer-start: "{i_till} <gold>Скупщик дня!</gold> <gray>Ближайшие</gray> <white>{hours}</white> <gray>ч Скупщик доплачивает</gray> <green>+{bonus}%</green> <gray>за:</gray> {categories}"
+  daily-buyer-end: "{i_till} <gray>Скупщик дня закончил приём. До завтра!</gray>"
 
