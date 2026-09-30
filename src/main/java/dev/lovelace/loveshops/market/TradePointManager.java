@@ -309,12 +309,19 @@ public final class TradePointManager {
     private void upkeep() {
         if (guards != null) guards.payroll();
         pruneTicks++;
-        if (robbery != null && pruneTicks % 120 == 0) { // ~ hourly
-            try {
-                repo.pruneRobberyState(7L * 24 * 3_600_000L, robbery.currentDayKey());
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Очистка состояния ограблений не удалась: " + e.getMessage());
-            }
+        if (pruneTicks % 120 == 0) { // ~ hourly, and off the main thread: these are plain DELETEs
+            final String dayKey = robbery == null ? null : robbery.currentDayKey();
+            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                try {
+                    if (dayKey != null) repo.pruneRobberyState(7L * 24 * 3_600_000L, dayKey);
+                    int[] n = repo.pruneHistory(System.currentTimeMillis(), 365L * 24 * 3_600_000L, 90L * 24 * 3_600_000L);
+                    if (n[0] + n[1] + n[2] > 0) {
+                        plugin.getLogger().info("Рынок: очищено сделок " + n[0] + ", ограблений " + n[1] + ", истёкших запретов " + n[2]);
+                    }
+                } catch (SQLException e) {
+                    plugin.getLogger().warning("Очистка истории рынка не удалась: " + e.getMessage());
+                }
+            });
         }
         for (TradePoint p : new ArrayList<>(points.values())) {
             if (!p.hasOwner()) continue;

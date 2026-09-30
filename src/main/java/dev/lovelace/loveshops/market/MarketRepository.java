@@ -1125,6 +1125,31 @@ public final class MarketRepository {
         }
     }
 
+    /**
+     * Retention for tables that only ever grow: finished trades' history, robbery records (needed
+     * only while an administrator may still restore one) and bans that already ran out.
+     *
+     * @return rows removed, in that order
+     */
+    public int[] pruneHistory(long now, long transactionsMaxAgeMillis, long robberiesMaxAgeMillis) throws SQLException {
+        int[] out = new int[3];
+        try (Connection conn = connect()) {
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM market_transactions WHERE created_at < ?")) {
+                ps.setLong(1, now - transactionsMaxAgeMillis);
+                out[0] = ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM robbery_log WHERE created_at < ?")) {
+                ps.setLong(1, now - robberiesMaxAgeMillis);
+                out[1] = ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM flea_bans WHERE until_ts <= ?")) {
+                ps.setLong(1, now);
+                out[2] = ps.executeUpdate();
+            }
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ util
 
     /** Short stable hash of a serialized item, for logs and duplicate detection. */

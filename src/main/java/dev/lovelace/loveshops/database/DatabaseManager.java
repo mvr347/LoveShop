@@ -257,6 +257,8 @@ public class DatabaseManager {
             );
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_tx_point ON market_transactions(point_id, created_at)");
+        // For the retention sweep: without it the hourly DELETE would scan the whole table.
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_tx_time ON market_transactions(created_at)");
 
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS pending_trades (
@@ -340,6 +342,7 @@ public class DatabaseManager {
                 created_at INTEGER NOT NULL
             );
         """);
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_robbery_log_time ON robbery_log(created_at)");
 
         // Administrator price changes: who changed what, for how long history is kept see PriceAudit.
         stmt.execute("""
