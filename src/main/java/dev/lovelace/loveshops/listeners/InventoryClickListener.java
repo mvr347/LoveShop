@@ -38,6 +38,12 @@ public class InventoryClickListener implements Listener {
     @EventHandler
     public void onNpcInteract(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
+        // A stall trader/guard is handled through Citizens' own click event; the "nearest server NPC"
+        // fallback below must not turn a click on it into a click on a buyer standing next to it.
+        var market = plugin.getTradePointManager();
+        if (market != null && market.isMarketEntity(event.getRightClicked())) {
+            return;
+        }
         Optional<NpcData> npcOpt = plugin.getNpcManager().getNpcFromEntity(event.getRightClicked());
         if (npcOpt.isEmpty()) {
             npcOpt = plugin.getNpcManager().getNpcNear(event.getRightClicked().getLocation(), 2.0);

@@ -1,0 +1,208 @@
+package dev.lovelace.loveshops.market;
+
+import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.market.model.TradePoint;
+import net.citizensnpcs.api.CitizensAPI;
+import net.citizensnpcs.api.npc.NPC;
+import net.citizensnpcs.api.npc.NPCRegistry;
+import net.citizensnpcs.trait.LookClose;
+import net.citizensnpcs.trait.SkinTrait;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.entity.EntityType;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
+
+/**
+ * Creates, finds and removes the Citizens NPCs of trade points: the trader and the guard. NPCs are
+ * persistent (Citizens saves them) and tagged with the point they belong to, so {@link #reconcile}
+ * can put things right after a restart: a missing NPC is created, a duplicate or an orphan removed.
+ * Main thread only.
+ */
+public final class StallNpcService {
+
+    public static final String KEY_STALL = "loveshops_stall_point";
+    public static final String KEY_GUARD = "loveshops_guard_point";
+
+    private final LoveShops plugin;
+
+    public StallNpcService(LoveShops plugin) {
+        this.plugin = plugin;
+    }
+
+    public boolean available() {
+        return Bukkit.getPluginManager().isPluginEnabled("Citizens");
+    }
+
+    private static String legacy(String text) {
+        return text == null ? "" : text;
+    }
+
+    /** @return the Citizens id, or {@code null} if it could not be created */
+    public Integer createStallNpc(Location loc, UUID pointId, String ownerName) {
+        if (!available() || loc == null || loc.getWorld() == null) return null;
+        try {
+            String name = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName == null ? "?" : ownerName);
+            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, name);
+            npc.data().setPersistent(KEY_STALL, pointId.toString());
+            if (ownerName != null && !ownerName.isBlank()) {
+                npc.getOrAddTrait(SkinTrait.class).setSkinName(ownerName);
+            }
+            if (plugin.getMarketConfig().npcLookClose()) {
+                npc.getOrAddTrait(LookClose.class).lookClose(true);
+            }
+            npc.spawn(loc);
+            return npc.getId();
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Не удалось создать NPC торговца для точки " + pointId + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    public Integer createGuardNpc(Location loc, UUID pointId) {
+        if (!available() || loc == null || loc.getWorld() == null) return null;
+        try {
+            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, legacy(plugin.getMarketConfig().guardName()));
+            npc.data().setPersistent(KEY_GUARD, pointId.toString());
+            String skin = plugin.getMarketConfig().guardSkin();
+            if (skin != null && !skin.isBlank()) {
+                npc.getOrAddTrait(SkinTrait.class).setSkinName(skin);
+            }
+            if (plugin.getMarketConfig().npcLookClose()) {
+                npc.getOrAddTrait(LookClose.class).lookClose(true);
+            }
+            npc.spawn(loc);
+            return npc.getId();
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Не удалось создать NPC стражи для точки " + pointId + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    public void destroy(Integer citizensId) {
+        if (citizensId == null || !available()) return;
+        try {
+            NPC npc = CitizensAPI.getNPCRegistry().getById(citizensId);
+            if (npc != null) npc.destroy();
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Не удалось удалить NPC #" + citizensId + ": " + t.getMessage());
+        }
+    }
+
+    /** {@code true} if the entity is the body of a market NPC (trader or guard). */
+    public boolean isMarketEntity(org.bukkit.entity.Entity entity) {
+        if (entity == null || !available()) return false;
+        try {
+            NPC npc = CitizensAPI.getNPCRegistry().getNPC(entity);
+            return npc != null && (stallPointOf(npc).isPresent() || guardPointOf(npc).isPresent());
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public Optional<UUID> stallPointOf(NPC npc) {
+        return pointOf(npc, KEY_STALL);
+    }
+
+    public Optional<UUID> guardPointOf(NPC npc) {
+        return pointOf(npc, KEY_GUARD);
+    }
+
+    private Optional<UUID> pointOf(NPC npc, String key) {
+        if (npc == null) return Optional.empty();
+        String raw = npc.data().get(key, null);
+        if (raw == null) return Optional.empty();
+        try {
+            return Optional.of(UUID.fromString(raw));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Brings the world in line with the database: every point with a tenant has exactly one trader
+     * NPC (and one guard when it pays for one); every other tagged NPC is removed.
+     *
+     * @param wantGuard whether a point should have a guard right now
+     * @return the points whose stored NPC ids changed and need saving
+     */
+    public List<TradePoint> reconcile(java.util.Collection<TradePoint> points,
+                                      Function<UUID, Location> locationOf,
+                                      Function<TradePoint, Boolean> wantGuard) {
+        List<TradePoint> changed = new ArrayList<>();
+        if (!available()) return changed;
+        NPCRegistry registry = CitizensAPI.getNPCRegistry();
+
+        Map<UUID, List<NPC>> stalls = new HashMap<>();
+        Map<UUID, List<NPC>> guards = new HashMap<>();
+        for (NPC npc : registry) {
+            stallPointOf(npc).ifPresent(id -> stalls.computeIfAbsent(id, k -> new ArrayList<>()).add(npc));
+            guardPointOf(npc).ifPresent(id -> guards.computeIfAbsent(id, k -> new ArrayList<>()).add(npc));
+        }
+
+        List<NPC> toDestroy = new ArrayList<>();
+        Map<UUID, TradePoint> byId = new HashMap<>();
+        for (TradePoint p : points) byId.put(p.claimId(), p);
+
+        // Tagged NPCs whose point is unknown or has no tenant: orphans.
+        for (Map.Entry<UUID, List<NPC>> e : stalls.entrySet()) {
+            TradePoint p = byId.get(e.getKey());
+            if (p == null || !p.hasOwner()) toDestroy.addAll(e.getValue());
+        }
+        for (Map.Entry<UUID, List<NPC>> e : guards.entrySet()) {
+            TradePoint p = byId.get(e.getKey());
+            if (p == null || !p.hasOwner() || !Boolean.TRUE.equals(wantGuard.apply(p))) toDestroy.addAll(e.getValue());
+        }
+
+        for (TradePoint p : points) {
+            if (!p.hasOwner()) {
+                if (p.npcCitizensId() != null || p.guardCitizensId() != null) {
+                    p.npcCitizensId(null);
+                    p.guardCitizensId(null);
+                    changed.add(p);
+                }
+                continue;
+            }
+            Location loc = locationOf.apply(p.claimId());
+            if (loc == null) continue;
+
+            List<NPC> mine = stalls.getOrDefault(p.claimId(), List.of());
+            Integer wanted = mine.isEmpty() ? null : mine.get(0).getId();
+            for (int i = 1; i < mine.size(); i++) toDestroy.add(mine.get(i));
+            if (wanted == null) wanted = createStallNpc(loc, p.claimId(), p.ownerName());
+            if (!java.util.Objects.equals(wanted, p.npcCitizensId())) {
+                p.npcCitizensId(wanted);
+                changed.add(p);
+            }
+
+            if (Boolean.TRUE.equals(wantGuard.apply(p))) {
+                List<NPC> myGuards = guards.getOrDefault(p.claimId(), List.of());
+                Integer guardId = myGuards.isEmpty() ? null : myGuards.get(0).getId();
+                for (int i = 1; i < myGuards.size(); i++) toDestroy.add(myGuards.get(i));
+                if (guardId == null) guardId = createGuardNpc(loc.clone().add(1.5, 0, 0), p.claimId());
+                if (!java.util.Objects.equals(guardId, p.guardCitizensId())) {
+                    p.guardCitizensId(guardId);
+                    if (!changed.contains(p)) changed.add(p);
+                }
+            } else if (p.guardCitizensId() != null) {
+                p.guardCitizensId(null);
+                if (!changed.contains(p)) changed.add(p);
+            }
+        }
+
+        for (NPC npc : toDestroy) {
+            try {
+                npc.destroy();
+            } catch (Throwable t) {
+                plugin.getLogger().warning("Не удалось удалить лишний NPC #" + npc.getId() + ": " + t.getMessage());
+            }
+        }
+        return changed;
+    }
+}

@@ -1,0 +1,75 @@
+package dev.lovelace.loveshops.market;
+
+import dev.lovelace.loveshops.LoveShops;
+import org.bukkit.Bukkit;
+import org.bukkit.event.HandlerList;
+
+/**
+ * Starts and stops the player market. It needs Citizens (NPCs) and LoveClaims (rentable points);
+ * without either the rest of LoveShops runs as before. All LoveClaims-dependent classes are created
+ * here, only after the plugin is known to be enabled.
+ */
+public final class MarketModule {
+
+    private final LoveShops plugin;
+    private TradePointManager manager;
+    private ChatPromptService prompts;
+    private MarketGuiListener guiListener;
+
+    public MarketModule(LoveShops plugin) {
+        this.plugin = plugin;
+    }
+
+    public TradePointManager manager() { return manager; }
+    public ChatPromptService prompts() { return prompts; }
+
+    public boolean start() {
+        if (!plugin.getMarketConfig().enabled()) {
+            plugin.getLogger().info("Рынок игроков выключен в config.yml (market.enabled).");
+            return false;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("LoveClaims")) {
+            plugin.getLogger().info("Рынок игроков не запущен: LoveClaims не найден.");
+            return false;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            plugin.getLogger().info("Рынок игроков не запущен: Citizens не найден.");
+            return false;
+        }
+        try {
+            ClaimsLink link = new ClaimsBridge(plugin);
+            MarketRepository repo = new MarketRepository(plugin);
+            StallNpcService npcs = new StallNpcService(plugin);
+            this.manager = new TradePointManager(plugin, repo, npcs, link);
+            this.prompts = new ChatPromptService(plugin);
+            this.guiListener = new MarketGuiListener(plugin);
+            Bukkit.getPluginManager().registerEvents(prompts, plugin);
+            Bukkit.getPluginManager().registerEvents(guiListener, plugin);
+            manager.enable();
+            plugin.getLogger().info("✓ Рынок игроков (торговые точки) запущен.");
+            return true;
+        } catch (LinkageError e) {
+            // LoveClaims is present but too old to have the trade-point API.
+            plugin.getLogger().warning("Рынок игроков не запущен: версия LoveClaims не поддерживает торговые точки ("
+                    + e.getMessage() + ").");
+            stop();
+            return false;
+        }
+    }
+
+    public void stop() {
+        if (manager != null) {
+            manager.disable();
+            manager = null;
+        }
+        if (prompts != null) {
+            prompts.clear();
+            HandlerList.unregisterAll(prompts);
+            prompts = null;
+        }
+        if (guiListener != null) {
+            HandlerList.unregisterAll(guiListener);
+            guiListener = null;
+        }
+    }
+}

@@ -98,6 +98,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         plugin.reloadConfig();
         plugin.getLangManager().loadLang();
+        plugin.getMarketMessages().reload();
         plugin.getPricesManager().load();
         plugin.getForbiddenManager().load();
         sender.sendMessage(plugin.getLangManager().getMessage("commands.reload-success", "<green>Конфигурация перезагружена!</green>"));
