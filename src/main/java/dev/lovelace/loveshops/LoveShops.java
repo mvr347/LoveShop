@@ -15,6 +15,12 @@ import dev.lovelace.loveshops.integration.CitizensIntegration;
 import dev.lovelace.loveshops.listeners.InventoryClickListener;
 import dev.lovelace.loveshops.listeners.ScheduleListener;
 import dev.lovelace.loveshops.managers.*;
+import dev.lovelace.loveshops.market.ChatPromptService;
+import dev.lovelace.loveshops.market.MarketConfig;
+import dev.lovelace.loveshops.market.MarketMessages;
+import dev.lovelace.loveshops.market.MarketModule;
+import dev.lovelace.loveshops.market.MarketStyle;
+import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.placeholders.LoveShopsPlaceholder;
 
 import java.util.Optional;
@@ -36,6 +42,10 @@ public final class LoveShops extends JavaPlugin {
     private WandererManager wandererManager;
     private BankerManager bankerManager;
     private CitizensIntegration citizensIntegration;
+    private MarketConfig marketConfig;
+    private MarketMessages marketMessages;
+    private MarketStyle marketStyle;
+    private MarketModule marketModule;
 
     @Override
     public void onEnable() {
@@ -72,6 +82,13 @@ public final class LoveShops extends JavaPlugin {
         this.warMerchantManager = new WarMerchantManager(this);
         this.bankerManager = new BankerManager(this);
         this.citizensIntegration = new CitizensIntegration();
+
+        // 3b. Рынок игроков: конфиг/тексты/оформление создаются всегда, сам модуль — только с Citizens и LoveClaims
+        this.marketConfig = new MarketConfig(this);
+        this.marketStyle = new MarketStyle(this);
+        this.marketMessages = new MarketMessages(this);
+        this.marketModule = new MarketModule(this);
+        this.marketModule.start();
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
@@ -118,6 +135,9 @@ public final class LoveShops extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (marketModule != null) {
+            marketModule.stop();
+        }
         HandlerList.unregisterAll(this);
         if (npcManager != null) {
             npcManager.despawnAllNpcs();
@@ -143,6 +163,12 @@ public final class LoveShops extends JavaPlugin {
     public WandererManager getWandererManager() { return wandererManager; }
     public BankerManager getBankerManager() { return bankerManager; }
     public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
+    public MarketConfig getMarketConfig() { return marketConfig; }
+    public MarketMessages getMarketMessages() { return marketMessages; }
+    public MarketStyle getMarketStyle() { return marketStyle; }
+    /** {@code null} while the market is not running (no Citizens/LoveClaims or disabled). */
+    public TradePointManager getTradePointManager() { return marketModule == null ? null : marketModule.manager(); }
+    public ChatPromptService getChatPromptService() { return marketModule == null ? null : marketModule.prompts(); }
 
     /**
      * Служба валюты ядра. LoveCore проверен обязательным в {@link #onEnable}, поэтому пусто

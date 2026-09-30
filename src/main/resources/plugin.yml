@@ -12,6 +12,7 @@ softdepend:
   - Citizens
   - LoveCore
   - LoveBrewing
+  - LoveClaims
 
 commands:
   loveshops:

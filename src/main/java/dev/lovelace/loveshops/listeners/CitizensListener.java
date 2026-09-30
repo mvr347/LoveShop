@@ -53,6 +53,13 @@ public class CitizensListener implements Listener {
         NPC npc = event.getNPC();
         if (npc == null) return;
 
+        // Market NPCs (stall traders and guards) are tagged on the NPC itself: check them first, the
+        // "nearest NPC" fallback below could otherwise pick a server NPC standing beside a stall.
+        var market = plugin.getTradePointManager();
+        if (market != null && market.handleNpcClick(event.getClicker(), npc)) {
+            return;
+        }
+
         NpcData npcData = resolveNpcData(npc);
         if (npcData == null) {
             npcData = plugin.getNpcManager().getNpcNear(event.getClicker().getLocation(), 3.0).orElse(null);
