@@ -341,6 +341,39 @@ public class DatabaseManager {
             );
         """);
 
+        // Administrator price changes: who changed what, for how long history is kept see PriceAudit.
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS price_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_uuid TEXT,
+                admin_name TEXT NOT NULL,
+                target TEXT NOT NULL,
+                item TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT,
+                kind TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+        """);
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_price_changes_time ON price_changes(created_at)");
+
+        // Players barred from putting lots up at the flea trader, and individual lot limits.
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS flea_bans (
+                player_uuid TEXT PRIMARY KEY,
+                until_ts INTEGER NOT NULL,
+                reason TEXT,
+                set_by TEXT,
+                set_at INTEGER NOT NULL
+            );
+        """);
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS flea_limits (
+                player_uuid TEXT PRIMARY KEY,
+                max_listings INTEGER NOT NULL
+            );
+        """);
+
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS daily_buyer_usage (
                 player_uuid TEXT NOT NULL,

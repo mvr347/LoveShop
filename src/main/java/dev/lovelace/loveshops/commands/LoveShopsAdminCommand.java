@@ -2,6 +2,8 @@ package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.integration.CitizensIntegration;
+import dev.lovelace.loveshops.managers.PricesManager;
+import dev.lovelace.loveshops.market.AdminParse;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
@@ -32,7 +34,7 @@ import java.util.UUID;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "price", "event", "banker", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "price", "event", "banker", "auction", "flea", "point", "help");
     private static final List<String> PRICE_TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer", "all");
     // Extra spellings PricesManager#setNpcPrice already understands.
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war", "rare", "auction");
@@ -47,9 +49,16 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     private static final List<String> RARITY_TIERS = List.of("common", "uncommon", "rare", "epic");
 
     private final LoveShops plugin;
+    private final MarketAdminCommands market;
 
     public LoveShopsAdminCommand(@NotNull LoveShops plugin) {
         this.plugin = plugin;
+        this.market = new MarketAdminCommands(plugin);
+    }
+
+    /** Journal retention: called once a day by the plugin. */
+    public void pruneAudit() {
+        market.pruneAudit();
     }
 
     @Override
@@ -65,7 +74,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        switch (args[0].toLowerCase(Locale.ROOT)) {
+        switch (AdminParse.canonical(args[0])) {
             case "reload" -> handleReload(sender);
             case "npc" -> handleNpc(sender, args);
             case "status" -> handleStatus(sender, args);
@@ -73,6 +82,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             case "price" -> handlePriceCommand(sender, args);
             case "event" -> handleEvent(sender, args);
             case "banker" -> handleBanker(sender, args);
+            case "auction" -> market.handleAuction(sender, args);
+            case "flea" -> market.handleFlea(sender, args);
+            case "point" -> market.handlePoint(sender, args);
             default -> sendHelp(sender);
         }
         return true;
@@ -88,7 +100,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                 || sender.hasPermission("loveshops.admin.wanderer")
                 || sender.hasPermission("loveshops.admin.price")
                 || sender.hasPermission("loveshops.admin.rarity")
-                || sender.hasPermission("loveshops.admin.forbidden");
+                || sender.hasPermission("loveshops.admin.forbidden")
+                || sender.hasPermission("loveshops.admin.auction")
+                || sender.hasPermission("loveshops.admin.flea")
+                || sender.hasPermission("loveshops.admin.market");
     }
 
     private void handleReload(CommandSender sender) {
@@ -429,6 +444,12 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
+        // get / list / reset / mult / bounds / history are the newer sub-commands; everything else is
+        // the original "price [торговец] <цена> [предмет]" and keeps working unchanged.
+        if (args.length > 1 && MarketAdminCommands.isPriceSub(args[1])) {
+            market.handlePrice(sender, args);
+            return;
+        }
         String heldKey = null;
         if (sender instanceof Player p) {
             ItemStack hand = p.getInventory().getItemInMainHand();
@@ -490,6 +511,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MessageUtils.parse("<red>Цена не может быть отрицательной!</red>"));
             return;
         }
+        if (price > plugin.getMarketConfig().priceMax()) {
+            plugin.getMarketMessages().send(sender, "admin-price-range", "max", String.valueOf(plugin.getMarketConfig().priceMax()));
+            return;
+        }
         if (itemKey == null) itemKey = heldKey;
         if (itemKey == null) {
             sender.sendMessage(MessageUtils.parse("<red>Возьмите предмет в руку или укажите материал/id: <gold>/loveshopsadmin price "
@@ -497,11 +522,17 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // The journal keeps the previous price when one merchant is addressed ("all" has no single old value).
+        String normalized = PricesManager.normalizeTarget(target);
+        String oldPrice = normalized == null ? null
+                : plugin.getPricesManager().peekOverride(normalized, itemKey).map(String::valueOf).orElse(null);
         List<String> affected = plugin.getPricesManager().setNpcPrice(target, itemKey, price);
         if (affected.isEmpty()) {
             sender.sendMessage(MessageUtils.parse("<red>Неизвестный торговец '" + MessageUtils.escapeTags(target) + "'.</red>"));
             return;
         }
+        market.audit(sender, normalized == null ? target.toLowerCase(Locale.ROOT) : normalized,
+                itemKey.toUpperCase(Locale.ROOT), oldPrice, String.valueOf(price), "set");
         sender.sendMessage(MessageUtils.parse("<green>Цена <gold>" + MessageUtils.escapeTags(itemKey.toUpperCase(Locale.ROOT))
                 + "</gold> установлена: <gold>" + price + "</gold> для: <aqua>" + String.join(", ", affected) + "</aqua></green>"));
     }
@@ -643,6 +674,16 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-flea", "<gold>/loveshopsadmin event flea <start|stop|reset></gold> <gray>- Управление барахолкой</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-wanderer", "<gold>/loveshopsadmin event wanderer <start|stop|reset|status></gold> <gray>- Управление Странником</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin banker fee <игрок> [0-100|reset]</gold> <gray>- Комиссия банкира игроку</gray>"));
+        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <get|list|reset|mult|bounds|history> ...</gold> <gray>- Просмотр, сброс, множитель, границы и журнал цен</gray>"));
+        if (sender.hasPermission("loveshops.admin.auction") || sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin auction <list|create|price|buyout|extend|end|cancel|step> ...</gold> <gray>- Модерация аукциона</gray>"));
+        }
+        if (sender.hasPermission("loveshops.admin.flea") || sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin flea <list|remove|price|limit|ban|unban> ...</gold> <gray>- Модерация лотов Барахольщика</gray>"));
+        }
+        if (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin point <list|close|open|seize|restore|robberies> ...</gold> <gray>- Торговые точки и ограбления</gray>"));
+        }
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-footer", "<dark_gray>=========================================</dark_gray>"));
     }
 
@@ -654,6 +695,20 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 1) {
             return StringUtil.copyPartialMatches(args[0], SUBCOMMANDS, new ArrayList<>());
+        }
+        String first = AdminParse.canonical(args[0]);
+        if (first.equals("auction") && (sender.hasPermission("loveshops.admin.auction") || sender.hasPermission("loveshops.admin"))) {
+            return market.tabAuction(args);
+        }
+        if (first.equals("flea") && (sender.hasPermission("loveshops.admin.flea") || sender.hasPermission("loveshops.admin"))) {
+            return market.tabFlea(args);
+        }
+        if (first.equals("point") && (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin"))) {
+            return market.tabPoint(args);
+        }
+        if (first.equals("price") && args.length >= 2 && MarketAdminCommands.isPriceSub(args[1])
+                && (sender.hasPermission("loveshops.admin.price") || sender.hasPermission("loveshops.admin"))) {
+            return market.tabPrice(args);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
             return StringUtil.copyPartialMatches(args[1], NPC_ACTIONS, new ArrayList<>());
@@ -675,7 +730,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return StringUtil.copyPartialMatches(args[2], RARITY_TIERS, new ArrayList<>());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("price")) {
-            return StringUtil.copyPartialMatches(args[1], PRICE_TARGETS, new ArrayList<>());
+            List<String> opts = new ArrayList<>(PRICE_TARGETS);
+            opts.addAll(MarketAdminCommands.PRICE_SUBS);
+            return StringUtil.copyPartialMatches(args[1], opts, new ArrayList<>());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("price")) {
             List<String> mats = new ArrayList<>(List.of("1", "5", "10", "25", "50", "100", "200", "500"));

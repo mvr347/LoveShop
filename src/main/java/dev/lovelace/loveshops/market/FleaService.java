@@ -24,7 +24,7 @@ public final class FleaService {
 
     public enum Result {
         OK, NO_ITEM, IS_COIN, FORBIDDEN, PRICE_LOW, PRICE_HIGH, LIMIT, GONE, SELF, NOT_ENOUGH,
-        NO_MONEY, NO_SPACE, BAD_REPUTATION, DB_ERROR, ECONOMY_DOWN, BUSY
+        NO_MONEY, NO_SPACE, BAD_REPUTATION, DB_ERROR, ECONOMY_DOWN, BUSY, BANNED
     }
 
     public record Outcome(Result result, int amount, long total, long tax, long net) {
@@ -89,12 +89,16 @@ public final class FleaService {
         return Math.max(1L, plugin.getMarketConfig().minPrice(item.getType().name()));
     }
 
+    public long maxUnitPrice(ItemStack item) {
+        return plugin.getMarketConfig().maxPrice(item.getType().name());
+    }
+
     /** Puts the whole stack from the main hand up for sale. The hand is emptied first and refilled on any failure. */
     public Result addListing(Player seller, long unitPrice) {
         Result pre = previewItem(seller);
         if (pre != Result.OK) return pre;
         ItemStack hand = seller.getInventory().getItemInMainHand();
-        if (unitPrice > plugin.getMarketConfig().priceMax()) return Result.PRICE_HIGH;
+        if (unitPrice > maxUnitPrice(hand)) return Result.PRICE_HIGH;
         if (unitPrice < minUnitPrice(hand)) return Result.PRICE_LOW;
 
         ItemStack taken = hand.clone();
@@ -102,7 +106,9 @@ public final class FleaService {
         UUID id = seller.getUniqueId();
         try {
             Result r = repo.inTransaction(conn -> {
-                if (repo.fleaCountBySeller(conn, id) >= plugin.getMarketConfig().fleaMaxListings()) return Result.LIMIT;
+                MarketRepository.FleaBan ban = repo.fleaBan(conn, id);
+                if (ban != null && ban.activeAt(System.currentTimeMillis())) return Result.BANNED;
+                if (repo.fleaCountBySeller(conn, id) >= maxListingsFor(conn, id)) return Result.LIMIT;
                 repo.insertFlea(conn, id, taken, unitPrice, taken.getAmount());
                 return Result.OK;
             });
@@ -117,11 +123,11 @@ public final class FleaService {
     }
 
     public Result changePrice(Player seller, long listingId, long unitPrice) {
-        if (unitPrice > plugin.getMarketConfig().priceMax()) return Result.PRICE_HIGH;
         try {
             Result r = repo.inTransaction(conn -> {
                 FleaListing f = repo.fleaListing(conn, listingId);
                 if (f == null || !f.seller().equals(seller.getUniqueId()) || !f.active()) return Result.GONE;
+                if (unitPrice > maxUnitPrice(f.template())) return Result.PRICE_HIGH;
                 if (unitPrice < minUnitPrice(f.template())) return Result.PRICE_LOW;
                 repo.setFleaPrice(conn, listingId, unitPrice);
                 return Result.OK;
@@ -160,6 +166,117 @@ public final class FleaService {
         } catch (SQLException e) {
             plugin.getLogger().warning("Лот барахолки не снят: " + e.getMessage());
             return -1;
+        }
+    }
+
+    /** The player's lot limit: an individual one set by an administrator, else the config default. */
+    private int maxListingsFor(java.sql.Connection conn, UUID player) throws SQLException {
+        int individual = repo.fleaLimit(conn, player);
+        return individual > 0 ? individual : plugin.getMarketConfig().fleaMaxListings();
+    }
+
+    /** Lot limit shown to the player and to moderators. */
+    public int maxListingsFor(UUID player) {
+        try {
+            int individual = repo.fleaLimit(player);
+            return individual > 0 ? individual : plugin.getMarketConfig().fleaMaxListings();
+        } catch (SQLException e) {
+            return plugin.getMarketConfig().fleaMaxListings();
+        }
+    }
+
+    // ------------------------------------------------------------------ moderation (administrators)
+
+    /**
+     * Takes any lot down: the goods go to the seller's returns (nothing is lost, nothing is thrown at
+     * an offline player) and the seller is told.
+     *
+     * @return the number of items sent to the returns, -1 when the lot does not exist or on error
+     */
+    public int adminRemove(long listingId, String reason) {
+        try {
+            record Removed(UUID seller, ItemStack template, int amount) {}
+            Removed removed = repo.inTransaction(conn -> {
+                FleaListing f = repo.fleaListing(conn, listingId);
+                if (f == null) return null;
+                if (f.amountLeft() > 0) repo.addReturnItem(conn, f.seller(), f.template(), f.amountLeft(), "flea-admin");
+                repo.deleteFlea(conn, listingId);
+                repo.addNotice(conn, f.seller(), plugin.getMarketMessages().raw("notice-flea-removed",
+                        "item", f.template().getType().name(), "reason", reason == null || reason.isBlank() ? "-" : reason));
+                return new Removed(f.seller(), f.template(), f.amountLeft());
+            });
+            if (removed == null) return -1;
+            manager.refreshFleaViewers();
+            Player online = Bukkit.getPlayer(removed.seller());
+            if (online != null) manager.deliverNotices(online);
+            return removed.amount();
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Лот барахолки не снят администратором: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    /**
+     * Forces a new unit price on a lot (moderation of dumping and price inflation).
+     *
+     * @return the previous price, -1 when the lot does not exist or on error
+     */
+    public long adminSetPrice(long listingId, long unitPrice) {
+        try {
+            long old = repo.inTransaction(conn -> {
+                FleaListing f = repo.fleaListing(conn, listingId);
+                if (f == null) return -1L;
+                repo.setFleaPrice(conn, listingId, unitPrice);
+                repo.addNotice(conn, f.seller(), plugin.getMarketMessages().raw("notice-flea-price",
+                        "item", f.template().getType().name(), "price", String.valueOf(unitPrice)));
+                return f.unitPrice();
+            });
+            if (old >= 0) {
+                manager.refreshFleaViewers();
+            }
+            return old;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Цена лота барахолки не изменена администратором: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    public boolean ban(UUID player, long untilMillis, String reason, String by) {
+        try {
+            repo.setFleaBan(player, untilMillis, reason, by);
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Запрет барахолки не записан: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** @return {@code 1} unbanned, {@code 0} there was no ban, {@code -1} error */
+    public int unban(UUID player) {
+        try {
+            return repo.clearFleaBan(player) ? 1 : 0;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Запрет барахолки не снят: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    public boolean setLimit(UUID player, int limit) {
+        try {
+            repo.setFleaLimit(player, limit);
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Лимит лотов не записан: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public MarketRepository.FleaBan banOf(UUID player) {
+        try {
+            MarketRepository.FleaBan ban = repo.fleaBan(player);
+            return ban != null && ban.activeAt(System.currentTimeMillis()) ? ban : null;
+        } catch (SQLException e) {
+            return null;
         }
     }
 

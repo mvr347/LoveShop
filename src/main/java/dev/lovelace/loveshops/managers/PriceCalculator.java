@@ -195,7 +195,8 @@ public class PriceCalculator {
     /** Цена лота без динамики — только базовая цена и наценка барахолки. */
     public int getNeutralSellPrice(int basePrice) {
         double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
-        return Math.max(1, (int) Math.round(basePrice * (1.0 + markup / 100.0)));
+        int neutral = Math.max(1, (int) Math.round(basePrice * (1.0 + markup / 100.0)));
+        return plugin.getPricesManager().applyMultiplier("seller", neutral);
     }
 
     /**
@@ -263,6 +264,8 @@ public class PriceCalculator {
         multiplier += (dailyBonusPercent / 100.0);
 
         int singleUnitPrice = (int) Math.round(basePrice * Math.max(0.1, multiplier));
+        // /loveshopsadmin price mult buyer <%>: one lever for the whole buyer's price list.
+        singleUnitPrice = plugin.getPricesManager().applyMultiplier("buyer", singleUnitPrice);
         return Math.max(1, singleUnitPrice * item.getAmount());
     }
 
@@ -288,7 +291,8 @@ public class PriceCalculator {
         double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
 
         if (!plugin.getConfig().getBoolean("seller.dynamic-pricing.enabled", true) || itemData.itemType() == null) {
-            return Math.max(1, (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0)));
+            return Math.max(1, plugin.getPricesManager().applyMultiplier("seller",
+                (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0))));
         }
 
         double demandWeight = plugin.getConfig().getDouble("seller.dynamic-pricing.demand-weight-percent", 3.0);
@@ -321,7 +325,8 @@ public class PriceCalculator {
         multiplier *= (1.0 + noisePercent / 100.0);
         multiplier = Math.max(minMultiplier, multiplier);
 
-        return Math.max(1, (int) Math.round(itemData.basePrice() * multiplier));
+        return Math.max(1, plugin.getPricesManager().applyMultiplier("seller",
+            (int) Math.round(itemData.basePrice() * multiplier)));
     }
 
     public void trackDemand(Connection conn, String itemType) throws SQLException {

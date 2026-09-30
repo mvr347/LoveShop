@@ -40,6 +40,8 @@ public final class FleaMarketGui extends MarketGui {
     private static final int NEXT_SLOT = 44;
 
     private Tab tab;
+    /** Item of the price being asked or last rejected, so the error message can name that item's bounds. */
+    private ItemStack priceItem;
     private int page;
     private int totalLots;
     private final Map<Integer, FleaListing> lotAt = new HashMap<>();
@@ -353,8 +355,10 @@ public final class FleaMarketGui extends MarketGui {
             }
             long min = flea.minUnitPrice(viewer.getInventory().getItemInMainHand());
             String itemName = viewer.getInventory().getItemInMainHand().getType().name();
+            priceItem = viewer.getInventory().getItemInMainHand().clone();
+            long max = flea.maxUnitPrice(priceItem);
             Tab back = tab;
-            promptNumber("prompt-price", min, plugin.getMarketConfig().priceMax(), () -> reopen(back, 0), price -> {
+            promptNumber("prompt-price", min, max, () -> reopen(back, 0), price -> {
                 FleaService.Result r = flea.addListing(viewer, price);
                 if (r == FleaService.Result.OK) plugin.getMarketMessages().send(viewer, "flea-added");
                 else reportListing(r);
@@ -368,7 +372,8 @@ public final class FleaMarketGui extends MarketGui {
             plugin.getMarketMessages().send(viewer, back < 0 ? "listing-error" : "flea-cancelled", "count", String.valueOf(back));
         } else if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
             Tab returnTo = tab;
-            promptNumber("prompt-price", flea.minUnitPrice(f.template()), plugin.getMarketConfig().priceMax(),
+            priceItem = f.template();
+            promptNumber("prompt-price", flea.minUnitPrice(f.template()), flea.maxUnitPrice(f.template()),
                     () -> reopen(returnTo, 0), price -> {
                         FleaService.Result r = flea.changePrice(viewer, f.id(), price);
                         if (r == FleaService.Result.OK) plugin.getMarketMessages().send(viewer, "listing-price-changed");
@@ -390,9 +395,13 @@ public final class FleaMarketGui extends MarketGui {
             case NO_ITEM -> msg.send(viewer, "listing-need-item");
             case IS_COIN -> msg.send(viewer, "listing-is-coin");
             case FORBIDDEN -> msg.send(viewer, "listing-forbidden");
-            case PRICE_LOW -> msg.send(viewer, "listing-price-low");
-            case PRICE_HIGH -> msg.send(viewer, "listing-price-high", "max", String.valueOf(plugin.getMarketConfig().priceMax()));
-            case LIMIT -> msg.send(viewer, "flea-limit", "max", String.valueOf(plugin.getMarketConfig().fleaMaxListings()));
+            case PRICE_LOW -> msg.send(viewer, "listing-price-low", "min",
+                    String.valueOf(priceItem == null ? 1L : plugin.getFleaService().minUnitPrice(priceItem)));
+            case PRICE_HIGH -> msg.send(viewer, "listing-price-high", "max",
+                    String.valueOf(priceItem == null ? plugin.getMarketConfig().priceMax()
+                            : plugin.getFleaService().maxUnitPrice(priceItem)));
+            case BANNED -> msg.send(viewer, "flea-banned");
+            case LIMIT -> msg.send(viewer, "flea-limit", "max", String.valueOf(plugin.getFleaService().maxListingsFor(viewer.getUniqueId())));
             case GONE -> msg.send(viewer, "listing-gone");
             default -> msg.send(viewer, "listing-error");
         }

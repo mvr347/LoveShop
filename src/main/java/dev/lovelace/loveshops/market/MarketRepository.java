@@ -899,6 +899,232 @@ public final class MarketRepository {
         }
     }
 
+    // ------------------------------------------------------------------ admin: flea moderation
+
+    /** A ban from putting lots up. {@code untilMillis} is {@link Long#MAX_VALUE} for a permanent one. */
+    public record FleaBan(UUID player, long untilMillis, String reason, String setBy, long setAt) {
+        public boolean permanent() { return untilMillis == Long.MAX_VALUE; }
+        public boolean activeAt(long nowMillis) { return untilMillis > nowMillis; }
+    }
+
+    public FleaBan fleaBan(UUID player) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT until_ts, reason, set_by, set_at FROM flea_bans WHERE player_uuid = ?")) {
+            ps.setString(1, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? new FleaBan(player, rs.getLong(1), rs.getString(2), rs.getString(3), rs.getLong(4)) : null;
+            }
+        }
+    }
+
+    public void setFleaBan(UUID player, long untilMillis, String reason, String setBy) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO flea_bans (player_uuid, until_ts, reason, set_by, set_at) VALUES (?,?,?,?,?) "
+                             + "ON CONFLICT(player_uuid) DO UPDATE SET until_ts = excluded.until_ts, reason = excluded.reason, "
+                             + "set_by = excluded.set_by, set_at = excluded.set_at")) {
+            ps.setString(1, player.toString());
+            ps.setLong(2, untilMillis);
+            ps.setString(3, reason);
+            ps.setString(4, setBy);
+            ps.setLong(5, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    /** @return whether a ban existed */
+    public boolean clearFleaBan(UUID player) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM flea_bans WHERE player_uuid = ?")) {
+            ps.setString(1, player.toString());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** Individual lot limit of the player, 0 when none is set (the config default applies). */
+    public int fleaLimit(UUID player) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT max_listings FROM flea_limits WHERE player_uuid = ?")) {
+            ps.setString(1, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public int fleaLimit(Connection conn, UUID player) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT max_listings FROM flea_limits WHERE player_uuid = ?")) {
+            ps.setString(1, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public FleaBan fleaBan(Connection conn, UUID player) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT until_ts, reason, set_by, set_at FROM flea_bans WHERE player_uuid = ?")) {
+            ps.setString(1, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? new FleaBan(player, rs.getLong(1), rs.getString(2), rs.getString(3), rs.getLong(4)) : null;
+            }
+        }
+    }
+
+    /** {@code limit <= 0} removes the individual limit. */
+    public void setFleaLimit(UUID player, int limit) throws SQLException {
+        try (Connection conn = connect()) {
+            if (limit <= 0) {
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM flea_limits WHERE player_uuid = ?")) {
+                    ps.setString(1, player.toString());
+                    ps.executeUpdate();
+                }
+                return;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO flea_limits (player_uuid, max_listings) VALUES (?,?) "
+                            + "ON CONFLICT(player_uuid) DO UPDATE SET max_listings = excluded.max_listings")) {
+                ps.setString(1, player.toString());
+                ps.setInt(2, limit);
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    /** Active lots for the moderator's list; {@code seller} null = everyone's, newest first. */
+    public List<FleaListing> fleaAdminPage(UUID seller, int offset, int limit) throws SQLException {
+        List<FleaListing> out = new ArrayList<>();
+        String sql = "SELECT " + FLEA_COLS + " FROM flea_listings WHERE active = 1"
+                + (seller == null ? "" : " AND seller_uuid = ?") + " ORDER BY id DESC LIMIT ? OFFSET ?";
+        try (Connection conn = connect(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            if (seller != null) ps.setString(i++, seller.toString());
+            ps.setInt(i++, limit);
+            ps.setInt(i, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    FleaListing f = mapFlea(rs);
+                    if (f != null) out.add(f);
+                }
+            }
+        }
+        return out;
+    }
+
+    public int fleaAdminCount(UUID seller) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM flea_listings WHERE active = 1" + (seller == null ? "" : " AND seller_uuid = ?");
+        try (Connection conn = connect(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (seller != null) ps.setString(1, seller.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ admin: price audit
+
+    public record PriceChange(long id, String adminName, String target, String item, String oldValue, String newValue,
+                              String kind, long createdAt) {}
+
+    public void addPriceChange(UUID admin, String adminName, String target, String item, String oldValue, String newValue,
+                               String kind) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO price_changes (admin_uuid, admin_name, target, item, old_value, new_value, kind, created_at) "
+                             + "VALUES (?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, admin == null ? null : admin.toString());
+            ps.setString(2, adminName);
+            ps.setString(3, target);
+            ps.setString(4, item);
+            ps.setString(5, oldValue);
+            ps.setString(6, newValue);
+            ps.setString(7, kind);
+            ps.setLong(8, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    /** Newest first; {@code item} null = all items. */
+    public List<PriceChange> priceChanges(String item, int offset, int limit) throws SQLException {
+        List<PriceChange> out = new ArrayList<>();
+        String sql = "SELECT id, admin_name, target, item, old_value, new_value, kind, created_at FROM price_changes"
+                + (item == null ? "" : " WHERE item = ?") + " ORDER BY id DESC LIMIT ? OFFSET ?";
+        try (Connection conn = connect(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            if (item != null) ps.setString(i++, item);
+            ps.setInt(i++, limit);
+            ps.setInt(i, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new PriceChange(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                            rs.getString(5), rs.getString(6), rs.getString(7), rs.getLong(8)));
+                }
+            }
+        }
+        return out;
+    }
+
+    public int priceChangeCount(String item) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM price_changes" + (item == null ? "" : " WHERE item = ?");
+        try (Connection conn = connect(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (item != null) ps.setString(1, item);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public int prunePriceChanges(long olderThanMillis) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM price_changes WHERE created_at < ?")) {
+            ps.setLong(1, olderThanMillis);
+            return ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ admin: robberies
+
+    public record RobberyLog(long id, UUID robber, UUID pointId, UUID owner, long coins, String itemsJson,
+                             boolean restored, long createdAt) {}
+
+    private static RobberyLog mapRobbery(ResultSet rs) throws SQLException {
+        return new RobberyLog(rs.getLong("id"), UUID.fromString(rs.getString("robber_uuid")),
+                UUID.fromString(rs.getString("point_id")), UUID.fromString(rs.getString("owner_uuid")),
+                rs.getLong("coins"), rs.getString("items_json"), rs.getInt("restored") != 0, rs.getLong("created_at"));
+    }
+
+    public RobberyLog robberyLog(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT id, robber_uuid, point_id, owner_uuid, coins, items_json, restored, created_at FROM robbery_log WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapRobbery(rs) : null;
+            }
+        }
+    }
+
+    public List<RobberyLog> recentRobberies(int offset, int limit) throws SQLException {
+        List<RobberyLog> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, robber_uuid, point_id, owner_uuid, coins, items_json, restored, created_at FROM robbery_log "
+                             + "ORDER BY id DESC LIMIT ? OFFSET ?")) {
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(mapRobbery(rs));
+            }
+        }
+        return out;
+    }
+
+    /** Marks a robbery as restored; false when it was already (so the goods are never returned twice). */
+    public boolean markRobberyRestored(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE robbery_log SET restored = 1 WHERE id = ? AND restored = 0")) {
+            ps.setLong(1, id);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
     // ------------------------------------------------------------------ util
 
     /** Short stable hash of a serialized item, for logs and duplicate detection. */
