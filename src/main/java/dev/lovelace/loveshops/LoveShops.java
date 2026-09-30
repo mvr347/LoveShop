@@ -20,6 +20,10 @@ import dev.lovelace.loveshops.market.MarketConfig;
 import dev.lovelace.loveshops.market.MarketMessages;
 import dev.lovelace.loveshops.market.MarketModule;
 import dev.lovelace.loveshops.market.MarketStyle;
+import dev.lovelace.loveshops.market.RatingService;
+import dev.lovelace.loveshops.market.ReputationGate;
+import dev.lovelace.loveshops.market.StallTradeService;
+import dev.lovelace.loveshops.market.StallUpgradeService;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.placeholders.LoveShopsPlaceholder;
 
@@ -169,6 +173,10 @@ public final class LoveShops extends JavaPlugin {
     /** {@code null} while the market is not running (no Citizens/LoveClaims or disabled). */
     public TradePointManager getTradePointManager() { return marketModule == null ? null : marketModule.manager(); }
     public ChatPromptService getChatPromptService() { return marketModule == null ? null : marketModule.prompts(); }
+    public StallTradeService getTradeService() { return marketModule == null ? null : marketModule.trade(); }
+    public RatingService getRatingService() { return marketModule == null ? null : marketModule.ratings(); }
+    public StallUpgradeService getUpgradeService() { return marketModule == null ? null : marketModule.upgrades(); }
+    public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
 
     /**
      * Служба валюты ядра. LoveCore проверен обязательным в {@link #onEnable}, поэтому пусто

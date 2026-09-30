@@ -6,6 +6,7 @@ import dev.lovelace.loveshops.market.gui.MarketGui;
 import dev.lovelace.loveshops.market.model.CloseReason;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.ListingType;
+import dev.lovelace.loveshops.market.model.PlayerClass;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import net.citizensnpcs.api.npc.NPC;
@@ -45,6 +46,9 @@ public final class TradePointManager {
     private final MarketRepository repo;
     private final StallNpcService npcs;
     private final ClaimsLink claims;
+    private final ReputationGate gate;
+    private final TaxService tax;
+    private final ReturnsService returns;
 
     private final Map<UUID, TradePoint> points = new HashMap<>();
     /** Open market GUIs by viewer, so a change of a point can refresh or close what its viewers see. */
@@ -53,11 +57,15 @@ public final class TradePointManager {
     /** Last NPC click per player: Citizens can report one click twice (both hands) and menus must not flicker open. */
     private final Map<UUID, Long> lastNpcClick = new HashMap<>();
 
-    public TradePointManager(LoveShops plugin, MarketRepository repo, StallNpcService npcs, ClaimsLink claims) {
+    public TradePointManager(LoveShops plugin, MarketRepository repo, StallNpcService npcs, ClaimsLink claims,
+                             ReputationGate gate, TaxService tax, ReturnsService returns) {
         this.plugin = plugin;
         this.repo = repo;
         this.npcs = npcs;
         this.claims = claims;
+        this.gate = gate;
+        this.tax = tax;
+        this.returns = returns;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -157,9 +165,10 @@ public final class TradePointManager {
 
     // ------------------------------------------------------------------ rent events
 
-    /** Rent gate for LoveClaims' cancellable request. Phase B adds the reputation checks. */
+    /** Rent gate for LoveClaims' cancellable request: outcasts and aggressors stay off the market. */
     public Optional<String> rentDenial(Player player) {
-        return Optional.empty();
+        if (gate.canRent(player.getUniqueId())) return Optional.empty();
+        return Optional.of(plugin.getMarketMessages().raw("rent-denied-reputation"));
     }
 
     public void onRented(UUID player, UUID claimId) {
@@ -188,8 +197,8 @@ public final class TradePointManager {
         p.ownerUuid(player);
         p.ownerName(name);
         p.level(level);
-        p.sellSlots(plugin.getMarketConfig().baseSellSlots() + level - 1);
-        p.buySlots(plugin.getMarketConfig().baseBuySlots() + level - 1);
+        p.sellSlots(UpgradeMath.slots(plugin.getMarketConfig().baseSellSlots(), level));
+        p.buySlots(UpgradeMath.slots(plugin.getMarketConfig().baseBuySlots(), level));
         p.open(true);
         p.closeReason(null);
         p.tillCoins(0);
@@ -208,6 +217,7 @@ public final class TradePointManager {
         String key = "stall-released";
         if (online != null) {
             plugin.getMarketMessages().send(online, key);
+            claimReturns(online);
         } else {
             notice(owner, plugin.getMarketMessages().raw(key));
         }
@@ -276,19 +286,37 @@ public final class TradePointManager {
 
     // ------------------------------------------------------------------ grace / upkeep
 
-    /** Every 30 s: shops of tenants in the grace period shut, and reopen once the rent is paid. */
+    /**
+     * Every 30 s: a shop shuts while its tenant is in the grace period (rent overdue) or has fallen
+     * into a reputation class the market does not serve, and opens again by itself once that is over.
+     * Reputation is judged only while the owner is ONLINE: LoveBehavior has no data for offline
+     * players (they read as neutral), and judging them would reopen a banned shop every time they log off.
+     */
     private void upkeep() {
         for (TradePoint p : new ArrayList<>(points.values())) {
             if (!p.hasOwner()) continue;
+            Player online = Bukkit.getPlayer(p.ownerUuid());
             boolean grace = claims.inGrace(p.claimId());
-            if (grace && p.open()) {
-                setClosed(p, CloseReason.RENT_GRACE);
-                Player online = Bukkit.getPlayer(p.ownerUuid());
-                if (online != null) plugin.getMarketMessages().send(online, "rent-grace-closed");
-            } else if (!grace && p.closeReason() == CloseReason.RENT_GRACE) {
+            Boolean mayOperate = online == null ? null : gate.canOperate(p.ownerUuid());
+            if (online != null) tax.rateForOwner(p); // remember the rate for the hours the owner is away
+            CloseReason reason = p.closeReason();
+
+            if (grace) {
+                if (p.open()) {
+                    setClosed(p, CloseReason.RENT_GRACE);
+                    if (online != null) plugin.getMarketMessages().send(online, "rent-grace-closed");
+                }
+            } else if (mayOperate != null && !mayOperate) {
+                if (p.open() || reason == CloseReason.RENT_GRACE) {
+                    setClosed(p, CloseReason.REPUTATION);
+                    if (online != null) plugin.getMarketMessages().send(online, "shop-closed-reputation");
+                }
+            } else if (reason == CloseReason.RENT_GRACE) {
                 setOpen(p);
-                Player online = Bukkit.getPlayer(p.ownerUuid());
                 if (online != null) plugin.getMarketMessages().send(online, "rent-grace-reopened");
+            } else if (reason == CloseReason.REPUTATION && mayOperate != null) {
+                setOpen(p);
+                plugin.getMarketMessages().send(online, "shop-reopened-reputation");
             }
         }
     }
@@ -584,12 +612,53 @@ public final class TradePointManager {
         }
         if (p.isOwner(player.getUniqueId())) {
             new dev.lovelace.loveshops.market.gui.StallOwnerGui(plugin, player, p).open();
-        } else if (!p.open()) {
-            plugin.getMarketMessages().send(player, "stall-closed");
-        } else {
-            plugin.getMarketMessages().send(player, "stall-buyer-soon");
+            return true;
         }
+        if (!p.open()) {
+            plugin.getMarketMessages().send(player, "stall-closed");
+            return true;
+        }
+        if (plugin.getMarketConfig().gatesEnabled()) {
+            PlayerClass cls = gate.classify(player.getUniqueId());
+            if (cls == PlayerClass.OUTCAST) {
+                plugin.getMarketMessages().send(player, "outcast-refused");
+                return true;
+            }
+            if (cls == PlayerClass.AGGRESSOR && gate.aggressorRefused()) {
+                plugin.getMarketMessages().send(player, "aggressor-refused");
+                return true;
+            }
+        }
+        new dev.lovelace.loveshops.market.gui.StallBuyerGui(plugin, player, p).open();
         return true;
+    }
+
+    /** Re-reads a point's money counters (after a recovery step changed them behind our back). */
+    public void refreshCounters(UUID pointId) {
+        TradePoint p = points.get(pointId);
+        if (p == null) return;
+        try {
+            TradePoint fresh = repo.loadPoint(pointId);
+            if (fresh == null) return;
+            p.tillCoins(fresh.tillCoins());
+            p.revenueTotal(fresh.revenueTotal());
+            p.salesTotal(fresh.salesTotal());
+            refreshViewers(pointId);
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Не удалось обновить кассу точки " + pointId + ": " + e.getMessage());
+        }
+    }
+
+    /** Gives the player what the market owes them and tells them what happened. */
+    public void claimReturns(Player player) {
+        ReturnsService.Summary s = returns.claimAll(player);
+        if (s.anyDelivered()) {
+            plugin.getMarketMessages().send(player, "returns-delivered",
+                    "items", String.valueOf(s.items()), "money", plugin.getMarketStyle().money(s.coins()));
+        }
+        if (s.anyLeft()) {
+            plugin.getMarketMessages().send(player, "returns-left");
+        }
     }
 
     // ------------------------------------------------------------------ notices
@@ -609,9 +678,8 @@ public final class TradePointManager {
                 player.sendMessage(dev.lovelace.loveshops.utils.MessageUtils.parse(player,
                         plugin.getLangManager().getRaw("prefix", "") + text));
             }
-            int waiting = repo.countReturns(player.getUniqueId());
-            if (waiting > 0) {
-                plugin.getMarketMessages().send(player, "returns-waiting", "count", String.valueOf(waiting));
+            if (repo.countReturns(player.getUniqueId()) > 0) {
+                claimReturns(player);
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("Уведомления игрока " + player.getName() + " не прочитаны: " + e.getMessage());

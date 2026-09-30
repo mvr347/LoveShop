@@ -25,6 +25,12 @@ public final class TradePoint {
     private long guardPaidUntil;
     private long rentedAt;
     private long version;
+    /**
+     * The owner's tax rate as last seen while the owner was ONLINE. LoveBehavior only knows online
+     * players (an offline one reads as neutral), and most sales happen while the owner is away, so
+     * the last known rate is what those sales are taxed with. In-memory only.
+     */
+    private Double lastTaxRate;
 
     public TradePoint(UUID claimId) {
         this.claimId = claimId;
@@ -79,6 +85,9 @@ public final class TradePoint {
 
     public long version() { return version; }
     public void version(long version) { this.version = version; }
+
+    public Double lastTaxRate() { return lastTaxRate; }
+    public void lastTaxRate(Double rate) { this.lastTaxRate = rate; }
 
     public boolean hasOwner() { return ownerUuid != null; }
     public boolean isOwner(UUID player) { return ownerUuid != null && ownerUuid.equals(player); }

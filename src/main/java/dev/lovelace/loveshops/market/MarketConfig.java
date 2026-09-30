@@ -82,4 +82,31 @@ public final class MarketConfig {
     public String glyphOverride(String name) { return getString("glyphs." + name.toLowerCase(Locale.ROOT), ""); }
 
     public double taxRateOverride() { return getDouble("tax.fixed-rate", -1.0); }
+
+    // ----- reputation gates -----
+    public boolean gatesEnabled() { return getBool("gates.enabled", true); }
+    public ReputationRules.Thresholds thresholds() {
+        return new ReputationRules.Thresholds(
+                getInt("gates.outcast-max-politeness", 1),
+                getInt("gates.aggressive-max-playstyle", 2),
+                getInt("gates.perfect-min-politeness", 6),
+                getInt("gates.good-min-playstyle", 5));
+    }
+    /** Chance that an aggressor is simply turned away at a stall. */
+    public double aggressorRefuseChance() { return Math.min(1.0, Math.max(0.0, getDouble("gates.aggressor-refuse-chance", 0.75))); }
+
+    // ----- tax -----
+    public boolean taxEnabled() { return getBool("tax.enabled", true); }
+    public boolean taxExemptPerfect() { return getBool("tax.exempt-perfect", true); }
+
+    // ----- upgrades -----
+    public long upgradeCostBase() { return Math.max(0L, getLong("stalls.upgrade-cost-base", 5000L)); }
+    public double upgradeCostMultiplier() { return Math.max(1.0, getDouble("stalls.upgrade-cost-multiplier", 1.5)); }
+
+    // ----- rating -----
+    public long ratingMinTrade() { return Math.max(0L, getLong("rating.min-trade-amount", 500L)); }
+    public int ratingCooldownHours() { return Math.max(0, getInt("rating.cooldown-hours", 48)); }
+    public int ratingNewAccountDays() { return Math.max(0, getInt("rating.new-account-days", 7)); }
+    public double ratingNewAccountWeight() { return Math.min(1.0, Math.max(0.0, getDouble("rating.new-account-weight", 0.3))); }
+    public int ratingMaxComment() { return Math.max(0, getInt("rating.max-comment-length", 100)); }
 }
