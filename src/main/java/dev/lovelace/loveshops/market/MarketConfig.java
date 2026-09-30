@@ -70,12 +70,31 @@ public final class MarketConfig {
 
     public boolean antiDumpEnabled() { return getBool("anti-dump.enabled", true); }
 
-    /** Lowest allowed unit price for an item (material name upper-case), 0 = no floor. */
+    /**
+     * Lowest allowed unit price for an item (material name upper-case), 0 = no floor. The higher of
+     * the config anti-dump floor and the admin bound set with {@code /lsa price bounds}.
+     */
     public long minPrice(String itemKey) {
-        if (!antiDumpEnabled() || itemKey == null) return 0L;
+        if (itemKey == null) return 0L;
+        long floor = 0L;
         ConfigurationSection s = root();
-        if (s == null) return 0L;
-        return Math.max(0L, s.getLong("anti-dump.min-prices." + itemKey.toUpperCase(Locale.ROOT), 0L));
+        if (antiDumpEnabled() && s != null) {
+            floor = Math.max(0L, s.getLong("anti-dump.min-prices." + itemKey.toUpperCase(Locale.ROOT), 0L));
+        }
+        var prices = plugin.getPricesManager();
+        if (prices != null) floor = Math.max(floor, prices.getBounds(itemKey).min());
+        return floor;
+    }
+
+    /** Highest allowed unit price for an item: the global cap, tightened by an admin bound if one is set. */
+    public long maxPrice(String itemKey) {
+        long cap = priceMax();
+        var prices = plugin.getPricesManager();
+        if (itemKey != null && prices != null) {
+            long bound = prices.getBounds(itemKey).max();
+            if (bound > 0) cap = Math.min(cap, bound);
+        }
+        return cap;
     }
 
     /** Optional override of an icon glyph ({@code market.glyphs.<name>}); empty = use the built-in one. */

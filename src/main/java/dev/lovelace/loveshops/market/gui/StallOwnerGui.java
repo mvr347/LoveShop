@@ -48,6 +48,8 @@ public final class StallOwnerGui extends MarketGui {
 
     private final TradePoint point;
     private Tab tab;
+    /** Item of the price being asked or last rejected, so the error message can name that item's bounds. */
+    private ItemStack priceItem;
     /** Content slot -> listing shown there (SELL/BUY tabs). */
     private final Map<Integer, StallListing> listingAt = new HashMap<>();
     /** Content slot -> shelf index of an empty, available shelf ("add" tile). */
@@ -477,7 +479,8 @@ public final class StallOwnerGui extends MarketGui {
     private void onListingClick(StallListing listing, ClickType click) {
         TradePointManager m = plugin.getTradePointManager();
         if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
-            ask("prompt-price", 1, plugin.getMarketConfig().priceMax(),
+            priceItem = listing.template();
+            ask("prompt-price", m.minUnitPrice(listing.template()), m.maxUnitPrice(listing.template()),
                     price -> report(m.changePrice(viewer, point, listing.id(), price), "listing-price-changed"));
             return;
         }
@@ -508,12 +511,14 @@ public final class StallOwnerGui extends MarketGui {
             return;
         }
         long min = m.minUnitPrice(hand);
+        long max = m.maxUnitPrice(hand);
+        priceItem = hand.clone();
         String itemName = hand.getType().name();
         if (type == ListingType.SELL) {
-            ask("prompt-price", min, plugin.getMarketConfig().priceMax(),
+            ask("prompt-price", min, max,
                     price -> report(m.addSellListing(viewer, point, shelf, price), "listing-added"), "item", itemName);
         } else {
-            ask("prompt-price", min, plugin.getMarketConfig().priceMax(), price ->
+            ask("prompt-price", min, max, price ->
                     ask("prompt-max", 1, plugin.getMarketConfig().maxBuyAmount(), amount ->
                             report(m.addBuyListing(viewer, point, shelf, price, (int) amount), "listing-added"), "item", itemName),
                     "item", itemName);
@@ -528,9 +533,11 @@ public final class StallOwnerGui extends MarketGui {
             case NO_ITEM -> plugin.getMarketMessages().send(viewer, "listing-need-item");
             case IS_COIN -> plugin.getMarketMessages().send(viewer, "listing-is-coin");
             case FORBIDDEN -> plugin.getMarketMessages().send(viewer, "listing-forbidden");
-            case PRICE_LOW -> plugin.getMarketMessages().send(viewer, "listing-price-low");
-            case PRICE_HIGH -> plugin.getMarketMessages().send(viewer, "listing-price-high",
-                    "max", String.valueOf(plugin.getMarketConfig().priceMax()));
+            case PRICE_LOW -> plugin.getMarketMessages().send(viewer, "listing-price-low", "min",
+                    String.valueOf(priceItem == null ? 1L : plugin.getTradePointManager().minUnitPrice(priceItem)));
+            case PRICE_HIGH -> plugin.getMarketMessages().send(viewer, "listing-price-high", "max",
+                    String.valueOf(priceItem == null ? plugin.getMarketConfig().priceMax()
+                            : plugin.getTradePointManager().maxUnitPrice(priceItem)));
             case NO_SLOT -> plugin.getMarketMessages().send(viewer, "listing-no-slot");
             case SLOT_TAKEN -> plugin.getMarketMessages().send(viewer, "listing-slot-taken");
             case LISTING_GONE -> plugin.getMarketMessages().send(viewer, "listing-gone");

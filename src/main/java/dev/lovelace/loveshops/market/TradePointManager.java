@@ -309,12 +309,19 @@ public final class TradePointManager {
     private void upkeep() {
         if (guards != null) guards.payroll();
         pruneTicks++;
-        if (robbery != null && pruneTicks % 120 == 0) { // ~ hourly
-            try {
-                repo.pruneRobberyState(7L * 24 * 3_600_000L, robbery.currentDayKey());
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Очистка состояния ограблений не удалась: " + e.getMessage());
-            }
+        if (pruneTicks % 120 == 0) { // ~ hourly, and off the main thread: these are plain DELETEs
+            final String dayKey = robbery == null ? null : robbery.currentDayKey();
+            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                try {
+                    if (dayKey != null) repo.pruneRobberyState(7L * 24 * 3_600_000L, dayKey);
+                    int[] n = repo.pruneHistory(System.currentTimeMillis(), 365L * 24 * 3_600_000L, 90L * 24 * 3_600_000L);
+                    if (n[0] + n[1] + n[2] > 0) {
+                        plugin.getLogger().info("Рынок: очищено сделок " + n[0] + ", ограблений " + n[1] + ", истёкших запретов " + n[2]);
+                    }
+                } catch (SQLException e) {
+                    plugin.getLogger().warning("Очистка истории рынка не удалась: " + e.getMessage());
+                }
+            });
         }
         for (TradePoint p : new ArrayList<>(points.values())) {
             if (!p.hasOwner()) continue;
@@ -370,6 +377,114 @@ public final class TradePointManager {
         p.closeReason(null);
         save(p);
         refreshViewers(p.claimId());
+    }
+
+    // ------------------------------------------------------------------ moderation (administrators)
+
+    /** Closes a point by an administrator's decision; the owner cannot open it again, an administrator can. */
+    public void adminClose(TradePoint p, String reason) {
+        setClosed(p, CloseReason.ADMIN);
+        if (p.hasOwner()) {
+            notice(p.ownerUuid(), plugin.getMarketMessages().raw("notice-admin-closed",
+                    "reason", reason == null || reason.isBlank() ? "-" : reason));
+        }
+    }
+
+    /** @return false when the point is not closed */
+    public boolean adminOpen(TradePoint p) {
+        if (p.open()) return false;
+        setOpen(p);
+        if (p.hasOwner()) notice(p.ownerUuid(), plugin.getMarketMessages().raw("notice-admin-opened"));
+        return true;
+    }
+
+    public record SeizeResult(int stacks, long items, long coins) {}
+
+    /**
+     * Confiscates a point's goods and till into the administrator's returns (they collect it like any
+     * other return), and closes the point. One transaction: either everything moved or nothing did.
+     *
+     * @return null on error or when the point has no owner
+     */
+    public SeizeResult adminSeize(TradePoint p, UUID admin, String reason) {
+        if (!p.hasOwner()) return null;
+        UUID owner = p.ownerUuid();
+        try {
+            SeizeResult result = repo.inTransaction(conn -> {
+                int stacks = 0;
+                long items = 0;
+                for (StallListing l : repo.listings(conn, p.claimId())) {
+                    if (l.stock() <= 0) continue;
+                    repo.addReturnItem(conn, admin, l.template(), l.stock(), "seized");
+                    repo.updateListingStock(conn, l.id(), 0);
+                    stacks++;
+                    items += l.stock();
+                }
+                MarketRepository.PointState state = repo.pointState(conn, p.claimId());
+                long coins = state == null ? 0 : state.till();
+                if (coins > 0) {
+                    repo.addTill(conn, p.claimId(), -coins, 0, 0);
+                    repo.addReturnCoins(conn, admin, coins, "seized");
+                }
+                repo.closePoint(conn, p.claimId(), CloseReason.ADMIN);
+                repo.addNotice(conn, owner, plugin.getMarketMessages().raw("notice-admin-seized",
+                        "reason", reason == null || reason.isBlank() ? "-" : reason));
+                return new SeizeResult(stacks, items, coins);
+            });
+            p.open(false);
+            p.closeReason(CloseReason.ADMIN);
+            refreshCounters(p.claimId());
+            refreshViewers(p.claimId());
+            Player ownerOnline = Bukkit.getPlayer(owner);
+            if (ownerOnline != null) deliverNotices(ownerOnline);
+            return result;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Изъятие точки " + p.claimId() + " не удалось: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public enum RestoreStatus { OK, NOT_FOUND, ALREADY_RESTORED, ERROR }
+
+    public record RestoreResult(RestoreStatus status, int stacks, long coins, UUID owner) {
+        static RestoreResult of(RestoreStatus s) { return new RestoreResult(s, 0, 0, null); }
+    }
+
+    /**
+     * Undoes a robbery for the victim: the stolen goods and coins are paid to the owner's returns
+     * (the robber keeps what they took - taking it back is a separate punishment). The log row is
+     * flipped {@code restored = 1} in the same transaction and only if it was 0, so the same
+     * robbery can never be paid out twice.
+     */
+    public RestoreResult adminRestoreRobbery(long robberyId) {
+        try {
+            RestoreResult result = repo.inTransaction(conn -> {
+                MarketRepository.RobberyLog log = repo.robberyLog(conn, robberyId);
+                if (log == null) return RestoreResult.of(RestoreStatus.NOT_FOUND);
+                if (!repo.markRobberyRestored(conn, robberyId)) return RestoreResult.of(RestoreStatus.ALREADY_RESTORED);
+                int stacks = 0;
+                for (RobberyLoot.Entry entry : RobberyLoot.parse(log.itemsJson())) {
+                    ItemStack template = dev.lovelace.loveshops.utils.ItemStackConverter.itemStackFromBase64(entry.itemData());
+                    if (template == null) {
+                        plugin.getLogger().warning("Ограбление #" + robberyId + ": предмет не восстановлен (повреждён)");
+                        continue;
+                    }
+                    repo.addReturnItem(conn, log.owner(), template, entry.amount(), "robbery-restored");
+                    stacks++;
+                }
+                repo.addReturnCoins(conn, log.owner(), log.coins(), "robbery-restored");
+                repo.addNotice(conn, log.owner(), plugin.getMarketMessages().raw("notice-robbery-restored"));
+                return new RestoreResult(RestoreStatus.OK, stacks, log.coins(), log.owner());
+            });
+            if (result.status() == RestoreStatus.OK && result.owner() != null) {
+                Player ownerOnline = Bukkit.getPlayer(result.owner());
+                if (ownerOnline != null) deliverNotices(ownerOnline);
+            }
+            return result;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Восстановление ограбления #" + robberyId + " не удалось: " + e.getMessage());
+            return RestoreResult.of(RestoreStatus.ERROR);
+        }
     }
 
     // ------------------------------------------------------------------ till
@@ -445,7 +560,7 @@ public final class TradePointManager {
         if (item == null || item.getType().isAir() || item.getAmount() <= 0) return ListingResult.NO_ITEM;
         if (plugin.getEconomy().map(e -> e.isCoin(item)).orElse(false)) return ListingResult.IS_COIN;
         if (plugin.getForbiddenManager().isForbidden(item)) return ListingResult.FORBIDDEN;
-        if (unitPrice > plugin.getMarketConfig().priceMax()) return ListingResult.PRICE_HIGH;
+        if (unitPrice > maxUnitPrice(item)) return ListingResult.PRICE_HIGH;
         if (unitPrice < Math.max(1L, plugin.getMarketConfig().minPrice(materialKey(item)))) return ListingResult.PRICE_LOW;
         return null;
     }
@@ -462,6 +577,10 @@ public final class TradePointManager {
     /** Lowest and highest unit price allowed for an item, for the prompt text. */
     public long minUnitPrice(ItemStack item) {
         return Math.max(1L, plugin.getMarketConfig().minPrice(materialKey(item)));
+    }
+
+    public long maxUnitPrice(ItemStack item) {
+        return plugin.getMarketConfig().maxPrice(materialKey(item));
     }
 
     /**

@@ -58,6 +58,15 @@ permissions:
   loveshops.admin.rarity:
     description: Set the rarity of the item held in hand
     default: op
+  loveshops.admin.auction:
+    description: Moderate auction lots (/loveshopsadmin auction)
+    default: op
+  loveshops.admin.flea:
+    description: Moderate flea trader lots, limits and bans (/loveshopsadmin flea)
+    default: op
+  loveshops.admin.market:
+    description: Close, open, seize trade points and restore robberies (/loveshopsadmin point)
+    default: op
   loveshops.admin.forbidden:
     description: Forbid/allow selling the item held in hand
     default: op

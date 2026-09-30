@@ -45,6 +45,15 @@ public class AuctionManager {
     }
 
     public CompletableFuture<Integer> createAuction(ItemStack item, int startingPrice) {
+        return createAuction(item, startingPrice, null, null);
+    }
+
+    /**
+     * @param buyout optional buyout price ({@code null} = start price x {@code auctioneer.buyout-multiplier},
+     *               {@code 0} = no buyout)
+     * @param hours  optional duration ({@code null} = {@code auctioneer.auction-duration-hours})
+     */
+    public CompletableFuture<Integer> createAuction(ItemStack item, int startingPrice, Integer buyout, Integer hours) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
 
         // Повторная проверка форбида здесь (не только в BuyerManager.processSale) —
@@ -61,10 +70,11 @@ public class AuctionManager {
         Integer npcId = npcs.isEmpty() ? null : npcs.get(0).id();
 
         long now = System.currentTimeMillis() / 1000;
-        int hours = plugin.getConfig().getInt("auctioneer.auction-duration-hours", 24);
-        long endsAt = now + (hours * 3600L);
+        int durationHours = hours != null ? hours : plugin.getConfig().getInt("auctioneer.auction-duration-hours", 24);
+        long endsAt = now + (durationHours * 3600L);
         double buyoutMultiplier = plugin.getConfig().getDouble("auctioneer.buyout-multiplier", 2.5);
-        int buyoutPrice = (int) Math.round(startingPrice * buyoutMultiplier);
+        int buyoutPrice = buyout != null ? buyout
+                : (int) Math.min(Integer.MAX_VALUE, Math.round(startingPrice * buyoutMultiplier));
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             String sql = """
@@ -204,15 +214,19 @@ public class AuctionManager {
     }
 
     public int getMinimumNextBid(AuctionData auction) {
-        String stepType = plugin.getConfig().getString("auctioneer.bid-step.type", "percentage");
-        int stepVal = plugin.getConfig().getInt("auctioneer.bid-step.value", 5);
+        // A step set with /lsa auction step wins over config.yml and applies to new bids at once.
+        var override = plugin.getPricesManager().getBidStep();
+        String stepType = override.map(PricesManager.BidStep::type)
+                .orElseGet(() -> plugin.getConfig().getString("auctioneer.bid-step.type", "percentage"));
+        int stepVal = override.map(PricesManager.BidStep::value)
+                .orElseGet(() -> plugin.getConfig().getInt("auctioneer.bid-step.value", 5));
 
         int current = auction.currentHighestBid();
         if ("percentage".equalsIgnoreCase(stepType)) {
             int step = (int) Math.ceil(current * (stepVal / 100.0));
             return current + Math.max(1, step);
         } else {
-            return current + stepVal;
+            return current + Math.max(1, stepVal);
         }
     }
 
@@ -502,11 +516,22 @@ public class AuctionManager {
             try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                 conn.setAutoCommit(false);
 
-                String upSql = "UPDATE auctions SET status = 'completed', winner_uuid = ?, completed_at = strftime('%s', 'now') WHERE id = ?";
+                // The lot may have been bought out, cancelled or ended by an administrator, or outbid,
+                // since checkAndCompleteAuctions() read it: only finish it if it is still exactly the
+                // active lot with the same leading bid, otherwise the winner would be written twice
+                // or a stale one. Nothing has been touched yet, so just leave.
+                String upSql = "UPDATE auctions SET status = 'completed', winner_uuid = ?, completed_at = strftime('%s', 'now') "
+                        + "WHERE id = ? AND status = 'active' AND current_highest_bid = ? AND ends_at <= CAST(strftime('%s', 'now') AS INTEGER)";
+                int completed;
                 try (PreparedStatement ps = conn.prepareStatement(upSql)) {
                     ps.setString(1, auction.highestBidderUuid() != null ? auction.highestBidderUuid().toString() : null);
                     ps.setInt(2, auction.id());
-                    ps.executeUpdate();
+                    ps.setInt(3, auction.currentHighestBid());
+                    completed = ps.executeUpdate();
+                }
+                if (completed == 0) {
+                    conn.rollback();
+                    return;
                 }
 
                 if (auction.highestBidderUuid() != null) {
@@ -545,6 +570,191 @@ public class AuctionManager {
                 plugin.getLogger().severe("Error completing auction #" + auction.id() + ": " + e.getMessage());
             }
         });
+    }
+
+    // ------------------------------------------------------------------ moderation (administrators)
+
+    public enum AdminResult { OK, NOT_FOUND, HAS_BIDS, BAD_VALUE, TOO_LONG, DB_ERROR }
+
+    /** What an administrator's cancel handed back: the lot's item and whoever led (their reserve is released). */
+    public record CancelOutcome(AdminResult result, ItemStack item, UUID bidder, int lastBid) {
+        static CancelOutcome of(AdminResult r) { return new CancelOutcome(r, null, null, 0); }
+    }
+
+    @FunctionalInterface
+    private interface AdminBody {
+        AdminResult run(Connection conn, AuctionData auction) throws SQLException;
+    }
+
+    /** Reads the active lot inside one immediate transaction and lets {@code body} change it. */
+    private CompletableFuture<AdminResult> adminTx(int auctionId, AdminBody body) {
+        CompletableFuture<AdminResult> future = new CompletableFuture<>();
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            try (Connection conn = plugin.getDatabaseManager().getImmediateConnection()) {
+                conn.setAutoCommit(false);
+                try {
+                    AuctionData auction = null;
+                    try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM auctions WHERE id = ? AND status = 'active'")) {
+                        ps.setInt(1, auctionId);
+                        ResultSet rs = ps.executeQuery();
+                        if (rs.next()) auction = mapAuction(rs);
+                    }
+                    if (auction == null) {
+                        conn.rollback();
+                        future.complete(AdminResult.NOT_FOUND);
+                        return;
+                    }
+                    AdminResult result = body.run(conn, auction);
+                    if (result == AdminResult.OK) conn.commit(); else conn.rollback();
+                    future.complete(result);
+                } catch (SQLException | RuntimeException e) {
+                    try { conn.rollback(); } catch (SQLException ignored) { }
+                    throw e;
+                }
+            } catch (SQLException | RuntimeException e) {
+                plugin.getLogger().severe("Ошибка админ-операции над лотом #" + auctionId + ": " + e.getMessage());
+                future.complete(AdminResult.DB_ERROR);
+            }
+        });
+        return future.thenApply(r -> {
+            if (r == AdminResult.OK) GuiUpdater.broadcastAuctionGuiUpdate(plugin);
+            return r;
+        });
+    }
+
+    /** New start price; refused once anyone has bid (it would cheat the bidders). */
+    public CompletableFuture<AdminResult> adminSetStartPrice(int auctionId, int startPrice) {
+        return adminTx(auctionId, (conn, a) -> {
+            if (a.highestBidderUuid() != null) return AdminResult.HAS_BIDS;
+            if (startPrice < 1 || (a.buyoutPrice() > 0 && a.buyoutPrice() <= startPrice)) return AdminResult.BAD_VALUE;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE auctions SET starting_price = ?, current_highest_bid = ? WHERE id = ? AND status = 'active' AND highest_bidder_uuid IS NULL")) {
+                ps.setInt(1, startPrice);
+                ps.setInt(2, startPrice);
+                ps.setInt(3, auctionId);
+                return ps.executeUpdate() == 1 ? AdminResult.OK : AdminResult.HAS_BIDS;
+            }
+        });
+    }
+
+    /** Sets the buyout price; {@code 0} removes it. Never at or below the standing bid. */
+    public CompletableFuture<AdminResult> adminSetBuyout(int auctionId, int buyout) {
+        return adminTx(auctionId, (conn, a) -> {
+            if (buyout < 0 || (buyout > 0 && buyout <= Math.max(a.currentHighestBid(), a.startingPrice()))) return AdminResult.BAD_VALUE;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE auctions SET buyout_price = ? WHERE id = ? AND status = 'active'")) {
+                ps.setInt(1, buyout);
+                ps.setInt(2, auctionId);
+                return ps.executeUpdate() == 1 ? AdminResult.OK : AdminResult.NOT_FOUND;
+            }
+        });
+    }
+
+    public CompletableFuture<AdminResult> adminExtend(int auctionId, int hours) {
+        int max = Math.max(1, plugin.getConfig().getInt("auctioneer.max-extension-hours", 72));
+        if (hours < 1) return CompletableFuture.completedFuture(AdminResult.BAD_VALUE);
+        if (hours > max) return CompletableFuture.completedFuture(AdminResult.TOO_LONG);
+        return adminTx(auctionId, (conn, a) -> {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE auctions SET ends_at = ends_at + ? WHERE id = ? AND status = 'active'")) {
+                ps.setLong(1, hours * 3600L);
+                ps.setInt(2, auctionId);
+                return ps.executeUpdate() == 1 ? AdminResult.OK : AdminResult.NOT_FOUND;
+            }
+        });
+    }
+
+    /**
+     * Ends the lot now through the normal completion path: the deadline is moved to this second and
+     * {@link #checkAndCompleteAuctions()} settles it (winner, delivery, released reserve) exactly as
+     * if the time had run out.
+     */
+    public CompletableFuture<AdminResult> adminEndNow(int auctionId) {
+        return adminTx(auctionId, (conn, a) -> {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE auctions SET ends_at = MIN(ends_at, CAST(strftime('%s', 'now') AS INTEGER)) WHERE id = ? AND status = 'active'")) {
+                ps.setInt(1, auctionId);
+                return ps.executeUpdate() == 1 ? AdminResult.OK : AdminResult.NOT_FOUND;
+            }
+        }).thenApply(r -> {
+            if (r == AdminResult.OK) checkAndCompleteAuctions();
+            return r;
+        });
+    }
+
+    /**
+     * Cancels the lot. The status flip and the release of the leader's reserve happen in one
+     * transaction, guarded by {@code status = 'active'}, so a repeated or concurrent cancel (or a
+     * natural end) can release the reserve only once. Coins are charged only at delivery, so
+     * nobody has been charged yet: there is nothing to refund, only the reserve to drop.
+     */
+    public CompletableFuture<CancelOutcome> adminCancel(int auctionId) {
+        CompletableFuture<CancelOutcome> future = new CompletableFuture<>();
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            try (Connection conn = plugin.getDatabaseManager().getImmediateConnection()) {
+                conn.setAutoCommit(false);
+                try {
+                    AuctionData auction = null;
+                    try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM auctions WHERE id = ? AND status = 'active'")) {
+                        ps.setInt(1, auctionId);
+                        ResultSet rs = ps.executeQuery();
+                        if (rs.next()) auction = mapAuction(rs);
+                    }
+                    if (auction == null) {
+                        conn.rollback();
+                        future.complete(CancelOutcome.of(AdminResult.NOT_FOUND));
+                        return;
+                    }
+                    int changed;
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE auctions SET status = 'cancelled', completed_at = strftime('%s', 'now') WHERE id = ? AND status = 'active'")) {
+                        ps.setInt(1, auctionId);
+                        changed = ps.executeUpdate();
+                    }
+                    if (changed != 1) {
+                        conn.rollback();
+                        future.complete(CancelOutcome.of(AdminResult.NOT_FOUND));
+                        return;
+                    }
+                    if (auction.highestBidderUuid() != null) {
+                        // Only the reserve that belongs to THIS lot: the row is one per player.
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE reserved_currency SET reserved_amount = 0 WHERE player_uuid = ? AND last_bid_auction_id = ?")) {
+                            ps.setString(1, auction.highestBidderUuid().toString());
+                            ps.setInt(2, auctionId);
+                            ps.executeUpdate();
+                        }
+                    }
+                    conn.commit();
+                    future.complete(new CancelOutcome(AdminResult.OK, ItemStackConverter.itemStackFromBase64(auction.itemData()),
+                            auction.highestBidderUuid(), auction.currentHighestBid()));
+                } catch (SQLException | RuntimeException e) {
+                    try { conn.rollback(); } catch (SQLException ignored) { }
+                    throw e;
+                }
+            } catch (SQLException | RuntimeException e) {
+                plugin.getLogger().severe("Отмена лота #" + auctionId + " не удалась: " + e.getMessage());
+                future.complete(CancelOutcome.of(AdminResult.DB_ERROR));
+            }
+        });
+        return future.thenApply(r -> {
+            if (r.result() == AdminResult.OK) GuiUpdater.broadcastAuctionGuiUpdate(plugin);
+            return r;
+        });
+    }
+
+    /** Ids of lots still running, for tab completion (a handful of rows, indexed by status). */
+    public List<Integer> activeAuctionIds(int limit) {
+        List<Integer> ids = new ArrayList<>();
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT id FROM auctions WHERE status = 'active' ORDER BY ends_at ASC LIMIT ?")) {
+            ps.setInt(1, limit);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) ids.add(rs.getInt(1));
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Список лотов для подсказки не прочитан: " + e.getMessage());
+        }
+        return ids;
     }
 
     /**

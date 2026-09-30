@@ -117,6 +117,8 @@ public final class LoveShops extends JavaPlugin {
             adminCommand.setExecutor(adminCmd);
             adminCommand.setTabCompleter(adminCmd);
         }
+        // Price-change journal keeps 90 days; trim once a day (the first run shortly after start).
+        getServer().getAsyncScheduler().runAtFixedRate(this, task -> adminCmd.pruneAudit(), 5, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
 
         // 5. Register Listeners
         getServer().getPluginManager().registerEvents(new InventoryClickListener(this), this);
