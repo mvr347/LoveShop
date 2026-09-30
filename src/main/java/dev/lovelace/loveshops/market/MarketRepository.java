@@ -470,7 +470,7 @@ public final class MarketRepository {
                         + "VALUES (?,?,?,?,?,?,?,?,'RESERVED',?)", Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, kind);
             ps.setString(2, player.toString());
-            ps.setString(3, pointId.toString());
+            ps.setString(3, pointId == null ? null : pointId.toString());
             ps.setLong(4, listingId);
             ps.setInt(5, amount);
             ps.setLong(6, total);
@@ -502,8 +502,9 @@ public final class MarketRepository {
             ps.setLong(1, System.currentTimeMillis() - olderThanMillis);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
+                    String pointRaw = rs.getString(4);
                     out.add(new PendingTrade(rs.getLong(1), rs.getString(2), UUID.fromString(rs.getString(3)),
-                            UUID.fromString(rs.getString(4)), rs.getLong(5), rs.getInt(6), rs.getLong(7),
+                            pointRaw == null ? null : UUID.fromString(pointRaw), rs.getLong(5), rs.getInt(6), rs.getLong(7),
                             rs.getLong(8), rs.getLong(9), rs.getString(10), rs.getLong(11)));
                 }
             }
@@ -621,6 +622,279 @@ public final class MarketRepository {
             ps.setLong(5, tradeAmount);
             ps.setDouble(6, weight);
             ps.setLong(7, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ robbery state
+
+    public record RobberyState(UUID player, UUID pointId, long robberyUntil, long hostileUntil, int harassment,
+                               long harassmentSince, long bannedUntil, String dayKey, int clicksToday,
+                               double lastChance, long lastClickAt, boolean dayLocked) {
+        public static RobberyState empty(UUID player, UUID pointId) {
+            return new RobberyState(player, pointId, 0, 0, 0, 0, 0, "", 0, 0.0, 0, false);
+        }
+    }
+
+    public RobberyState robberyState(Connection conn, UUID player, UUID pointId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT robbery_until, hostile_until, harassment, harassment_since, banned_until, day_key, clicks_today, "
+                        + "last_chance, last_click_at, day_locked FROM robbery_state WHERE player_uuid = ? AND point_id = ?")) {
+            ps.setString(1, player.toString());
+            ps.setString(2, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return RobberyState.empty(player, pointId);
+                return new RobberyState(player, pointId, rs.getLong(1), rs.getLong(2), rs.getInt(3), rs.getLong(4),
+                        rs.getLong(5), rs.getString(6), rs.getInt(7), rs.getDouble(8), rs.getLong(9), rs.getInt(10) != 0);
+            }
+        }
+    }
+
+    public void saveRobberyState(Connection conn, RobberyState s) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO robbery_state (player_uuid, point_id, robbery_until, hostile_until, harassment, harassment_since, "
+                        + "banned_until, day_key, clicks_today, last_chance, last_click_at, day_locked) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(player_uuid, point_id) DO UPDATE SET robbery_until=excluded.robbery_until, "
+                        + "hostile_until=excluded.hostile_until, harassment=excluded.harassment, harassment_since=excluded.harassment_since, "
+                        + "banned_until=excluded.banned_until, day_key=excluded.day_key, clicks_today=excluded.clicks_today, "
+                        + "last_chance=excluded.last_chance, last_click_at=excluded.last_click_at, day_locked=excluded.day_locked")) {
+            ps.setString(1, s.player().toString());
+            ps.setString(2, s.pointId().toString());
+            ps.setLong(3, s.robberyUntil());
+            ps.setLong(4, s.hostileUntil());
+            ps.setInt(5, s.harassment());
+            ps.setLong(6, s.harassmentSince());
+            ps.setLong(7, s.bannedUntil());
+            ps.setString(8, s.dayKey());
+            ps.setInt(9, s.clicksToday());
+            ps.setDouble(10, s.lastChance());
+            ps.setLong(11, s.lastClickAt());
+            ps.setInt(12, s.dayLocked() ? 1 : 0);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Current chances of the OTHER robbers who clicked this stall lately today and are not locked out. */
+    public List<Double> coAttackChances(Connection conn, UUID pointId, UUID except, String dayKey, long sinceMillis) throws SQLException {
+        List<Double> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT last_chance FROM robbery_state WHERE point_id = ? AND player_uuid <> ? AND day_key = ? "
+                        + "AND day_locked = 0 AND last_click_at >= ? AND last_chance > 0")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, except.toString());
+            ps.setString(3, dayKey);
+            ps.setLong(4, sinceMillis);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(rs.getDouble(1));
+            }
+        }
+        return out;
+    }
+
+    /** Successful robberies since {@code sinceMillis}; a null player/point means "any". */
+    public int robberiesSince(Connection conn, UUID robber, UUID pointId, long sinceMillis) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM robbery_log WHERE created_at >= ?");
+        if (robber != null) sql.append(" AND robber_uuid = ?");
+        if (pointId != null) sql.append(" AND point_id = ?");
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int i = 1;
+            ps.setLong(i++, sinceMillis);
+            if (robber != null) ps.setString(i++, robber.toString());
+            if (pointId != null) ps.setString(i, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public long insertRobberyLog(Connection conn, UUID robber, UUID pointId, UUID owner, long coins, String itemsJson) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO robbery_log (robber_uuid, point_id, owner_uuid, coins, items_json, restored, created_at) VALUES (?,?,?,?,?,0,?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, robber.toString());
+            ps.setString(2, pointId.toString());
+            ps.setString(3, owner.toString());
+            ps.setLong(4, coins);
+            ps.setString(5, itemsJson);
+            ps.setLong(6, System.currentTimeMillis());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getLong(1) : -1L;
+            }
+        }
+    }
+
+    public void closePoint(Connection conn, UUID pointId, CloseReason reason) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE trade_points SET is_open = 0, close_reason = ?, version = version + 1 WHERE claim_id = ?")) {
+            ps.setString(1, reason.name());
+            ps.setString(2, pointId.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    public void addNotice(Connection conn, UUID player, String message) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO owner_notices (player_uuid, message, created_at) VALUES (?,?,?)")) {
+            ps.setString(1, player.toString());
+            ps.setString(2, message);
+            ps.setLong(3, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    /** Robbery state rows nobody will read again: all their timers ran out and their day is over. */
+    public int pruneRobberyState(long olderThanMillis, String currentDayKey) throws SQLException {
+        long limit = System.currentTimeMillis() - olderThanMillis;
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM robbery_state WHERE robbery_until < ? AND hostile_until < ? AND banned_until < ? "
+                             + "AND last_click_at < ? AND day_key <> ?")) {
+            long now = System.currentTimeMillis();
+            ps.setLong(1, now);
+            ps.setLong(2, now);
+            ps.setLong(3, now);
+            ps.setLong(4, limit);
+            ps.setString(5, currentDayKey);
+            return ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ guard
+
+    public void setGuard(Connection conn, UUID pointId, String state, long paidUntil) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE trade_points SET guard_state = ?, guard_paid_until = ?, version = version + 1 WHERE claim_id = ?")) {
+            ps.setString(1, state);
+            ps.setLong(2, paidUntil);
+            ps.setString(3, pointId.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ flea market
+
+    /** A lot a player put up at the flea trader. {@link #template()} is the item with amount 1. */
+    public record FleaListing(long id, UUID seller, ItemStack template, String itemHash, long unitPrice,
+                              int amountLeft, boolean active, long createdAt) {}
+
+    private FleaListing mapFlea(ResultSet rs) throws SQLException {
+        ItemStack template = ItemStackConverter.itemStackFromBase64(rs.getString("item_data"));
+        if (template == null) {
+            plugin.getLogger().warning("Лот барахолки #" + rs.getLong("id") + " с повреждённым предметом пропущен.");
+            return null;
+        }
+        return new FleaListing(rs.getLong("id"), UUID.fromString(rs.getString("seller_uuid")), template,
+                rs.getString("item_hash"), rs.getLong("unit_price"), rs.getInt("amount_left"),
+                rs.getInt("active") != 0, rs.getLong("created_at"));
+    }
+
+    private static final String FLEA_COLS = "id, seller_uuid, item_data, item_hash, unit_price, amount_left, active, created_at";
+
+    public long insertFlea(Connection conn, UUID seller, ItemStack template, long unitPrice, int amount) throws SQLException {
+        ItemStack one = template.clone();
+        one.setAmount(1);
+        String data = ItemStackConverter.itemStackToBase64(one);
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO flea_listings (seller_uuid, item_data, item_hash, unit_price, amount_left, active, created_at) VALUES (?,?,?,?,?,1,?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, seller.toString());
+            ps.setString(2, data);
+            ps.setString(3, hashOf(data));
+            ps.setLong(4, unitPrice);
+            ps.setInt(5, amount);
+            ps.setLong(6, System.currentTimeMillis());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getLong(1) : -1L;
+            }
+        }
+    }
+
+    public FleaListing fleaListing(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT " + FLEA_COLS + " FROM flea_listings WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapFlea(rs) : null;
+            }
+        }
+    }
+
+    public List<FleaListing> fleaPage(int offset, int limit) throws SQLException {
+        List<FleaListing> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT " + FLEA_COLS
+                     + " FROM flea_listings WHERE active = 1 AND amount_left > 0 ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?")) {
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    FleaListing f = mapFlea(rs);
+                    if (f != null) out.add(f);
+                }
+            }
+        }
+        return out;
+    }
+
+    public int fleaCount() throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM flea_listings WHERE active = 1 AND amount_left > 0");
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    public List<FleaListing> fleaBySeller(UUID seller) throws SQLException {
+        List<FleaListing> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT " + FLEA_COLS
+                     + " FROM flea_listings WHERE seller_uuid = ? AND active = 1 ORDER BY id")) {
+            ps.setString(1, seller.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    FleaListing f = mapFlea(rs);
+                    if (f != null) out.add(f);
+                }
+            }
+        }
+        return out;
+    }
+
+    public int fleaCountBySeller(Connection conn, UUID seller) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM flea_listings WHERE seller_uuid = ? AND active = 1")) {
+            ps.setString(1, seller.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public void addFleaAmount(Connection conn, long id, int delta) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE flea_listings SET amount_left = MAX(0, amount_left + ?) WHERE id = ?")) {
+            ps.setInt(1, delta);
+            ps.setLong(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    public void setFleaPrice(Connection conn, long id, long unitPrice) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE flea_listings SET unit_price = ? WHERE id = ?")) {
+            ps.setLong(1, unitPrice);
+            ps.setLong(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    public void deleteFlea(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM flea_listings WHERE id = ?")) {
+            ps.setLong(1, id);
+            ps.executeUpdate();
+        }
+    }
+
+    public void deleteFleaIfEmpty(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM flea_listings WHERE id = ? AND amount_left <= 0")) {
+            ps.setLong(1, id);
             ps.executeUpdate();
         }
     }

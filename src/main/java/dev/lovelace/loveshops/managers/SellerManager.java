@@ -70,8 +70,11 @@ public class SellerManager {
             }
         } else if (!nowActive || !sellerArrived) {
             // Guarantee flea market NPCs stay despawned while closed or before stock check passes
-            for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
-                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+            // (not for the permanent flea trader of the player market: it is always there)
+            if (!plugin.isFleaPermanent()) {
+                for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+                    plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+                }
             }
             if (!nowActive) {
                 for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {
@@ -150,9 +153,11 @@ public class SellerManager {
         for (String msg : plugin.getConfig().getStringList("seller.messages.departure")) {
             Bukkit.broadcast(MessageUtils.parse(msg));
         }
-        // Despawn seller NPCs
-        for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
-            plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+        // Despawn seller NPCs (the permanent flea trader of the player market stays)
+        if (!plugin.isFleaPermanent()) {
+            for (var npc : plugin.getNpcManager().getNpcsByType("seller")) {
+                plugin.getNpcManager().ensureNpcDespawned(npc.uuid());
+            }
         }
         // Despawn auctioneer NPCs
         for (var npc : plugin.getNpcManager().getNpcsByType("auctioneer")) {

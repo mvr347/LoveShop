@@ -5,7 +5,9 @@ import dev.lovelace.loveshops.market.MarketStyle;
 import dev.lovelace.loveshops.market.StallUpgradeService;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.market.TradePointManager.ListingResult;
+import dev.lovelace.loveshops.market.GuardService;
 import dev.lovelace.loveshops.market.model.CloseReason;
+import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
@@ -39,7 +41,7 @@ import java.util.function.LongConsumer;
  */
 public final class StallOwnerGui extends MarketGui {
 
-    public enum Tab { CASH, SELL, BUY, UPGRADE }
+    public enum Tab { CASH, SELL, BUY, UPGRADE, GUARD }
 
     private static final int SIZE = 54;
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("dd.MM HH:mm").withZone(ZoneId.systemDefault());
@@ -100,6 +102,7 @@ public final class StallOwnerGui extends MarketGui {
             case SELL -> renderShelves(ListingType.SELL);
             case BUY -> renderShelves(ListingType.BUY);
             case UPGRADE -> renderUpgrade();
+            case GUARD -> renderGuard();
         }
         refreshClient();
     }
@@ -142,10 +145,15 @@ public final class StallOwnerGui extends MarketGui {
                 name = "Скупка";
                 hint = "Что магазин покупает у игроков";
             }
-            default -> {
+            case UPGRADE -> {
                 base64 = HeadTextures.BANKER_INFO;
                 name = "Улучшения";
                 hint = "Больше полок и заказов";
+            }
+            default -> {
+                base64 = HeadTextures.WANDERER_INFO;
+                name = "Стража";
+                hint = "Защита от ограблений";
             }
         }
         boolean selected = t == tab;
@@ -329,6 +337,11 @@ public final class StallOwnerGui extends MarketGui {
             if (slot == content[3]) onUpgrade();
             return;
         }
+        if (tab == Tab.GUARD) {
+            int[] content = MarketLayout.contentSlots(SIZE);
+            if (slot == content[3]) onGuard();
+            return;
+        }
 
         StallListing listing = listingAt.get(slot);
         if (listing != null) {
@@ -379,6 +392,66 @@ public final class StallOwnerGui extends MarketGui {
         next.add("");
         next.add("<green>ЛКМ </green><gray>— улучшить</gray>");
         inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Улучшить до уровня " + (point.level() + 1) + "</green>", next));
+    }
+
+    private void renderGuard() {
+        MarketStyle style = plugin.getMarketStyle();
+        var cfg = plugin.getMarketConfig();
+        int[] content = MarketLayout.contentSlots(SIZE);
+        GuardState state = point.guardState();
+
+        List<String> status = new ArrayList<>();
+        status.add("");
+        switch (state) {
+            case ACTIVE -> {
+                status.add("<green>Стража на посту</green>");
+                status.add("<gray>Оплачено до: <white>" + WHEN.format(Instant.ofEpochMilli(point.guardPaidUntil())) + "</white></gray>");
+            }
+            case UNPAID -> {
+                status.add("<red>Стража ушла: не хватило денег на зарплату</red>");
+            }
+            default -> status.add("<gray>Стражи нет</gray>");
+        }
+        status.add("");
+        status.add("<gray>Зарплата:</gray> " + style.money(cfg.guardSalary()) + " <gray>за <white>" + cfg.guardSalaryPeriodHours() + "</white> ч</gray>");
+        inventory.setItem(content[1], head(HeadTextures.WANDERER_INFO, style.icon(MarketStyle.Icon.GUARD) + " <gold>Стража</gold>", status));
+
+        if (!cfg.guardEnabled()) {
+            inventory.setItem(content[3], head(HeadTextures.MARKET_CLOSED, "<red>Стража отключена</red>", List.of()));
+        } else if (state == GuardState.ACTIVE) {
+            inventory.setItem(content[3], head(HeadTextures.MARKET_CLOSED, "<red>Уволить стражу</red>",
+                    List.of("", "<gray>Зарплата за оплаченное время не возвращается.</gray>", "", "<red>ЛКМ </red><gray>— уволить</gray>")));
+        } else {
+            boolean fromTill = point.tillCoins() >= cfg.guardSalary();
+            inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Нанять стражу</green>",
+                    List.of("", "<gray>Первый период оплачивается сразу:</gray>", style.money(cfg.guardSalary()),
+                            fromTill ? "<gray>Спишется из кассы.</gray>" : "<gray>Спишется из вашего кармана.</gray>",
+                            "", "<green>ЛКМ </green><gray>— нанять</gray>")));
+        }
+
+        inventory.setItem(content[5], head(HeadTextures.BANKER_INFO, "<gold>Что делает стража</gold>", List.of("",
+                "<gray>Со стражей агрессивный игрок не может", "<gray>ограбить ваш магазин: торговец не отдаёт", "<gray>товар и не закрывается.",
+                "", "<gray>Кто слишком долго пристаёт к торговцу —", "<gray>того выведут с рынка.")));
+    }
+
+    private void onGuard() {
+        GuardService guards = plugin.getGuardService();
+        if (point.guardState() == GuardState.ACTIVE) {
+            switch (guards.fire(viewer, point)) {
+                case OK -> plugin.getMarketMessages().send(viewer, "guard-fired");
+                default -> plugin.getMarketMessages().send(viewer, "listing-error");
+            }
+            return;
+        }
+        switch (guards.hire(viewer, point)) {
+            case OK -> plugin.getMarketMessages().send(viewer, "guard-hired");
+            case NO_MONEY -> plugin.getMarketMessages().send(viewer, "guard-no-money");
+            case DISABLED -> plugin.getMarketMessages().send(viewer, "guard-disabled");
+            case ALREADY -> plugin.getMarketMessages().send(viewer, "guard-hired");
+            case NOT_OWNER -> plugin.getMarketMessages().send(viewer, "not-owner");
+            case ECONOMY_DOWN -> plugin.getMarketMessages().send(viewer, "economy-down");
+            case DB_ERROR -> plugin.getMarketMessages().send(viewer, "listing-error");
+        }
     }
 
     private void onUpgrade() {

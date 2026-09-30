@@ -98,4 +98,12 @@ public final class HeadTextures {
     /** Красный крест (стандарт gui_gen «Cancel»): магазин закрыт. */
     public static final String MARKET_CLOSED =
             HeadsConfig.get("market-closed", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzYxODczMWUwNjMzNzlhZWJmODJmMWQ2NGM0MTljOTBkN2YwYzE2NDhjNTQ4ZTliNjE1MWIxYmFiYTY2ZDcyMyJ9fX0=");
+
+    /** Стрелка влево (стандарт gui_gen «Arrow Left»): предыдущая страница. */
+    public static final String ARROW_LEFT =
+            HeadsConfig.get("arrow-left", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvODRkZjJjZWZhZDQ4YzEwMDYzZDczNTM5OWY5MDRmYWE0NjA4ZmQ0NjZkZWYxZGU5ZTU1YjFhMzY2NWUzODYwMyJ9fX0=");
+
+    /** Стрелка вправо (стандарт gui_gen «Arrow Right»): следующая страница. */
+    public static final String ARROW_RIGHT =
+            HeadsConfig.get("arrow-right", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOWM4YzJhMDExYmU4ZTI2NDk4YjAzNmJjNDA3OTc3NDA4ODczYTYxYTc0MjYxMmM0OTdhMjI1MzU5YTMwYjRjZDMifX19");
 }

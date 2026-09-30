@@ -228,6 +228,9 @@ public class BuyerManager {
                             // Wanderer never goes through this.
                             long finalPayout = priceCalculator.applyMerchantTaxToPayout(taxedPrice);
                             economy.give(player, finalPayout);
+                            if (plugin.getDailyBuyer() != null) {
+                                plugin.getDailyBuyer().consume(player, item.getType(), quantity);
+                            }
 
                             String acceptMsg = plugin.getConfig().getString("buyer.messages.accept", "&aСкупщик: Отличный товар! Вот тебе {currency_icon}{price} монет!");
                             acceptMsg = acceptMsg.replace("{price}", String.valueOf(finalPayout))

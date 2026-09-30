@@ -109,4 +109,46 @@ public final class MarketConfig {
     public int ratingNewAccountDays() { return Math.max(0, getInt("rating.new-account-days", 7)); }
     public double ratingNewAccountWeight() { return Math.min(1.0, Math.max(0.0, getDouble("rating.new-account-weight", 0.3))); }
     public int ratingMaxComment() { return Math.max(0, getInt("rating.max-comment-length", 100)); }
+
+    // ----- robbery -----
+    public boolean robberyEnabled() { return getBool("robbery.enabled", true); }
+    public double robberyBaseChance() { return getDouble("robbery.base-chance", 0.01); }
+    public double robberyStep() { return getDouble("robbery.step", 0.005); }
+    public double robberyChanceCap() { return getDouble("robbery.chance-cap", 0.20); }
+    public int robberyAttemptsPerDay() { return Math.max(1, getInt("robbery.attempts-per-day", 12)); }
+    public int robberyDayResetHour() { return getInt("robbery.day-reset-hour", 4); }
+    public int robberyCoAttackWindowMinutes() { return Math.max(1, getInt("robbery.co-attack-window-minutes", 15)); }
+    public double robberyMaxCombined() { return getDouble("robbery.max-combined-chance", 0.90); }
+    public int robberyMaxPerPointPerDay() { return Math.max(1, getInt("robbery.max-robberies-per-point-per-day", 2)); }
+    public int robberyMaxPerPlayerPerDay() { return Math.max(1, getInt("robbery.max-robberies-per-day", 3)); }
+    public double robberyCoinsChance() { return Math.min(1.0, Math.max(0.0, getDouble("robbery.coins-chance", 0.5))); }
+    public double robberyMaxTillPercent() { return getDouble("robbery.max-till-percent", 15.0); }
+    public double robberyMaxStockPercent() { return getDouble("robbery.max-stock-percent", 10.0); }
+    public int robberyMaxItems() { return Math.max(1, getInt("robbery.max-items", 8)); }
+    public int robberyCooldownHours() { return Math.max(0, getInt("robbery.robbery-cooldown-hours", 6)); }
+    public int robberyHostilityMinutes() { return Math.max(0, getInt("robbery.hostility-minutes", 30)); }
+    public int robberyReputationPenalty() { return Math.max(0, getInt("robbery.robbery-reputation-penalty", 5)); }
+
+    // ----- guard -----
+    public boolean guardEnabled() { return getBool("guard.enabled", true); }
+    public long guardSalary() { return Math.max(0L, getLong("guard.salary", 800L)); }
+    public int guardSalaryPeriodHours() { return Math.max(1, getInt("guard.salary-period-hours", 24)); }
+    public int guardHarassmentLimit() { return Math.max(1, getInt("guard.harassment-limit", 5)); }
+    public int guardHarassmentWindowMinutes() { return Math.max(1, getInt("guard.harassment-window-minutes", 10)); }
+    public int guardHarassmentBanMinutes() { return Math.max(1, getInt("guard.harassment-ban-minutes", 30)); }
+
+    /** Where trouble-makers are sent from a stall; {@code null} when not configured or the world is missing. */
+    public org.bukkit.Location exitLocation() {
+        ConfigurationSection s = root();
+        if (s == null || !s.isConfigurationSection("exit")) return null;
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld(s.getString("exit.world", "world"));
+        if (world == null) return null;
+        return new org.bukkit.Location(world, s.getDouble("exit.x"), s.getDouble("exit.y", 64), s.getDouble("exit.z"),
+                (float) s.getDouble("exit.yaw", 0), (float) s.getDouble("exit.pitch", 0));
+    }
+
+    // ----- flea market -----
+    public int fleaMaxListings() { return Math.max(1, getInt("flea.max-listings-per-player", 10)); }
+    /** {@code true} keeps the old Sunday-only opening of the flea trader; {@code false} = always open. */
+    public boolean fleaScheduleEnabled() { return getBool("flea.schedule-enabled", false); }
 }

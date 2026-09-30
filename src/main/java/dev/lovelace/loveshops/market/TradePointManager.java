@@ -54,6 +54,9 @@ public final class TradePointManager {
     /** Open market GUIs by viewer, so a change of a point can refresh or close what its viewers see. */
     private final Map<UUID, MarketGui> viewers = new HashMap<>();
     private BukkitTask upkeepTask;
+    private int pruneTicks;
+    private RobberyService robbery;
+    private GuardService guards;
     /** Last NPC click per player: Citizens can report one click twice (both hands) and menus must not flicker open. */
     private final Map<UUID, Long> lastNpcClick = new HashMap<>();
 
@@ -69,6 +72,12 @@ public final class TradePointManager {
     }
 
     // ------------------------------------------------------------------ lifecycle
+
+    /** Wires the services that need this manager (they are built after it). */
+    public void attach(RobberyService robbery, GuardService guards) {
+        this.robbery = robbery;
+        this.guards = guards;
+    }
 
     public void enable() {
         try {
@@ -127,6 +136,11 @@ public final class TradePointManager {
         }
         reconcileNpcs();
         upkeep();
+    }
+
+    /** Re-creates/removes trader and guard NPCs to match the data (after a hire, a firing, a release). */
+    public void syncNpcs() {
+        reconcileNpcs();
     }
 
     private void reconcileNpcs() {
@@ -293,6 +307,15 @@ public final class TradePointManager {
      * players (they read as neutral), and judging them would reopen a banned shop every time they log off.
      */
     private void upkeep() {
+        if (guards != null) guards.payroll();
+        pruneTicks++;
+        if (robbery != null && pruneTicks % 120 == 0) { // ~ hourly
+            try {
+                repo.pruneRobberyState(7L * 24 * 3_600_000L, robbery.currentDayKey());
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Очистка состояния ограблений не удалась: " + e.getMessage());
+            }
+        }
         for (TradePoint p : new ArrayList<>(points.values())) {
             if (!p.hasOwner()) continue;
             Player online = Bukkit.getPlayer(p.ownerUuid());
@@ -624,12 +647,34 @@ public final class TradePointManager {
                 plugin.getMarketMessages().send(player, "outcast-refused");
                 return true;
             }
+            if (cls == PlayerClass.AGGRESSOR && robbery != null) {
+                return handleAggressorClick(player, p);
+            }
             if (cls == PlayerClass.AGGRESSOR && gate.aggressorRefused()) {
                 plugin.getMarketMessages().send(player, "aggressor-refused");
                 return true;
             }
         }
         new dev.lovelace.loveshops.market.gui.StallBuyerGui(plugin, player, p).open();
+        return true;
+    }
+
+    /** An aggressor at a stall: refused, thrown out, or - when the dice fall - robbing it. */
+    private boolean handleAggressorClick(Player player, TradePoint p) {
+        var msg = plugin.getMarketMessages();
+        RobberyService.Click click = robbery.onAggressorClick(player, p);
+        String suffix = click.guarded() ? "guard-patience-" : "patience-";
+        String[] stages = {"calm", "annoyed", "warning"};
+        switch (click.outcome()) {
+            case PROCEED -> new dev.lovelace.loveshops.market.gui.StallBuyerGui(plugin, player, p).open();
+            case REFUSED -> msg.send(player, suffix + stages[Math.max(0, Math.min(2, click.stage()))]);
+            case LOCKED -> msg.send(player, "robber-locked");
+            case HOSTILE -> msg.send(player, "robber-hostile");
+            case BANNED -> msg.send(player, "robber-banned");
+            case KICKED -> msg.send(player, "guard-kicked");
+            case ROBBED -> msg.send(player, "robbery-success");
+            case NOTHING_TO_TAKE -> msg.send(player, "robbery-nothing");
+        }
         return true;
     }
 
@@ -663,7 +708,7 @@ public final class TradePointManager {
 
     // ------------------------------------------------------------------ notices
 
-    private void notice(UUID player, String message) {
+    public void notice(UUID player, String message) {
         try {
             repo.addNotice(player, message);
         } catch (SQLException e) {
@@ -694,6 +739,29 @@ public final class TradePointManager {
 
     public void unregisterViewer(Player player, MarketGui gui) {
         viewers.remove(player.getUniqueId(), gui);
+    }
+
+    /** Re-draws every open flea menu (a lot was added, sold or taken down). */
+    public void refreshFleaViewers() {
+        for (MarketGui gui : new ArrayList<>(viewers.values())) {
+            if (gui instanceof dev.lovelace.loveshops.market.gui.FleaMarketGui) gui.render();
+        }
+    }
+
+    /** The flea trader was clicked: outcasts are turned away, aggressors mostly, everyone else gets the menu. */
+    public void openFlea(Player player) {
+        if (plugin.getMarketConfig().gatesEnabled()) {
+            PlayerClass cls = gate.classify(player.getUniqueId());
+            if (cls == PlayerClass.OUTCAST) {
+                plugin.getMarketMessages().send(player, "flea-outcast-refused");
+                return;
+            }
+            if (cls == PlayerClass.AGGRESSOR && gate.aggressorRefused()) {
+                plugin.getMarketMessages().send(player, "flea-aggressor-refused");
+                return;
+            }
+        }
+        new dev.lovelace.loveshops.market.gui.FleaMarketGui(plugin, player).open();
     }
 
     public void refreshViewers(UUID pointId) {
