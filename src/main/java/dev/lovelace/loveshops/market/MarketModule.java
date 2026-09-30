@@ -13,7 +13,12 @@ public final class MarketModule {
 
     private final LoveShops plugin;
     private TradePointManager manager;
+    private StallTradeService trade;
+    private RatingService ratings;
+    private StallUpgradeService upgrades;
+    private ReputationGate gate;
     private ChatPromptService prompts;
+    private org.bukkit.scheduler.BukkitTask reconcileTask;
     private MarketGuiListener guiListener;
 
     public MarketModule(LoveShops plugin) {
@@ -22,6 +27,10 @@ public final class MarketModule {
 
     public TradePointManager manager() { return manager; }
     public ChatPromptService prompts() { return prompts; }
+    public StallTradeService trade() { return trade; }
+    public RatingService ratings() { return ratings; }
+    public StallUpgradeService upgrades() { return upgrades; }
+    public ReputationGate gate() { return gate; }
 
     public boolean start() {
         if (!plugin.getMarketConfig().enabled()) {
@@ -40,12 +49,25 @@ public final class MarketModule {
             ClaimsLink link = new ClaimsBridge(plugin);
             MarketRepository repo = new MarketRepository(plugin);
             StallNpcService npcs = new StallNpcService(plugin);
-            this.manager = new TradePointManager(plugin, repo, npcs, link);
+            this.gate = new ReputationGate(plugin);
+            TaxService tax = new TaxService(plugin, gate);
+            ReturnsService returns = new ReturnsService(plugin, repo);
+            this.manager = new TradePointManager(plugin, repo, npcs, link, gate, tax, returns);
+            this.trade = new StallTradeService(plugin, repo, manager, gate, tax);
+            this.ratings = new RatingService(plugin, repo);
+            this.upgrades = new StallUpgradeService(plugin, repo);
             this.prompts = new ChatPromptService(plugin);
             this.guiListener = new MarketGuiListener(plugin);
             Bukkit.getPluginManager().registerEvents(prompts, plugin);
             Bukkit.getPluginManager().registerEvents(guiListener, plugin);
             manager.enable();
+            // Finish what a crash left half-way, then keep an eye on trades that got stuck.
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (trade != null) trade.reconcile(0L);
+            }, 100L);
+            reconcileTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                if (trade != null) trade.reconcile(plugin.getMarketConfig().pendingTimeoutSeconds() * 1000L);
+            }, 1200L, 1200L);
             plugin.getLogger().info("✓ Рынок игроков (торговые точки) запущен.");
             return true;
         } catch (LinkageError e) {
@@ -58,6 +80,14 @@ public final class MarketModule {
     }
 
     public void stop() {
+        if (reconcileTask != null) {
+            reconcileTask.cancel();
+            reconcileTask = null;
+        }
+        trade = null;
+        ratings = null;
+        upgrades = null;
+        gate = null;
         if (manager != null) {
             manager.disable();
             manager = null;

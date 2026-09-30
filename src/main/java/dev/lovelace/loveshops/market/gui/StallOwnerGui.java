@@ -2,6 +2,7 @@ package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.MarketStyle;
+import dev.lovelace.loveshops.market.StallUpgradeService;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.market.TradePointManager.ListingResult;
 import dev.lovelace.loveshops.market.model.CloseReason;
@@ -38,7 +39,7 @@ import java.util.function.LongConsumer;
  */
 public final class StallOwnerGui extends MarketGui {
 
-    public enum Tab { CASH, SELL, BUY }
+    public enum Tab { CASH, SELL, BUY, UPGRADE }
 
     private static final int SIZE = 54;
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("dd.MM HH:mm").withZone(ZoneId.systemDefault());
@@ -74,20 +75,6 @@ public final class StallOwnerGui extends MarketGui {
         return Tab.values();
     }
 
-    /** A textured head whose name and lore are parsed FOR THE VIEWER, so coin glyphs resolve reliably. */
-    private ItemStack head(String base64, String name, List<String> lore) {
-        ItemStack item = GuiUtils.createCustomHead(base64, " ", null);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.displayName(MessageUtils.parse(viewer, name));
-            if (lore != null && !lore.isEmpty()) {
-                meta.lore(lore.stream().map(line -> MessageUtils.parse(viewer, line)).toList());
-            }
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
     // ------------------------------------------------------------------ rendering
 
     @Override
@@ -112,6 +99,7 @@ public final class StallOwnerGui extends MarketGui {
             case CASH -> renderCash();
             case SELL -> renderShelves(ListingType.SELL);
             case BUY -> renderShelves(ListingType.BUY);
+            case UPGRADE -> renderUpgrade();
         }
         refreshClient();
     }
@@ -149,10 +137,15 @@ public final class StallOwnerGui extends MarketGui {
                 name = "Продажа";
                 hint = "Товары на прилавке";
             }
-            default -> {
+            case BUY -> {
                 base64 = HeadTextures.TAB_BUYER;
                 name = "Скупка";
                 hint = "Что магазин покупает у игроков";
+            }
+            default -> {
+                base64 = HeadTextures.BANKER_INFO;
+                name = "Улучшения";
+                hint = "Больше полок и заказов";
             }
         }
         boolean selected = t == tab;
@@ -331,6 +324,11 @@ public final class StallOwnerGui extends MarketGui {
             if (slot == content[1]) onCollect();
             return;
         }
+        if (tab == Tab.UPGRADE) {
+            int[] content = MarketLayout.contentSlots(SIZE);
+            if (slot == content[3]) onUpgrade();
+            return;
+        }
 
         StallListing listing = listingAt.get(slot);
         if (listing != null) {
@@ -353,6 +351,47 @@ public final class StallOwnerGui extends MarketGui {
         }
     }
 
+    private void renderUpgrade() {
+        MarketStyle style = plugin.getMarketStyle();
+        StallUpgradeService up = plugin.getUpgradeService();
+        int[] content = MarketLayout.contentSlots(SIZE);
+
+        List<String> now = new ArrayList<>();
+        now.add("");
+        now.add("<gray>Уровень торговца: <white>" + point.level() + "</white> / <white>" + plugin.getMarketConfig().maxLevel() + "</white></gray>");
+        now.add("<gray>Полок продажи: <white>" + point.sellSlots() + "</white></gray>");
+        now.add("<gray>Заказов скупки: <white>" + point.buySlots() + "</white></gray>");
+        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, "<gold>Сейчас</gold>", now));
+
+        if (up.atMax(point)) {
+            inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Максимальный уровень</green>",
+                    List.of("", "<gray>Дальше расти некуда.</gray>")));
+            return;
+        }
+        long cost = up.nextCost(point);
+        boolean fromTill = point.tillCoins() >= cost;
+        List<String> next = new ArrayList<>();
+        next.add("");
+        next.add("<gray>Цена:</gray> " + style.money(cost));
+        next.add(fromTill ? "<gray>Спишется из кассы.</gray>" : "<gray>Спишется из вашего кармана.</gray>");
+        next.add("");
+        next.add("<gray>Получите: <white>+1</white> полка продажи и <white>+1</white> заказ скупки.</gray>");
+        next.add("");
+        next.add("<green>ЛКМ </green><gray>— улучшить</gray>");
+        inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Улучшить до уровня " + (point.level() + 1) + "</green>", next));
+    }
+
+    private void onUpgrade() {
+        switch (plugin.getUpgradeService().upgrade(viewer, point)) {
+            case OK -> plugin.getMarketMessages().send(viewer, "upgrade-done", "level", String.valueOf(point.level()));
+            case MAX_LEVEL -> plugin.getMarketMessages().send(viewer, "upgrade-max");
+            case NO_MONEY -> plugin.getMarketMessages().send(viewer, "upgrade-no-money");
+            case NOT_OWNER -> plugin.getMarketMessages().send(viewer, "not-owner");
+            case ECONOMY_DOWN -> plugin.getMarketMessages().send(viewer, "economy-down");
+            case DB_ERROR -> plugin.getMarketMessages().send(viewer, "listing-error");
+        }
+    }
+
     private void onCollect() {
         TradePointManager.TillResult result = plugin.getTradePointManager().collectTill(viewer, point);
         if (result.ok()) {
@@ -365,7 +404,7 @@ public final class StallOwnerGui extends MarketGui {
     private void onListingClick(StallListing listing, ClickType click) {
         TradePointManager m = plugin.getTradePointManager();
         if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
-            promptNumber("prompt-price", 1, plugin.getMarketConfig().priceMax(),
+            ask("prompt-price", 1, plugin.getMarketConfig().priceMax(),
                     price -> report(m.changePrice(viewer, point, listing.id(), price), "listing-price-changed"));
             return;
         }
@@ -398,11 +437,11 @@ public final class StallOwnerGui extends MarketGui {
         long min = m.minUnitPrice(hand);
         String itemName = hand.getType().name();
         if (type == ListingType.SELL) {
-            promptNumber("prompt-price", min, plugin.getMarketConfig().priceMax(),
+            ask("prompt-price", min, plugin.getMarketConfig().priceMax(),
                     price -> report(m.addSellListing(viewer, point, shelf, price), "listing-added"), "item", itemName);
         } else {
-            promptNumber("prompt-price", min, plugin.getMarketConfig().priceMax(), price ->
-                    promptNumber("prompt-max", 1, plugin.getMarketConfig().maxBuyAmount(), amount ->
+            ask("prompt-price", min, plugin.getMarketConfig().priceMax(), price ->
+                    ask("prompt-max", 1, plugin.getMarketConfig().maxBuyAmount(), amount ->
                             report(m.addBuyListing(viewer, point, shelf, price, (int) amount), "listing-added"), "item", itemName),
                     "item", itemName);
         }
@@ -427,39 +466,10 @@ public final class StallOwnerGui extends MarketGui {
         }
     }
 
-    /**
-     * Closes the menu, asks for a whole number in chat, hands it to {@code onValue} and reopens the
-     * menu on the same tab. A wrong answer or a cancel just reopens the menu.
-     */
-    private void promptNumber(String messageKey, long min, long max, LongConsumer onValue, String... placeholders) {
+    /** Prompt that returns to the tab the owner was on. */
+    private void ask(String messageKey, long min, long max, LongConsumer onValue, String... placeholders) {
         Tab returnTo = tab;
-        viewer.closeInventory();
-        List<String> kv = new ArrayList<>(List.of(placeholders));
-        kv.add("min");
-        kv.add(String.valueOf(min));
-        kv.add("max");
-        kv.add(String.valueOf(max));
-        plugin.getMarketMessages().send(viewer, messageKey, kv.toArray(new String[0]));
-        plugin.getChatPromptService().ask(viewer, text -> {
-            String digits = text.replace(" ", "").replace("_", "");
-            long value;
-            try {
-                if (!digits.matches("\\d{1,12}")) throw new NumberFormatException();
-                value = Long.parseLong(digits);
-            } catch (NumberFormatException e) {
-                plugin.getMarketMessages().send(viewer, "prompt-invalid");
-                reopen(returnTo);
-                return;
-            }
-            if (value < min || value > max) {
-                plugin.getMarketMessages().send(viewer, "prompt-out-of-range", "min", String.valueOf(min), "max", String.valueOf(max));
-                reopen(returnTo);
-                return;
-            }
-            onValue.accept(value);
-            // A follow-up prompt (buy order asks price, then amount) replaced this one: do not reopen over it.
-            if (!plugin.getChatPromptService().has(viewer)) reopen(returnTo);
-        }, () -> reopen(returnTo));
+        promptNumber(messageKey, min, max, () -> reopen(returnTo), onValue, placeholders);
     }
 
     private void reopen(Tab returnTo) {

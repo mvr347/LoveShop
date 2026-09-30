@@ -261,11 +261,14 @@ public class DatabaseManager {
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS pending_trades (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL DEFAULT 'BUY',
                 buyer_uuid TEXT NOT NULL,
                 point_id TEXT,
                 listing_id INTEGER,
                 amount INTEGER NOT NULL,
                 total INTEGER NOT NULL,
+                tax INTEGER NOT NULL DEFAULT 0,
+                seller_gets INTEGER NOT NULL DEFAULT 0,
                 state TEXT NOT NULL,
                 created_at INTEGER NOT NULL
             );
@@ -282,6 +285,11 @@ public class DatabaseManager {
             );
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_returns_player ON pending_returns(player_uuid)");
+        // pending_trades came without these columns in the first market build.
+        addColumnIfMissing(stmt, "pending_trades", "kind", "TEXT NOT NULL DEFAULT 'BUY'");
+        addColumnIfMissing(stmt, "pending_trades", "tax", "INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(stmt, "pending_trades", "seller_gets", "INTEGER NOT NULL DEFAULT 0");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_pending_state ON pending_trades(state, created_at)");
 
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS owner_notices (

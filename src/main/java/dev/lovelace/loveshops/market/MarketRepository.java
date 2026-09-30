@@ -107,6 +107,16 @@ public final class MarketRepository {
         return p;
     }
 
+    public TradePoint loadPoint(UUID claimId) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement("SELECT " + POINT_COLS + " FROM trade_points WHERE claim_id = ?")) {
+            ps.setString(1, claimId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapPoint(rs) : null;
+            }
+        }
+    }
+
     public void savePoint(TradePoint p) throws SQLException {
         try (Connection conn = connect()) {
             savePoint(conn, p);
@@ -237,6 +247,15 @@ public final class MarketRepository {
     public void updateListingStock(Connection conn, long id, int stock) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE stall_listings SET stock = ? WHERE id = ?")) {
             ps.setInt(1, stock);
+            ps.setLong(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Relative stock change (never below zero): safe against a concurrent absolute update. */
+    public void addListingStock(Connection conn, long id, int delta) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE stall_listings SET stock = MAX(0, stock + ?) WHERE id = ?")) {
+            ps.setInt(1, delta);
             ps.setLong(2, id);
             ps.executeUpdate();
         }
@@ -387,6 +406,221 @@ public final class MarketRepository {
                              + "ON CONFLICT(player_uuid) DO UPDATE SET level = excluded.level")) {
             ps.setString(1, player.toString());
             ps.setInt(2, Math.max(1, level));
+            ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ point counters
+
+    /** A point's live money state as the database holds it. */
+    public record PointState(UUID owner, boolean open, long till) {}
+
+    public PointState pointState(Connection conn, UUID pointId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT owner_uuid, is_open, till_coins FROM trade_points WHERE claim_id = ?")) {
+            ps.setString(1, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                String owner = rs.getString(1);
+                return new PointState(owner == null ? null : UUID.fromString(owner), rs.getInt(2) != 0, rs.getLong(3));
+            }
+        }
+    }
+
+    /**
+     * Adds to the till and the statistics atomically (a relative update, so the in-memory copy can
+     * never overwrite a concurrent change).
+     *
+     * @return {till, revenueTotal, salesTotal} after the change
+     */
+    public long[] addTill(Connection conn, UUID pointId, long tillDelta, long revenueDelta, long salesDelta) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE trade_points SET till_coins = MAX(0, till_coins + ?), revenue_total = revenue_total + ?, "
+                        + "sales_total = sales_total + ?, version = version + 1 WHERE claim_id = ? "
+                        + "RETURNING till_coins, revenue_total, sales_total")) {
+            ps.setLong(1, tillDelta);
+            ps.setLong(2, revenueDelta);
+            ps.setLong(3, salesDelta);
+            ps.setString(4, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? new long[]{rs.getLong(1), rs.getLong(2), rs.getLong(3)} : null;
+            }
+        }
+    }
+
+    public void setPointLevel(Connection conn, UUID pointId, int level, int sellSlots, int buySlots) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE trade_points SET level = ?, sell_slots = ?, buy_slots = ?, version = version + 1 WHERE claim_id = ?")) {
+            ps.setInt(1, level);
+            ps.setInt(2, sellSlots);
+            ps.setInt(3, buySlots);
+            ps.setString(4, pointId.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ pending trades (journal)
+
+    public record PendingTrade(long id, String kind, UUID player, UUID pointId, long listingId, int amount,
+                               long total, long tax, long sellerGets, String state, long createdAt) {}
+
+    public long insertPending(Connection conn, String kind, UUID player, UUID pointId, long listingId,
+                              int amount, long total, long tax, long sellerGets) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO pending_trades (kind, buyer_uuid, point_id, listing_id, amount, total, tax, seller_gets, state, created_at) "
+                        + "VALUES (?,?,?,?,?,?,?,?,'RESERVED',?)", Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, kind);
+            ps.setString(2, player.toString());
+            ps.setString(3, pointId.toString());
+            ps.setLong(4, listingId);
+            ps.setInt(5, amount);
+            ps.setLong(6, total);
+            ps.setLong(7, tax);
+            ps.setLong(8, sellerGets);
+            ps.setLong(9, System.currentTimeMillis());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getLong(1) : -1L;
+            }
+        }
+    }
+
+    public void setPendingState(Connection conn, long id, String state) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE pending_trades SET state = ? WHERE id = ?")) {
+            ps.setString(1, state);
+            ps.setLong(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Unfinished journal entries older than {@code olderThanMillis}: what a crash or a DB failure left behind. */
+    public List<PendingTrade> unfinishedPending(long olderThanMillis) throws SQLException {
+        List<PendingTrade> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, kind, buyer_uuid, point_id, listing_id, amount, total, tax, seller_gets, state, created_at "
+                             + "FROM pending_trades WHERE state IN ('RESERVED','CHARGED') AND created_at < ? ORDER BY id")) {
+            ps.setLong(1, System.currentTimeMillis() - olderThanMillis);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new PendingTrade(rs.getLong(1), rs.getString(2), UUID.fromString(rs.getString(3)),
+                            UUID.fromString(rs.getString(4)), rs.getLong(5), rs.getInt(6), rs.getLong(7),
+                            rs.getLong(8), rs.getLong(9), rs.getString(10), rs.getLong(11)));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Old finished journal rows are only history; keep the table from growing without bound. */
+    public int purgeFinishedPending(long olderThanMillis) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM pending_trades WHERE state NOT IN ('RESERVED','CHARGED') AND created_at < ?")) {
+            ps.setLong(1, System.currentTimeMillis() - olderThanMillis);
+            return ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ transactions log
+
+    public void insertTransaction(Connection conn, String kind, UUID pointId, UUID seller, UUID buyer,
+                                  String itemHash, int amount, long total, long tax) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO market_transactions (kind, point_id, seller_uuid, buyer_uuid, item_hash, amount, price, tax, created_at) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, kind);
+            ps.setString(2, pointId == null ? null : pointId.toString());
+            ps.setString(3, seller == null ? null : seller.toString());
+            ps.setString(4, buyer == null ? null : buyer.toString());
+            ps.setString(5, itemHash);
+            ps.setInt(6, amount);
+            ps.setLong(7, total);
+            ps.setLong(8, tax);
+            ps.setLong(9, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    /** Coins the player has moved with this stall (as buyer or as seller): the base for rating it. */
+    public long tradeVolume(UUID player, UUID pointId) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COALESCE(SUM(price), 0) FROM market_transactions "
+                             + "WHERE point_id = ? AND (buyer_uuid = ? OR seller_uuid = ?)")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, player.toString());
+            ps.setString(3, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        }
+    }
+
+    public void addTraderProgress(Connection conn, UUID player, long soldDelta, long boughtDelta) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO player_trader_progress (player_uuid, total_sold, total_bought) VALUES (?,?,?) "
+                        + "ON CONFLICT(player_uuid) DO UPDATE SET total_sold = total_sold + excluded.total_sold, "
+                        + "total_bought = total_bought + excluded.total_bought")) {
+            ps.setString(1, player.toString());
+            ps.setLong(2, soldDelta);
+            ps.setLong(3, boughtDelta);
+            ps.executeUpdate();
+        }
+    }
+
+    public void setTraderLevel(Connection conn, UUID player, int level) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO player_trader_progress (player_uuid, level) VALUES (?,?) "
+                        + "ON CONFLICT(player_uuid) DO UPDATE SET level = excluded.level")) {
+            ps.setString(1, player.toString());
+            ps.setInt(2, Math.max(1, level));
+            ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------ ratings
+
+    /** Weighted average stars and the number of visible ratings. */
+    public record RatingSummary(double average, int count) {}
+
+    public RatingSummary ratingSummary(UUID pointId) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COALESCE(SUM(stars * weight), 0), COALESCE(SUM(weight), 0), COUNT(*) "
+                             + "FROM stall_ratings WHERE point_id = ? AND hidden = 0")) {
+            ps.setString(1, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next() || rs.getInt(3) == 0 || rs.getDouble(2) <= 0) return new RatingSummary(0.0, 0);
+                return new RatingSummary(rs.getDouble(1) / rs.getDouble(2), rs.getInt(3));
+            }
+        }
+    }
+
+    /** @return the time of the rater's existing rating of this stall, or -1 */
+    public long ratingTime(Connection conn, UUID pointId, UUID rater) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT created_at FROM stall_ratings WHERE point_id = ? AND rater_uuid = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, rater.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : -1L;
+            }
+        }
+    }
+
+    public void upsertRating(Connection conn, UUID pointId, UUID rater, int stars, String comment,
+                             long tradeAmount, double weight) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO stall_ratings (point_id, rater_uuid, stars, comment, trade_amount, weight, hidden, created_at) "
+                        + "VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(point_id, rater_uuid) DO UPDATE SET stars = excluded.stars, "
+                        + "comment = excluded.comment, trade_amount = excluded.trade_amount, weight = excluded.weight, "
+                        + "created_at = excluded.created_at")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, rater.toString());
+            ps.setInt(3, stars);
+            ps.setString(4, comment);
+            ps.setLong(5, tradeAmount);
+            ps.setDouble(6, weight);
+            ps.setLong(7, System.currentTimeMillis());
             ps.executeUpdate();
         }
     }

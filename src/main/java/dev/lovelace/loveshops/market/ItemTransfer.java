@@ -52,4 +52,32 @@ public final class ItemTransfer {
         }
         return 0;
     }
+
+    /** How many items like {@code template} the player carries in main storage (hotbar + 27, not armor/off-hand). */
+    public static int count(Player player, ItemStack template) {
+        long total = 0;
+        for (ItemStack stack : player.getInventory().getStorageContents()) {
+            if (stack != null && stack.isSimilar(template)) total += stack.getAmount();
+        }
+        return (int) Math.min(Integer.MAX_VALUE, total);
+    }
+
+    /** Removes up to {@code amount} matching items from main storage. @return how many were really removed */
+    public static int remove(Player player, ItemStack template, int amount) {
+        int left = amount;
+        PlayerInventory inv = player.getInventory();
+        for (int slot = 0; slot < 36 && left > 0; slot++) {
+            ItemStack stack = inv.getItem(slot);
+            if (stack == null || !stack.isSimilar(template)) continue;
+            int take = Math.min(left, stack.getAmount());
+            if (take >= stack.getAmount()) {
+                inv.setItem(slot, null);
+            } else {
+                stack.setAmount(stack.getAmount() - take);
+                inv.setItem(slot, stack);
+            }
+            left -= take;
+        }
+        return amount - left;
+    }
 }
