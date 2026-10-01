@@ -13,71 +13,6 @@ npc:
   # NPC, только помечает/снимает метку с уже существующего.
   bind-distance: 6.0
 
-# ===== СКУПЩИК =====
-buyer:
-  enabled: true
-  base-price-config:
-    type: "config"                            # 'config' или 'nbt'
-    default-price: 1                          # цена по умолчанию для неописанных предметов (мусорные блоки и т.п.)
-  
-  price-variance:
-    min-percent: -40                          # минимальная вариативность (-40%)
-    max-percent: 10                           # максимальная вариативность (+10%)
-    duration-minutes: 60                      # время фиксации разброса цен (в минутах), по умолчанию 60 мин
-  
-  repetition-penalty:
-    enabled: true
-    penalty-per-submit: 10                    # штраф % за каждую сдачу одинакового предмета
-    max-penalty: 70                           # максимум штрафа (%)
-  
-  reputation-bonus:
-    good-status: 20                           # + % к цене
-    bad-status: -50                           # отказ в покупке
-    aggressive-status: -30                    # отказ или сниженная цена
-  
-  messages:
-    reject-bad-reputation:
-      - "Скупщик: Про тебя ходят плохие слухи... Катись своей дорогой!"
-      - "Скупщик: Мне не нравится твоё имя в городе. Уходи."
-      - "Скупщик: С тобой лучше не иметь дел."
-    reject-aggressive:
-      - "Скупщик: Дружок, я не хочу проблем, иди своей дорогой."
-      - "Скупщик: Твой агрессивный тон мне не нравится. Ступай!"
-      - "Скупщик: Спокойнее! Или попросить у меня нечего."
-    accept: "&aСкупщик: Отличный товар! Вот тебе &b{currency_icon}{price} &aмонет!"
-    accept-with-bonus: "&aСкупщик: У тебя хорошая репутация! Вот ещё &b{bonus} &aмонет сверху."
-
-# ===== ТОРГОВЕЦ-БАРАХОЛКА =====
-seller:
-  enabled: true
-  arrival-day: "SUNDAY"                       # день недели
-  arrival-time: "10:00"                       # формат HH:MM (по серверному времени)
-  departure-time: "18:00"
-  # Минимум непроданных предметов в channel='seller', при котором барахолка реально открывается
-  # (торговец приезжает, спавнится NPC). Раньше это значение читалось конфигом, но нигде не
-  # применялось в коде — торговец приезжал по расписанию даже с пустым списком товаров.
-  # Подключено 2026-09-23: SellerManager.handleArrival() теперь считает доступные строки
-  # ПОСЛЕ createAuctionsFromPendingItems() и не показывает событие, если товаров меньше этого
-  # порога. На форс-старт админом (/loveshopsadmin seller start) порог не действует.
-  min-items-to-spawn: 10
-  
-  markup-percent: 15                          # базовая наценка на предметы от скупщика (%)
-
-  dynamic-pricing:
-    enabled: true
-    demand-weight-percent: 3                  # + % к цене за каждую покупку предмета этого типа в текущем цикле
-    supply-weight-percent: 2                  # - % к цене за каждую единицу этого типа сейчас в наличии
-    noise-min-percent: -10                    # случайный шум цикла (мин)
-    noise-max-percent: 10                     # случайный шум цикла (макс)
-    min-multiplier: 0.3                       # минимальный итоговый множитель цены
-    trend-threshold-percent: 5                # на сколько цена должна уйти от спокойной, чтобы в меню показать тренд
-
-  messages:
-    arrival:
-      - "&e[Барахолка] &fТорговец приехал! &6Сейчас с 10:00 до 18:00."
-      - "&e[Барахолка] &fВот это новый товар! Приходите покупать!"
-    departure:
-      - "&e[Барахолка] &fТорговец уезжает! Встретимся в следующее воскресенье."
 
 # ===== АУКЦИОН (РЕДКИЕ ПРЕДМЕТЫ) =====
 auctioneer:
@@ -822,10 +757,17 @@ market:
 
   npc:
     # Имя над торговцем; {owner} — ник арендатора. Цвета через &.
-    name-format: "&6Торговец &f{owner}"
+    name-format: "&6Торговая точка\n&f{owner}"
+    status:
+      closed: "&c[ЗАКРЫТО]"
+      robbed: "&4[ОГРАБЛЕНО]"
+      active: ""
     look-close: true
     guard-name: "&9Стража"
     guard-skin: ""
+
+  particles:
+    enabled: true
 
   # Кого рынок обслуживает — по шкалам LoveBehavior (вежливость 0..6: 0 ужасно; стиль 0..6: 0 агрессивный).
   gates:
@@ -900,40 +842,6 @@ market:
     y: 64
     z: 0
 
-  flea:
-    # Барахольщик — постоянный NPC (тип seller): игроки продают друг другу без аренды, серверные товары — вкладка.
-    max-listings-per-player: 10
-    # true — вернуть старое поведение: Барахольщик виден только в воскресное окно (seller.arrival-day/time).
-    schedule-enabled: false
-
-  daily-buyer:
-    # Скупщик дня: раз в сутки на несколько часов обычный Скупщик доплачивает за товары двух случайных
-    # категорий — стимул строить фермы под то, что нужно сегодня. Работает и без Citizens/LoveClaims.
-    enabled: true
-    # Окно открывается в 18:00 серверного времени и идёт 6 часов — вечерний онлайн.
-    start-hour: 18
-    duration-hours: 6
-    categories-per-day: 2
-    # +15% к цене скупки: «чуть выше рыночной», заметно, но не ломает экономику скупщика.
-    bonus-percent: 15
-    # Сколько предметов игрок может продать по повышенной цене за день, иначе бонус — бесконечный источник денег.
-    limit-per-player: 256
-    categories:
-      ORES:
-        title: "Руды и слитки"
-        materials: [COAL, RAW_IRON, RAW_COPPER, RAW_GOLD, IRON_INGOT, COPPER_INGOT, GOLD_INGOT, LAPIS_LAZULI, REDSTONE, DIAMOND, EMERALD]
-      FOOD:
-        title: "Еда"
-        materials: [BREAD, BAKED_POTATO, COOKED_BEEF, COOKED_PORKCHOP, COOKED_CHICKEN, COOKED_MUTTON, COOKED_COD, COOKED_SALMON, PUMPKIN_PIE, GOLDEN_CARROT]
-      MOB_DROPS:
-        title: "Добыча с мобов"
-        materials: [BONE, STRING, SPIDER_EYE, GUNPOWDER, ROTTEN_FLESH, ENDER_PEARL, BLAZE_ROD, SLIME_BALL, LEATHER, FEATHER]
-      FARM:
-        title: "Урожай"
-        materials: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, PUMPKIN, MELON_SLICE, SWEET_BERRIES, COCOA_BEANS, NETHER_WART]
-      WOOD:
-        title: "Дерево"
-        materials: [OAK_LOG, SPRUCE_LOG, BIRCH_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG, CHERRY_LOG, MANGROVE_LOG]
 
   prompt:
     # Столько секунд даётся на ввод цены в чат: дольше — игрок забыл, промпт не должен висеть вечно.

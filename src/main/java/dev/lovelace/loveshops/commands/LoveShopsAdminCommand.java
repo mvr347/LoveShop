@@ -34,17 +34,15 @@ import java.util.UUID;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "status", "item", "price", "event", "banker", "auction", "flea", "point", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "item", "price", "event", "banker", "auction", "point", "help");
     private static final List<String> PRICE_TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer", "all");
     // Extra spellings PricesManager#setNpcPrice already understands.
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war", "rare", "auction");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
     private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "list");
-    private static final List<String> NPC_TYPES = List.of("buyer", "seller", "auctioneer", "warmerchant", "wanderer", "banker");
-    private static final List<String> BUYER_STATUSES = List.of("default", "good", "bad", "aggressive");
+    private static final List<String> NPC_TYPES = List.of("auctioneer", "warmerchant", "wanderer", "banker");
     private static final List<String> ITEM_ACTIONS = List.of("allow", "deny", "rarity", "price");
-    private static final List<String> EVENT_TYPES = List.of("flea", "wanderer");
-    private static final List<String> FLEA_ACTIONS = List.of("start", "stop", "reset");
+    private static final List<String> EVENT_TYPES = List.of("wanderer");
     private static final List<String> WANDERER_ACTIONS = List.of("start", "stop", "reset", "status");
     private static final List<String> RARITY_TIERS = List.of("common", "uncommon", "rare", "epic");
 
@@ -77,13 +75,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         switch (AdminParse.canonical(args[0])) {
             case "reload" -> handleReload(sender);
             case "npc" -> handleNpc(sender, args);
-            case "status" -> handleStatus(sender, args);
             case "item" -> handleItem(sender, args);
             case "price" -> handlePriceCommand(sender, args);
             case "event" -> handleEvent(sender, args);
             case "banker" -> handleBanker(sender, args);
             case "auction" -> market.handleAuction(sender, args);
-            case "flea" -> market.handleFlea(sender, args);
             case "point" -> market.handlePoint(sender, args);
             default -> sendHelp(sender);
         }
@@ -95,14 +91,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                 || sender.hasPermission("loveshops.admin.reload")
                 || sender.hasPermission("loveshops.admin.create")
                 || sender.hasPermission("loveshops.admin.delete")
-                || sender.hasPermission("loveshops.admin.status")
-                || sender.hasPermission("loveshops.admin.seller")
                 || sender.hasPermission("loveshops.admin.wanderer")
                 || sender.hasPermission("loveshops.admin.price")
                 || sender.hasPermission("loveshops.admin.rarity")
                 || sender.hasPermission("loveshops.admin.forbidden")
                 || sender.hasPermission("loveshops.admin.auction")
-                || sender.hasPermission("loveshops.admin.flea")
                 || sender.hasPermission("loveshops.admin.market");
     }
 
@@ -143,7 +136,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc create <buyer|seller|auctioneer|warmerchant|wanderer|banker> [имя]</yellow>"));
+            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc create <auctioneer|warmerchant|wanderer|banker> [имя]</yellow>"));
             return;
         }
         String type = args[2].toLowerCase(Locale.ROOT);
@@ -184,7 +177,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc bind <buyer|seller|auctioneer|warmerchant|wanderer|banker> [имя]</yellow>"));
+            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc bind <auctioneer|warmerchant|wanderer|banker> [имя]</yellow>"));
             return;
         }
         String type = args[2].toLowerCase(Locale.ROOT);
@@ -222,8 +215,6 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private String defaultNpcName(String type) {
         return switch (type.toLowerCase(Locale.ROOT)) {
-            case "buyer" -> "Скупщик";
-            case "seller" -> "Барахольщик";
             case "auctioneer" -> "Аукционист";
             case "banker" -> "Банкир";
             case "wanderer" -> "Странник";
@@ -310,32 +301,8 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MessageUtils.parse("<yellow># " + npc.id() + "</yellow> | <green>" + npc.type() + "</green> | <white>" + npc.name() + "</white> | <gray>" + locStr + "</gray>" + bindStr));
         }
     }
-
-    private void handleStatus(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("loveshops.admin.status") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-            return;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin status <игрок> <default|good|bad|aggressive> [сообщение]</yellow>"));
-            return;
-        }
-        String targetName = args[1];
-        String status = args[2].toLowerCase(Locale.ROOT);
-        if (!BUYER_STATUSES.contains(status)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.invalid-status", "<red>Неверный статус!</red>"));
-            return;
-        }
-        String customMsg = args.length >= 4 ? String.join(" ", List.of(args).subList(3, args.length)) : null;
-
-        OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(targetName);
-        plugin.getBuyerManager().setPlayerStatus(targetPlayer.getUniqueId(), status, sender.getName(), customMsg).thenRun(() ->
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.buyer-status-set", "<green>Статус установлен!</green>",
-                java.util.Map.of("player", targetName, "status", status))));
-    }
-
     private void handleBanker(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("loveshops.admin") && !sender.hasPermission("loveshops.admin.status")) {
+        if (!sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
@@ -595,39 +562,12 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleEvent(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <flea|wanderer> ...</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event wanderer ...</yellow>"));
             return;
         }
         switch (args[1].toLowerCase(Locale.ROOT)) {
-            case "flea" -> handleEventFlea(sender, args);
             case "wanderer" -> handleEventWanderer(sender, args);
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <flea|wanderer> ...</yellow>"));
-        }
-    }
-
-    private void handleEventFlea(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("loveshops.admin.seller") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
-            return;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event flea <start|stop|reset></yellow>"));
-            return;
-        }
-        switch (args[2].toLowerCase(Locale.ROOT)) {
-            case "start" -> {
-                plugin.getSellerManager().forceStartSeller();
-                sender.sendMessage(MessageUtils.parse("<green>Событие \"Барахолка\" запущенно принудительно!</green>"));
-            }
-            case "stop" -> {
-                plugin.getSellerManager().forceStopSeller();
-                sender.sendMessage(MessageUtils.parse("<red>Событие \"Барахолка\" остановлено принудительно!</red>"));
-            }
-            case "reset" -> {
-                plugin.getSellerManager().resetSellerOverride();
-                sender.sendMessage(MessageUtils.parse("<yellow>Принудительный режим сброшен. Используется автоматическое расписание.</yellow>"));
-            }
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event flea <start|stop|reset></yellow>"));
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event wanderer ...</yellow>"));
         }
     }
 
@@ -668,18 +608,13 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-header", "<dark_gray>========== <gold>LoveShops Admin</gold> ==========</dark_gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-reload", "<gold>/loveshopsadmin reload</gold> <gray>- Перезагрузить конфигурацию</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|bind|delete|list></gold> <gray>- Управление NPC (create создаёт на вашей позиции, bind привязывает)</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-status", "<gold>/loveshopsadmin status <игрок> <статус> [сообщение]</gold> <gray>- Статус игрока у скупщика</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-item", "<gold>/loveshopsadmin item <allow|deny|rarity|price></gold> <gray>- Правила по предмету в руке</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <торговец|all> <цена> [материал/id]</gold> <gray>- Настройка цены конкретному торговцу или всем</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-flea", "<gold>/loveshopsadmin event flea <start|stop|reset></gold> <gray>- Управление барахолкой</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-wanderer", "<gold>/loveshopsadmin event wanderer <start|stop|reset|status></gold> <gray>- Управление Странником</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin banker fee <игрок> [0-100|reset]</gold> <gray>- Комиссия банкира игроку</gray>"));
         sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <get|list|reset|mult|bounds|history> ...</gold> <gray>- Просмотр, сброс, множитель, границы и журнал цен</gray>"));
         if (sender.hasPermission("loveshops.admin.auction") || sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin auction <list|create|price|buyout|extend|end|cancel|step> ...</gold> <gray>- Модерация аукциона</gray>"));
-        }
-        if (sender.hasPermission("loveshops.admin.flea") || sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin flea <list|remove|price|limit|ban|unban> ...</gold> <gray>- Модерация лотов Барахольщика</gray>"));
         }
         if (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin point <list|close|open|seize|restore|robberies> ...</gold> <gray>- Торговые точки и ограбления</gray>"));
@@ -700,9 +635,6 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         if (first.equals("auction") && (sender.hasPermission("loveshops.admin.auction") || sender.hasPermission("loveshops.admin"))) {
             return market.tabAuction(args);
         }
-        if (first.equals("flea") && (sender.hasPermission("loveshops.admin.flea") || sender.hasPermission("loveshops.admin"))) {
-            return market.tabFlea(args);
-        }
         if (first.equals("point") && (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin"))) {
             return market.tabPoint(args);
         }
@@ -715,13 +647,6 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("npc") && (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("bind"))) {
             return StringUtil.copyPartialMatches(args[2], NPC_TYPES, new ArrayList<>());
-        }
-        if (args.length == 2 && args[0].equalsIgnoreCase("status")) {
-            List<String> names = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-            return StringUtil.copyPartialMatches(args[1], names, new ArrayList<>());
-        }
-        if (args.length == 3 && args[0].equalsIgnoreCase("status")) {
-            return StringUtil.copyPartialMatches(args[2], BUYER_STATUSES, new ArrayList<>());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("item")) {
             return StringUtil.copyPartialMatches(args[1], ITEM_ACTIONS, new ArrayList<>());
@@ -746,9 +671,6 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("event")) {
             return StringUtil.copyPartialMatches(args[1], EVENT_TYPES, new ArrayList<>());
-        }
-        if (args.length == 3 && args[0].equalsIgnoreCase("event") && args[1].equalsIgnoreCase("flea")) {
-            return StringUtil.copyPartialMatches(args[2], FLEA_ACTIONS, new ArrayList<>());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("event") && args[1].equalsIgnoreCase("wanderer")) {
             return StringUtil.copyPartialMatches(args[2], WANDERER_ACTIONS, new ArrayList<>());

@@ -2,8 +2,6 @@ package dev.lovelace.loveshops.listeners;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
-import dev.lovelace.loveshops.gui.BuyerGui;
-import dev.lovelace.loveshops.gui.SellerGui;
 import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
@@ -67,11 +65,6 @@ public class CitizensListener implements Listener {
 
         if (npcData != null) {
             Player player = event.getClicker();
-            if (npcData.type().equalsIgnoreCase("seller") && !plugin.isFleaPermanent() && !plugin.getSellerManager().isSellerActive()) {
-                MessageUtils.sendMessage(player, "<red>Торговец-барахолка открыт только по воскресеньям с 10:00 до 18:00!</red>");
-                return;
-            }
-
             if (npcData.type().equalsIgnoreCase("wanderer")) {
                 plugin.getWandererManager().handleWandererInteraction(player);
                 return;
@@ -98,13 +91,6 @@ public class CitizensListener implements Listener {
             }
 
             switch (npcData.type().toLowerCase()) {
-                case "buyer" -> new BuyerGui(plugin, player).open();
-                case "seller" -> {
-                    // With the player market running the flea trader is open around the clock and is the
-                    // players' own market; the server's weekly goods are one tab inside it.
-                    if (plugin.isFleaPermanent()) plugin.getTradePointManager().openFlea(player);
-                    else new SellerGui(plugin, player).open();
-                }
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "banker" -> {
                     dialogue.sayBankerGreeting(player);

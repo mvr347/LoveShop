@@ -12,6 +12,7 @@ import dev.lovelace.loveshops.market.model.TradePoint;
 import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
@@ -154,6 +155,10 @@ public final class TradePointManager {
 
     public Optional<TradePoint> byClaim(UUID claimId) {
         return Optional.ofNullable(points.get(claimId));
+    }
+
+    public TradePoint getPoint(UUID claimId) {
+        return points.get(claimId);
     }
 
     public Optional<TradePoint> byOwner(UUID owner) {
@@ -370,6 +375,8 @@ public final class TradePointManager {
         p.closeReason(reason);
         save(p);
         refreshViewers(p.claimId());
+        updateNpc(p);
+        spawnCloseParticles(p);
     }
 
     public void setOpen(TradePoint p) {
@@ -377,6 +384,43 @@ public final class TradePointManager {
         p.closeReason(null);
         save(p);
         refreshViewers(p.claimId());
+        updateNpc(p);
+    }
+
+    public void updateNpc(TradePoint p) {
+        if (p == null) return;
+        npcs.updateStallNpc(p);
+    }
+
+    public void spawnCloseParticles(TradePoint p) {
+        if (p == null || !plugin.getMarketConfig().particlesEnabled()) return;
+        Location loc = getNpcOrPointLocation(p);
+        if (loc != null && loc.getWorld() != null) {
+            loc.getWorld().spawnParticle(Particle.SMOKE, loc.clone().add(0, 1.0, 0), 20, 0.3, 0.5, 0.3, 0.05);
+        }
+    }
+
+    public void spawnRobbedParticles(TradePoint p) {
+        if (p == null || !plugin.getMarketConfig().particlesEnabled()) return;
+        Location loc = getNpcOrPointLocation(p);
+        if (loc != null && loc.getWorld() != null) {
+            loc.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, loc.clone().add(0, 1.8, 0), 10, 0.3, 0.3, 0.3, 0.0);
+        }
+    }
+
+    public Location getNpcOrPointLocation(TradePoint p) {
+        if (p == null) return null;
+        if (p.npcCitizensId() != null) {
+            try {
+                if (net.citizensnpcs.api.CitizensAPI.hasImplementation()) {
+                    NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(p.npcCitizensId());
+                    if (npc != null && npc.isSpawned() && npc.getEntity() != null) {
+                        return npc.getEntity().getLocation();
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        return claims.point(p.claimId()).map(ClaimsLink.PointInfo::location).orElse(null);
     }
 
     // ------------------------------------------------------------------ moderation (administrators)
@@ -435,6 +479,8 @@ public final class TradePointManager {
             p.closeReason(CloseReason.ADMIN);
             refreshCounters(p.claimId());
             refreshViewers(p.claimId());
+            updateNpc(p);
+            spawnCloseParticles(p);
             Player ownerOnline = Bukkit.getPlayer(owner);
             if (ownerOnline != null) deliverNotices(ownerOnline);
             return result;
@@ -860,28 +906,7 @@ public final class TradePointManager {
         viewers.remove(player.getUniqueId(), gui);
     }
 
-    /** Re-draws every open flea menu (a lot was added, sold or taken down). */
-    public void refreshFleaViewers() {
-        for (MarketGui gui : new ArrayList<>(viewers.values())) {
-            if (gui instanceof dev.lovelace.loveshops.market.gui.FleaMarketGui) gui.render();
-        }
-    }
 
-    /** The flea trader was clicked: outcasts are turned away, aggressors mostly, everyone else gets the menu. */
-    public void openFlea(Player player) {
-        if (plugin.getMarketConfig().gatesEnabled()) {
-            PlayerClass cls = gate.classify(player.getUniqueId());
-            if (cls == PlayerClass.OUTCAST) {
-                plugin.getMarketMessages().send(player, "flea-outcast-refused");
-                return;
-            }
-            if (cls == PlayerClass.AGGRESSOR && gate.aggressorRefused()) {
-                plugin.getMarketMessages().send(player, "flea-aggressor-refused");
-                return;
-            }
-        }
-        new dev.lovelace.loveshops.market.gui.FleaMarketGui(plugin, player).open();
-    }
 
     public void refreshViewers(UUID pointId) {
         for (MarketGui gui : new ArrayList<>(viewers.values())) {

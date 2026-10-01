@@ -237,6 +237,8 @@ public final class RobberyService {
         p.tillCoins(Math.max(0, p.tillCoins() - loot.coins()));
         manager.refreshCounters(p.claimId());
         manager.refreshViewers(p.claimId());
+        manager.updateNpc(p);
+        manager.spawnRobbedParticles(p);
 
         // The loot goes to the robber; what does not fit falls at their feet - it is loot, not a delivery.
         if (loot.coins() > 0 && eco != null) {

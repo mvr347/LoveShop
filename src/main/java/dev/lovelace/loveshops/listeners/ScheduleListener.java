@@ -21,12 +21,6 @@ public class ScheduleListener implements Listener {
         Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> {
             // Check completed auctions every 60 seconds
             plugin.getAuctionManager().checkAndCompleteAuctions();
-            plugin.getSellerManager().checkSellerStatus();
-            // Auctioneer visibility follows real active-lot count, not just the schedule window
-            // (see SellerManager#checkAuctioneerVisibility) - a lot completed by the call above
-            // may take up to one more 30s sweep to hide the NPC, since completeAuction() commits
-            // asynchronously.
-            plugin.getSellerManager().checkAuctioneerVisibility();
             plugin.getWandererManager().checkWandererStatus();
             // Retry delivery for auction winners who were offline (or briefly short on
             // funds) when their auction resolved — otherwise those lots would be stuck

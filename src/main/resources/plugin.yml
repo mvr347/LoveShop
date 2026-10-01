@@ -2,7 +2,7 @@ name: LoveShops
 version: 1.0.0
 main: dev.lovelace.loveshops.LoveShops
 api-version: '26.2'
-description: Advanced trading system with NPC merchants (Buyer, Seller, Auctioneer)
+description: Advanced trading system with NPC merchants and player trade points
 author: Lovelace
 
 softdepend:
@@ -17,10 +17,10 @@ softdepend:
 commands:
   loveshops:
     description: LoveShops main administration and trading command
-    aliases: [shops, шоп, loveshop, lshops, lshop, buyer, seller, auction, auctioneer, wanderer]
+    aliases: [shops, шоп, loveshop, lshops, lshop, auction, auctioneer, wanderer]
     usage: /loveshops <subcommand>
   loveshopsadmin:
-    description: Административные команды LoveShops (npc, status, item, event)
+    description: Административные команды LoveShops (npc, item, event, point, banker, auction)
     aliases: [lspa, lssa]
     usage: /loveshopsadmin <subcommand>
 
@@ -33,12 +33,6 @@ permissions:
     default: op
   loveshops.admin.delete:
     description: Delete NPC merchant
-    default: op
-  loveshops.admin.status:
-    description: 'Set player buyer status override (/loveshopsadmin status)'
-    default: op
-  loveshops.admin.seller:
-    description: 'Force-control the flea market event schedule (/loveshopsadmin event flea)'
     default: op
   loveshops.admin.wanderer:
     description: 'Manage Wanderer merchant (/loveshopsadmin event wanderer)'
@@ -60,9 +54,6 @@ permissions:
     default: op
   loveshops.admin.auction:
     description: Moderate auction lots (/loveshopsadmin auction)
-    default: op
-  loveshops.admin.flea:
-    description: Moderate flea trader lots, limits and bans (/loveshopsadmin flea)
     default: op
   loveshops.admin.market:
     description: Close, open, seize trade points and restore robberies (/loveshopsadmin point)

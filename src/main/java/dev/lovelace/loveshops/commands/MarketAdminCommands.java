@@ -41,7 +41,6 @@ public final class MarketAdminCommands {
 
     public static final List<String> PRICE_SUBS = List.of("get", "list", "reset", "mult", "bounds", "history");
     private static final List<String> AUCTION_SUBS = List.of("list", "create", "price", "buyout", "extend", "end", "cancel", "step");
-    private static final List<String> FLEA_SUBS = List.of("list", "remove", "price", "limit", "ban", "unban");
     private static final List<String> POINT_SUBS = List.of("list", "close", "open", "seize", "restore", "robberies");
 
     private final LoveShops plugin;
@@ -575,148 +574,6 @@ public final class MarketAdminCommands {
         }
     }
 
-    // ------------------------------------------------------------------ flea
-
-    public void handleFlea(CommandSender sender, String[] args) {
-        if (!allowed(sender, "loveshops.admin.flea")) return;
-        var flea = plugin.getFleaService();
-        if (flea == null) { msg(sender, "admin-market-off"); return; }
-        String sub = args.length > 1 ? AdminParse.canonical(args[1]) : "";
-        switch (sub) {
-            case "list" -> fleaList(sender, args);
-            case "remove" -> fleaRemove(sender, args);
-            case "price" -> fleaPrice(sender, args);
-            case "limit" -> fleaLimit(sender, args);
-            case "ban" -> fleaBan(sender, args);
-            case "unban" -> fleaUnban(sender, args);
-            default -> msg(sender, "admin-flea-usage");
-        }
-    }
-
-    private OfflinePlayer playerOrError(CommandSender sender, String name) {
-        OfflinePlayer p = findPlayer(name);
-        if (p == null) msg(sender, "admin-player-unknown", "player", esc(name));
-        return p;
-    }
-
-    private void fleaList(CommandSender sender, String[] args) {
-        UUID seller = null;
-        int pageIndex = 2;
-        if (args.length > 2 && AdminParse.amount(args[2], 100_000) == null) {
-            OfflinePlayer p = playerOrError(sender, args[2]);
-            if (p == null) return;
-            seller = p.getUniqueId();
-            pageIndex = 3;
-        }
-        int page = pageArg(args, pageIndex);
-        final UUID filter = seller;
-        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-            try {
-                int total = repo.fleaAdminCount(filter);
-                List<MarketRepository.FleaListing> rows = repo.fleaAdminPage(filter, (page - 1) * PAGE, PAGE);
-                sync(() -> {
-                    printPage(sender, "admin-flea-list-header", total, page);
-                    for (var f : rows) {
-                        msg(sender, "admin-flea-list-line", "id", String.valueOf(f.id()), "seller", esc(nameOf(f.seller())),
-                                "item", f.template().getType().name(), "price", String.valueOf(f.unitPrice()),
-                                "left", String.valueOf(f.amountLeft()));
-                    }
-                });
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Лоты барахолки не прочитаны: " + e.getMessage());
-                sync(() -> msg(sender, "admin-db-error"));
-            }
-        });
-    }
-
-    private Long fleaId(CommandSender sender, String raw) {
-        Long id = AdminParse.amount(raw, Long.MAX_VALUE);
-        if (id == null) msg(sender, "admin-bad-id");
-        return id;
-    }
-
-    private void fleaRemove(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-flea-remove-usage"); return; }
-        Long id = fleaId(sender, args[2]);
-        if (id == null) return;
-        String reason = joinFrom(args, 3);
-        int n = plugin.getFleaService().adminRemove(id, esc(reason));
-        if (n < 0) { msg(sender, "admin-flea-not-found", "id", String.valueOf(id)); return; }
-        audit(sender, "flea", "lot#" + id, null, "removed" + (reason.isEmpty() ? "" : ": " + reason), "flea");
-        msg(sender, "admin-flea-removed", "id", String.valueOf(id), "count", String.valueOf(n));
-    }
-
-    private void fleaPrice(CommandSender sender, String[] args) {
-        if (args.length < 4) { msg(sender, "admin-flea-price-usage"); return; }
-        Long id = fleaId(sender, args[2]);
-        if (id == null) return;
-        long cap = plugin.getMarketConfig().priceMax();
-        Long price = AdminParse.amount(args[3], cap);
-        if (price == null) { msg(sender, "admin-price-range", "max", String.valueOf(cap)); return; }
-        long old = plugin.getFleaService().adminSetPrice(id, price);
-        if (old < 0) { msg(sender, "admin-flea-not-found", "id", String.valueOf(id)); return; }
-        audit(sender, "flea", "lot#" + id, String.valueOf(old), String.valueOf(price), "flea");
-        msg(sender, "admin-flea-price", "id", String.valueOf(id), "old", String.valueOf(old), "new", String.valueOf(price));
-    }
-
-    private void fleaLimit(CommandSender sender, String[] args) {
-        if (args.length < 4) { msg(sender, "admin-flea-limit-usage"); return; }
-        OfflinePlayer p = playerOrError(sender, args[2]);
-        if (p == null) return;
-        var flea = plugin.getFleaService();
-        String old = String.valueOf(flea.maxListingsFor(p.getUniqueId()));
-        if (args[3].equalsIgnoreCase("reset") || args[3].equalsIgnoreCase("сброс")) {
-            if (!flea.setLimit(p.getUniqueId(), 0)) { msg(sender, "admin-db-error"); return; }
-            audit(sender, "flea", "limit:" + esc(nameOf(p.getUniqueId())), old, "default", "flea");
-            msg(sender, "admin-flea-limit-reset", "player", esc(nameOf(p.getUniqueId())),
-                    "max", String.valueOf(plugin.getMarketConfig().fleaMaxListings()));
-            return;
-        }
-        Long n = AdminParse.amount(args[3], 1000);
-        if (n == null) { msg(sender, "admin-flea-limit-usage"); return; }
-        if (!flea.setLimit(p.getUniqueId(), n.intValue())) { msg(sender, "admin-db-error"); return; }
-        audit(sender, "flea", "limit:" + nameOf(p.getUniqueId()), old, String.valueOf(n), "flea");
-        msg(sender, "admin-flea-limit", "player", esc(nameOf(p.getUniqueId())), "max", String.valueOf(n));
-    }
-
-    private void fleaBan(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-flea-ban-usage"); return; }
-        OfflinePlayer p = playerOrError(sender, args[2]);
-        if (p == null) return;
-        long until = Long.MAX_VALUE;
-        int reasonFrom = 3;
-        if (args.length > 3) {
-            Long minutes = AdminParse.amount(args[3], 5L * 365 * 24 * 60);
-            if (minutes != null) {
-                until = System.currentTimeMillis() + minutes * 60_000L;
-                reasonFrom = 4;
-            }
-        }
-        String reason = joinFrom(args, reasonFrom);
-        if (!plugin.getFleaService().ban(p.getUniqueId(), until, reason, sender.getName())) { msg(sender, "admin-db-error"); return; }
-        String name = esc(nameOf(p.getUniqueId()));
-        audit(sender, "flea", "ban:" + nameOf(p.getUniqueId()), null,
-                (until == Long.MAX_VALUE ? "permanent" : AdminParse.duration((until - System.currentTimeMillis()) / 1000))
-                        + (reason.isEmpty() ? "" : ": " + reason), "flea");
-        msg(sender, until == Long.MAX_VALUE ? "admin-flea-banned-forever" : "admin-flea-banned", "player", name,
-                "time", AdminParse.duration((until - System.currentTimeMillis()) / 1000));
-        Player online = p.getPlayer();
-        if (online != null) {
-            msg(online, "flea-banned");
-        }
-    }
-
-    private void fleaUnban(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-flea-unban-usage"); return; }
-        OfflinePlayer p = playerOrError(sender, args[2]);
-        if (p == null) return;
-        int r = plugin.getFleaService().unban(p.getUniqueId());
-        if (r < 0) { msg(sender, "admin-db-error"); return; }
-        if (r == 0) { msg(sender, "admin-flea-not-banned", "player", esc(nameOf(p.getUniqueId()))); return; }
-        audit(sender, "flea", "ban:" + nameOf(p.getUniqueId()), "banned", null, "flea");
-        msg(sender, "admin-flea-unbanned", "player", esc(nameOf(p.getUniqueId())));
-    }
-
     // ------------------------------------------------------------------ trade points
 
     public void handlePoint(CommandSender sender, String[] args) {
@@ -901,24 +758,6 @@ public final class MarketAdminCommands {
         if (args.length == 4 && sub.equals("buyout")) return match(args[3], List.of("off"));
         if (args.length == 4 && sub.equals("extend")) return match(args[3], List.of("1", "6", "12", "24"));
         if (args.length == 4 && sub.equals("create")) return match(args[3], List.of("off"));
-        return List.of();
-    }
-
-    public List<String> tabFlea(String[] args) {
-        if (args.length == 2) return match(args[1], FLEA_SUBS);
-        String sub = AdminParse.canonical(args[1]);
-        if (args.length == 3) {
-            if (List.of("list", "limit", "ban", "unban").contains(sub)) return match(args[2], onlineNames());
-            if (List.of("remove", "price").contains(sub) && plugin.getFleaService() != null) {
-                try {
-                    return match(args[2], repo.fleaAdminPage(null, 0, 25).stream().map(f -> String.valueOf(f.id())).toList());
-                } catch (SQLException e) {
-                    return List.of();
-                }
-            }
-        }
-        if (args.length == 4 && sub.equals("limit")) return match(args[3], List.of("5", "10", "20", "reset"));
-        if (args.length == 4 && sub.equals("ban")) return match(args[3], List.of("60", "1440", "10080"));
         return List.of();
     }
 

@@ -2,8 +2,6 @@ package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
-import dev.lovelace.loveshops.gui.BuyerGui;
-import dev.lovelace.loveshops.gui.SellerGui;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -37,8 +35,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
         String cmdLabel = label.toLowerCase();
 
-        // Direct alias handling (/buyer, /seller, /auction, /auctioneer, /wanderer)
-        if (cmdLabel.equals("buyer") || cmdLabel.equals("seller") || cmdLabel.equals("auction") || cmdLabel.equals("auctioneer") || cmdLabel.equals("wanderer")) {
+        // Direct alias handling (/auction, /auctioneer, /wanderer)
+        if (cmdLabel.equals("auction") || cmdLabel.equals("auctioneer") || cmdLabel.equals("wanderer")) {
             Player target = null;
             if (args.length >= 1) {
                 target = Bukkit.getPlayer(args[0]);
@@ -54,8 +52,6 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
             }
 
             switch (cmdLabel) {
-                case "buyer" -> new BuyerGui(plugin, target).open();
-                case "seller" -> new SellerGui(plugin, target).open();
                 case "auction", "auctioneer" -> new AuctionGui(plugin, target).open();
                 case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
             }
@@ -75,15 +71,13 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         switch (sub) {
             case "gui", "open", "openmenu" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <buyer|seller|auctioneer|wanderer> [игрок]</yellow>"));
+                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <auctioneer|wanderer> [игрок]</yellow>"));
                     return true;
                 }
                 String menuType = args[1].toLowerCase();
                 Player target = null;
 
                 if (args.length >= 3) {
-                    // Право на open уже проверено при входе в onCommand — здесь достаточно
-                    // просто разрешить указывать любого игрока.
                     target = Bukkit.getPlayer(args[2]);
                     if (target == null || !target.isOnline()) {
                         sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[2]) + " не найден или не в сети!</red>"));
@@ -99,24 +93,17 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 }
 
                 switch (menuType) {
-                    case "buyer" -> new BuyerGui(plugin, target).open();
-                    case "seller" -> new SellerGui(plugin, target).open();
                     case "auctioneer", "auction" -> new AuctionGui(plugin, target).open();
                     case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
-                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: buyer, seller, auctioneer, wanderer</red>"));
+                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: auctioneer, wanderer</red>"));
                 }
 
                 if (sender != target) {
                     sender.sendMessage(MessageUtils.parse("<green>Меню " + menuType + " успешно открыто для " + target.getName() + "!</green>"));
                 }
             }
-            // Админ-подкоманды (reload, npc, buyer-статус, seller/event, wanderer) переехали под единую
-            // /loveshopsadmin — здесь остаются только редиректы, чтобы команда не «молчала»
-            // для тех, кто по привычке набирает /loveshops reload и т.п.
             case "reload" -> redirectToAdmin(sender, "/loveshopsadmin reload", "loveshops.admin.reload");
             case "npc" -> redirectToAdmin(sender, "/loveshopsadmin npc", "loveshops.admin");
-            case "buyer" -> redirectToAdmin(sender, "/loveshopsadmin status", "loveshops.admin.status");
-            case "seller", "event" -> redirectToAdmin(sender, "/loveshopsadmin event flea", "loveshops.admin.seller");
             case "wanderer" -> redirectToAdmin(sender, "/loveshopsadmin event wanderer", "loveshops.admin.wanderer");
             default -> sendHelp(sender);
         }
@@ -124,11 +111,6 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    /**
-     * Показывает подсказку о переезде старой admin-подкоманды под {@code /loveshopsadmin}
-     * тем, у кого были на неё права, и обычное "нет прав" — остальным, чтобы поведение
-     * не отличалось от того, что было раньше.
-     */
     private void redirectToAdmin(CommandSender sender, String newCommand, String specificPermission) {
         if (sender.hasPermission(specificPermission) || sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.admin-moved",
@@ -140,8 +122,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <buyer|seller|auctioneer|wanderer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/buyer, /seller, /auction, /wanderer</gold> <gray>- Быстрые алиасы для открытия меню</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <auctioneer|wanderer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/auction, /wanderer</gold> <gray>- Быстрые алиасы для открытия меню</gray>"));
         if (sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"));
         }
@@ -150,8 +132,6 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        // Та же тихая маскировка, что и в onCommand — команда не должна даже предлагать
-        // автодополнение тем, кому не положено ей пользоваться.
         if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
             return List.of();
         }
@@ -159,7 +139,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
         String cmdLabel = label.toLowerCase();
 
-        if (List.of("buyer", "seller", "auction", "auctioneer", "wanderer").contains(cmdLabel)) {
+        if (List.of("auction", "auctioneer", "wanderer").contains(cmdLabel)) {
             if (args.length == 1) {
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase())).toList();
@@ -170,10 +150,10 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             completions.addAll(List.of("gui", "open", "help"));
             if (sender.hasPermission("loveshops.admin")) {
-                completions.addAll(List.of("npc", "seller", "wanderer", "event", "buyer", "reload"));
+                completions.addAll(List.of("npc", "wanderer", "reload"));
             }
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
-            completions.addAll(List.of("buyer", "seller", "auctioneer", "wanderer"));
+            completions.addAll(List.of("auctioneer", "wanderer"));
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         }

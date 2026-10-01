@@ -200,18 +200,14 @@ public class NpcManager {
     public boolean isTypeAllowedToSpawn(String type) {
         if (type == null) return false;
         String t = type.toLowerCase(Locale.ROOT);
-        if (t.equals("seller")) {
-            // The flea trader of the player market stands around the clock; otherwise only during the weekly event.
-            return plugin.isFleaPermanent() || plugin.getSellerManager().isSellerArrived();
+        if (t.equals("seller") || t.equals("buyer")) {
+            return false;
         }
         if (t.equals("auctioneer")) {
-            return plugin.getSellerManager().hasActiveAuctionLots();
+            return true;
         }
         if (t.equals("wanderer")) {
             return plugin.getWandererManager().isWandererActive();
-        }
-        if (t.equals("buyer")) {
-            return !plugin.getSellerManager().isSellerArrived();
         }
         return true;
     }

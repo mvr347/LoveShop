@@ -1,11 +1,9 @@
 package dev.lovelace.loveshops.market;
 
-import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.gui.BankerGui;
+import dev.lovelace.loveshops.utils.CoinFormat;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -18,7 +16,7 @@ public final class MarketStyle {
 
     /** Logical icons of the market. */
     public enum Icon {
-        STALL("❖"), GUARD("⚔"), ROBBERY("☠"), STAR("★"), CLOSED("✖"), FLEA("✦"),
+        STALL("❖"), GUARD("⚔"), ROBBERY("☠"), STAR("★"), CLOSED("✖"),
         /** The till is money: shown as the biggest coin glyph the banker already uses. */
         TILL("%img_gold_coin%");
 
@@ -41,30 +39,17 @@ public final class MarketStyle {
     }
 
     /**
-     * Amount as coins: {@code %img_gold_coin% <yellow>x2</yellow> %img_iron_coin% <yellow>x5</yellow>}.
-     * Falls back to a plain number when the economy service is not up.
+     * Amount as coins: {@code %img_gold_coin% x2  %img_iron_coin% x5}.
+     * Formatted strictly via {@link CoinFormat}.
      */
     public String money(long amount) {
         Optional<LoveEconomy> economy = plugin.getEconomy();
-        if (economy.isEmpty()) return "<yellow>" + Math.max(0L, amount) + "</yellow>";
-        List<Denomination> dens = economy.get().denominations();
-        List<MoneySplit.Part> parts = MoneySplit.split(amount, dens);
-        if (parts.isEmpty()) {
-            Denomination smallest = MoneySplit.smallest(dens);
-            return smallest == null ? "<yellow>0</yellow>"
-                    : BankerGui.getCoinGlyph(smallest) + " <yellow>x0</yellow>";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (MoneySplit.Part part : parts) {
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(BankerGui.getCoinGlyph(part.denomination())).append(" <yellow>x").append(part.count()).append("</yellow>");
-        }
-        return sb.toString();
+        return CoinFormat.formatGlyphs(economy.orElse(null), amount);
     }
 
     /** Stall title used by the GUIs and speech: icon + gradient name. */
     public String stallTitle(String ownerName) {
         String name = ownerName == null || ownerName.isBlank() ? "?" : ownerName;
-        return icon(Icon.STALL) + " <gradient:#E67E22:#D35400>Палатка</gradient> <white>" + name.replace('<', ' ') + "</white>";
+        return icon(Icon.STALL) + " <gradient:#E67E22:#D35400>Торговая точка</gradient> <white>" + name.replace('<', ' ') + "</white>";
     }
 }

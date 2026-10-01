@@ -16,12 +16,10 @@ import dev.lovelace.loveshops.listeners.InventoryClickListener;
 import dev.lovelace.loveshops.listeners.ScheduleListener;
 import dev.lovelace.loveshops.managers.*;
 import dev.lovelace.loveshops.market.ChatPromptService;
-import dev.lovelace.loveshops.market.DailyBuyerManager;
 import dev.lovelace.loveshops.market.MarketConfig;
 import dev.lovelace.loveshops.market.MarketMessages;
 import dev.lovelace.loveshops.market.MarketModule;
 import dev.lovelace.loveshops.market.MarketStyle;
-import dev.lovelace.loveshops.market.FleaService;
 import dev.lovelace.loveshops.market.GuardService;
 import dev.lovelace.loveshops.market.RatingService;
 import dev.lovelace.loveshops.market.ReputationGate;
@@ -41,8 +39,6 @@ public final class LoveShops extends JavaPlugin {
     private PricesManager pricesManager;
     private ForbiddenManager forbiddenManager;
     private NpcManager npcManager;
-    private BuyerManager buyerManager;
-    private SellerManager sellerManager;
     private AuctionManager auctionManager;
     private NpcDialogueManager npcDialogueManager;
     private WarMerchantManager warMerchantManager;
@@ -53,7 +49,6 @@ public final class LoveShops extends JavaPlugin {
     private MarketMessages marketMessages;
     private MarketStyle marketStyle;
     private MarketModule marketModule;
-    private DailyBuyerManager dailyBuyer;
 
     @Override
     public void onEnable() {
@@ -81,10 +76,8 @@ public final class LoveShops extends JavaPlugin {
         this.forbiddenManager = new ForbiddenManager(this);
         this.forbiddenManager.load();
         this.priceCalculator = new PriceCalculator(this);
-        this.sellerManager = new SellerManager(this);
         this.wandererManager = new WandererManager(this);
         this.npcManager = new NpcManager(this);
-        this.buyerManager = new BuyerManager(this, priceCalculator);
         this.auctionManager = new AuctionManager(this);
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
@@ -97,13 +90,10 @@ public final class LoveShops extends JavaPlugin {
         this.marketMessages = new MarketMessages(this);
         this.marketModule = new MarketModule(this);
         this.marketModule.start();
-        // The buyer of the day needs only the ordinary buyer, not Citizens/LoveClaims.
-        this.dailyBuyer = new DailyBuyerManager(this);
-        this.dailyBuyer.start();
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
-        for (String cmdName : java.util.List.of("loveshops", "shops", "шоп", "loveshop", "lshops", "lshop", "buyer", "seller", "auction", "auctioneer", "wanderer")) {
+        for (String cmdName : java.util.List.of("loveshops", "shops", "шоп", "loveshop", "lshops", "lshop", "auction", "auctioneer", "wanderer")) {
             var cmd = getCommand(cmdName);
             if (cmd != null) {
                 cmd.setExecutor(shopsCmd);
@@ -148,9 +138,6 @@ public final class LoveShops extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (dailyBuyer != null) {
-            dailyBuyer.stop();
-        }
         if (marketModule != null) {
             marketModule.stop();
         }
@@ -171,15 +158,12 @@ public final class LoveShops extends JavaPlugin {
     public PricesManager getPricesManager() { return pricesManager; }
     public ForbiddenManager getForbiddenManager() { return forbiddenManager; }
     public NpcManager getNpcManager() { return npcManager; }
-    public BuyerManager getBuyerManager() { return buyerManager; }
-    public SellerManager getSellerManager() { return sellerManager; }
     public AuctionManager getAuctionManager() { return auctionManager; }
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
     public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
     public WandererManager getWandererManager() { return wandererManager; }
     public BankerManager getBankerManager() { return bankerManager; }
     public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
-    public DailyBuyerManager getDailyBuyer() { return dailyBuyer; }
     public MarketConfig getMarketConfig() { return marketConfig; }
     public MarketMessages getMarketMessages() { return marketMessages; }
     public MarketStyle getMarketStyle() { return marketStyle; }
@@ -189,9 +173,8 @@ public final class LoveShops extends JavaPlugin {
     public StallTradeService getTradeService() { return marketModule == null ? null : marketModule.trade(); }
     public RatingService getRatingService() { return marketModule == null ? null : marketModule.ratings(); }
     public StallUpgradeService getUpgradeService() { return marketModule == null ? null : marketModule.upgrades(); }
-    public FleaService getFleaService() { return marketModule == null ? null : marketModule.flea(); }
     /** {@code true} while the flea trader is open around the clock (market running, no Sunday schedule). */
-    public boolean isFleaPermanent() { return getTradePointManager() != null && !marketConfig.fleaScheduleEnabled(); }
+    public boolean isFleaPermanent() { return false; }
     public GuardService getGuardService() { return marketModule == null ? null : marketModule.guards(); }
     public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
 
