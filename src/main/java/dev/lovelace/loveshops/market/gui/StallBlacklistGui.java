@@ -192,8 +192,12 @@ public final class StallBlacklistGui extends MarketGui {
             }
             promptText("prompt-blacklist-reason", this::open, reason -> {
                 try {
-                    plugin.getMarketRepository().addBlacklist(point.claimId(), target.getUniqueId(), reason);
-                    viewer.sendMessage(MessageUtils.parse(viewer, "<green>Игрок " + target.getName() + " добавлен в чёрный список.</green>"));
+                    if (plugin.getMarketRepository().addBlacklist(point.claimId(), target.getUniqueId(), reason,
+                            plugin.getMarketConfig().blacklistMaxEntries())) {
+                        viewer.sendMessage(MessageUtils.parse(viewer, "<green>Игрок " + target.getName() + " добавлен в чёрный список.</green>"));
+                    } else {
+                        viewer.sendMessage(MessageUtils.parse(viewer, "<red>Чёрный список заполнен.</red>"));
+                    }
                 } catch (Exception e) {
                     viewer.sendMessage(MessageUtils.parse(viewer, "<red>Ошибка при добавлении в чёрный список.</red>"));
                 }
