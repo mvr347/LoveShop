@@ -30,4 +30,10 @@ public interface ClaimsLink {
     void register(TradePointManager manager);
 
     void unregister();
+
+    /** Reassigns tenant without releasing trade point. */
+    boolean transferTenant(UUID claimId, UUID newTenant);
+
+    /** Finds the trade point at location, if any. */
+    Optional<UUID> pointAt(Location loc);
 }

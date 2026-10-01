@@ -57,4 +57,30 @@ public class GuiUtils {
         }
         return item;
     }
+
+    public static ItemStack createItem(Material mat, Component name, List<Component> lore) {
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            if (name != null) meta.displayName(name);
+            if (lore != null) meta.lore(lore);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    public static ItemStack createHead(String base64, Component name, List<Component> lore) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) item.getItemMeta();
+        if (meta != null) {
+            if (name != null) meta.displayName(name);
+            if (lore != null) meta.lore(lore);
+            PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+            profile.setProperty(new ProfileProperty("textures", base64));
+            meta.setPlayerProfile(profile);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
 }
+

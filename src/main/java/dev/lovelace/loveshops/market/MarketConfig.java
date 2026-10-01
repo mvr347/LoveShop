@@ -56,13 +56,41 @@ public final class MarketConfig {
 
     /** Name shown above the stall NPC; {@code {owner}} is the tenant's name. Legacy {@code &} codes. */
     public String npcNameFormat() { return getString("npc.name-format", "&6Торговая точка\n&f{owner}"); }
-    public String statusClosed() { return getString("npc.status.closed", "&c[ЗАКРЫТО]"); }
-    public String statusRobbed() { return getString("npc.status.robbed", "&4[ОГРАБЛЕНО]"); }
-    public String statusActive() { return getString("npc.status.active", ""); }
-    public boolean particlesEnabled() { return getBool("particles.enabled", true); }
+    public String statusOpen() { return getString("npc.status-open", "&aОткрыто"); }
+    public String statusClosed() { return getString("npc.status-closed", getString("npc.status.closed", "&cЗакрыто")); }
+    public String statusRobbed() { return getString("npc.status-robbed", getString("npc.status.robbed", "&4[ОГРАБЛЕНО]")); }
+    public String statusSellOnly() { return getString("npc.status-sell-only", "&eВитрина"); }
+    public String statusBuyOnly() { return getString("npc.status-buy-only", "&bСкупка"); }
+    public String statusActive() { return statusOpen(); }
+    public boolean particlesEnabled() { return getBool("particles.enabled", false); }
+    public boolean npcParticles() { return getBool("npc.particles", false); }
+    public boolean npcAmbientSounds() { return getBool("npc.ambient-sounds", false); }
     public boolean npcLookClose() { return getBool("npc.look-close", true); }
     public String guardName() { return getString("npc.guard-name", "&9Стража"); }
     public String guardSkin() { return getString("npc.guard-skin", ""); }
+    public int baseStorageStacks() { return Math.max(1, getInt("stalls.base-storage-stacks", 20)); }
+    public int storagePerLevel() { return Math.max(0, getInt("stalls.storage-per-level", 5)); }
+    public boolean allowSellOnly() { return getBool("stalls.allow-sell-only", true); }
+    public boolean allowBuyOnly() { return getBool("stalls.allow-buy-only", true); }
+    public long guardCostPerDay() { return Math.max(0L, getLong("guard.cost-per-day", 1L)); }
+    public java.util.List<Integer> guardDurationsDays() {
+        ConfigurationSection s = root();
+        if (s != null && s.isList("guard.durations-days")) {
+            return s.getIntegerList("guard.durations-days");
+        }
+        return java.util.List.of(1, 3, 7, 14);
+    }
+    public java.util.List<Integer> guardDurations() { return guardDurationsDays(); }
+    public int blacklistMaxEntries() { return Math.max(1, getInt("blacklist.max-entries", 32)); }
+    public int discountMaxPercent() { return Math.min(100, Math.max(1, getInt("discount.max-percent", 50))); }
+    public boolean closedSignRemoveOnOpen() { return getBool("closed-sign.remove-on-open", true); }
+    public java.util.List<String> closedSignLines() {
+        ConfigurationSection s = root();
+        if (s != null && s.isList("closed-sign.lines")) {
+            return s.getStringList("closed-sign.lines");
+        }
+        return java.util.List.of("&cТорговая точка", "&cзакрыта", "{owner}", "");
+    }
 
     /** Largest amount a single buy order may ask for. */
     public int maxBuyAmount() { return Math.max(1, getInt("stalls.max-buy-amount", 4096)); }

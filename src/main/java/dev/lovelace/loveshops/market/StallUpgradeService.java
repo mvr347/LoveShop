@@ -27,6 +27,10 @@ public final class StallUpgradeService {
         return p.level() >= plugin.getMarketConfig().maxLevel();
     }
 
+    public boolean isMax(TradePoint p) {
+        return atMax(p);
+    }
+
     /** Price of the next level, or -1 at the top. */
     public long nextCost(TradePoint p) {
         if (atMax(p)) return -1L;

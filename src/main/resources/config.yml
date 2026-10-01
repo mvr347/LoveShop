@@ -744,7 +744,11 @@ market:
     # 5+5 — торговцу есть с чего начать, но выбор ограничен: рост слотов даёт смысл прокачке.
     base-sell-slots: 5
     base-buy-slots: 5
+    base-storage-stacks: 20
+    storage-per-level: 5
     max-level: 10
+    allow-sell-only: true
+    allow-buy-only: true
     # Максимум штук в одном заказе на скупку: защита от заказов на «весь сервер».
     max-buy-amount: 4096
     # Покупка на такую сумму и выше идёт через окно подтверждения — от случайного клика по дорогому лоту.
@@ -758,16 +762,16 @@ market:
   npc:
     # Имя над торговцем; {owner} — ник арендатора. Цвета через &.
     name-format: "&6Торговая точка\n&f{owner}"
-    status:
-      closed: "&c[ЗАКРЫТО]"
-      robbed: "&4[ОГРАБЛЕНО]"
-      active: ""
+    status-open: "&aОткрыто"
+    status-closed: "&cЗакрыто"
+    status-sell-only: "&eВитрина"
+    status-buy-only: "&bСкупка"
+    status-robbed: "&4[ОГРАБЛЕНО]"
+    particles: false
+    ambient-sounds: false
     look-close: true
     guard-name: "&9Стража"
     guard-skin: ""
-
-  particles:
-    enabled: true
 
   # Кого рынок обслуживает — по шкалам LoveBehavior (вежливость 0..6: 0 ужасно; стиль 0..6: 0 агрессивный).
   gates:
@@ -827,13 +831,26 @@ market:
 
   guard:
     enabled: true
-    # Зарплата раз в период: постоянные расходы делают стражу выбором, а не разовой покупкой.
-    salary: 800
-    salary-period-hours: 24
+    cost-per-day: 1
+    durations-days: [1, 3, 7, 14]
     # Слишком настойчивых выводят с рынка (не с сервера): 5 кликов за 10 минут — бан на точку на 30 минут.
     harassment-limit: 5
     harassment-window-minutes: 10
     harassment-ban-minutes: 30
+
+  blacklist:
+    max-entries: 32
+
+  discount:
+    max-percent: 50
+
+  closed-sign:
+    remove-on-open: true
+    lines:
+      - "&cТорговая точка"
+      - "&cзакрыта"
+      - "{owner}"
+      - ""
 
   # Куда отправляют нарушителей. Не задан или мира нет — только бан на точку, без телепорта.
   exit:

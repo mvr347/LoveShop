@@ -38,17 +38,24 @@ public final class GuardService {
     }
 
     public Result hire(Player owner, TradePoint p) {
+        return hire(owner, p, 1);
+    }
+
+    public Result hire(Player owner, TradePoint p, int days) {
         if (!p.isOwner(owner.getUniqueId())) return Result.NOT_OWNER;
         if (!plugin.getMarketConfig().guardEnabled()) return Result.DISABLED;
-        if (p.guardState() == GuardState.ACTIVE) return Result.ALREADY;
+        if (days <= 0) return Result.DISABLED;
         LoveEconomy eco = plugin.getEconomy().orElse(null);
         if (eco == null) return Result.ECONOMY_DOWN;
 
-        // The first period is paid in advance.
-        Boolean paid = collectSalary(owner, p, eco);
+        long cost = plugin.getMarketConfig().guardCostPerDay() * days;
+        Boolean paid = collectPayment(owner, p, eco, cost);
         if (paid == null) return Result.DB_ERROR;
         if (!paid) return Result.NO_MONEY;
-        long until = System.currentTimeMillis() + periodMillis();
+
+        long now = System.currentTimeMillis();
+        long current = p.guardPaidUntil();
+        long until = Math.max(now, current) + days * 86_400_000L;
         try {
             repo.inTransaction(conn -> {
                 repo.setGuard(conn, p.claimId(), GuardState.ACTIVE.name(), until);
@@ -56,7 +63,7 @@ public final class GuardService {
             });
         } catch (SQLException e) {
             plugin.getLogger().severe("Найм стражи не записан для точки " + p.claimId() + ": " + e.getMessage());
-            refund(owner, eco, p);
+            refund(owner, eco, cost);
             return Result.DB_ERROR;
         }
         p.guardState(GuardState.ACTIVE);
@@ -90,79 +97,60 @@ public final class GuardService {
     }
 
     /**
-     * Pays the next salary of every guard whose paid period is over. Called every 30 s.
-     * A guard that cannot be paid leaves and the owner is told.
+     * Checks if guard duration expired. Called periodically.
+     * When the paid duration is over, the guard leaves.
      */
     public void payroll() {
         long now = System.currentTimeMillis();
-        LoveEconomy eco = plugin.getEconomy().orElse(null);
         for (TradePoint p : manager.all()) {
             if (!p.hasOwner() || p.guardState() != GuardState.ACTIVE || now < p.guardPaidUntil()) continue;
             Player online = Bukkit.getPlayer(p.ownerUuid());
-            Boolean paid = eco == null ? Boolean.FALSE : collectSalary(online, p, eco);
-            if (paid == null) continue; // database trouble: try again next tick
-            if (paid) {
-                long until = Math.max(p.guardPaidUntil(), now) + periodMillis();
-                try {
-                    repo.inTransaction(conn -> {
-                        repo.setGuard(conn, p.claimId(), GuardState.ACTIVE.name(), until);
-                        return null;
-                    });
-                    p.guardPaidUntil(until);
-                    manager.refreshViewers(p.claimId());
-                } catch (SQLException e) {
-                    plugin.getLogger().severe("Зарплата стражи точки " + p.claimId() + " списана, но срок не записан: " + e.getMessage());
-                    p.guardPaidUntil(until);
-                }
-            } else {
-                if (release(p, GuardState.UNPAID)) {
-                    if (online != null) {
-                        plugin.getMarketMessages().send(online, "guard-unpaid");
-                    } else {
-                        manager.notice(p.ownerUuid(), plugin.getMarketMessages().raw("guard-unpaid"));
-                    }
+            if (release(p, GuardState.NONE)) {
+                if (online != null) {
+                    plugin.getMarketMessages().send(online, "guard-expired");
+                } else {
+                    manager.notice(p.ownerUuid(), plugin.getMarketMessages().raw("guard-expired"));
                 }
             }
         }
     }
 
     /**
-     * Takes one salary: from the till when it holds enough, else from the online owner.
+     * Takes cost: from the till when it holds enough, else from the online owner.
      *
      * @return TRUE paid, FALSE could not pay, null on a database failure
      */
-    private Boolean collectSalary(Player onlineOwner, TradePoint p, LoveEconomy eco) {
-        long salary = salary();
-        if (salary <= 0) return Boolean.TRUE;
-        if (p.tillCoins() >= salary) {
+    private Boolean collectPayment(Player onlineOwner, TradePoint p, LoveEconomy eco, long cost) {
+        if (cost <= 0) return Boolean.TRUE;
+        if (p.tillCoins() >= cost) {
             try {
                 long[] c = repo.inTransaction(conn -> {
                     MarketRepository.PointState ps = repo.pointState(conn, p.claimId());
-                    if (ps == null || ps.till() < salary) return null;
-                    return repo.addTill(conn, p.claimId(), -salary, 0, 0);
+                    if (ps == null || ps.till() < cost) return null;
+                    return repo.addTill(conn, p.claimId(), -cost, 0, 0);
                 });
                 if (c != null) {
                     p.tillCoins(c[0]);
                     return Boolean.TRUE;
                 }
             } catch (SQLException e) {
-                plugin.getLogger().warning("Зарплата стражи не списана из кассы: " + e.getMessage());
+                plugin.getLogger().warning("Оплата стражи не списана из кассы: " + e.getMessage());
                 return null;
             }
         }
-        if (onlineOwner != null && eco.has(onlineOwner, salary) && eco.charge(onlineOwner, salary)) {
+        if (onlineOwner != null && eco.has(onlineOwner, cost) && eco.charge(onlineOwner, cost)) {
             return Boolean.TRUE;
         }
         return Boolean.FALSE;
     }
 
-    /** Best-effort give-back when a hire could not be recorded after the salary was already taken. */
-    private void refund(Player owner, LoveEconomy eco, TradePoint p) {
-        long salary = salary();
+    /** Best-effort give-back when a hire could not be recorded after the payment was already taken. */
+    private void refund(Player owner, LoveEconomy eco, long cost) {
+        if (cost <= 0) return;
         try {
-            eco.give(owner, salary);
+            eco.give(owner, cost);
         } catch (RuntimeException e) {
-            plugin.getLogger().severe("КРИТИЧНО: игроку " + owner.getUniqueId() + " не вернули " + salary + " монет за несостоявшийся найм стражи.");
+            plugin.getLogger().severe("КРИТИЧНО: игроку " + owner.getUniqueId() + " не вернули " + cost + " монет за несостоявшийся найм стражи.");
         }
     }
 }

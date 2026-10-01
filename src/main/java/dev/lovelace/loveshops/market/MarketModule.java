@@ -12,12 +12,14 @@ import org.bukkit.event.HandlerList;
 public final class MarketModule {
 
     private final LoveShops plugin;
+    private MarketRepository repo;
     private TradePointManager manager;
     private StallTradeService trade;
     private RatingService ratings;
     private StallUpgradeService upgrades;
     private RobberyService robbery;
     private GuardService guards;
+    private StallNpcService npcs;
     private ReputationGate gate;
     private ChatPromptService prompts;
     private org.bukkit.scheduler.BukkitTask reconcileTask;
@@ -27,7 +29,9 @@ public final class MarketModule {
         this.plugin = plugin;
     }
 
+    public MarketRepository repo() { return repo; }
     public TradePointManager manager() { return manager; }
+    public StallNpcService npcs() { return npcs; }
     public ChatPromptService prompts() { return prompts; }
     public StallTradeService trade() { return trade; }
     public RatingService ratings() { return ratings; }
@@ -51,8 +55,10 @@ public final class MarketModule {
         }
         try {
             ClaimsLink link = new ClaimsBridge(plugin);
-            MarketRepository repo = new MarketRepository(plugin);
-            StallNpcService npcs = new StallNpcService(plugin);
+            this.repo = new MarketRepository(plugin);
+            MarketRepository repo = this.repo;
+            this.npcs = new StallNpcService(plugin);
+            StallNpcService npcs = this.npcs;
             this.gate = new ReputationGate(plugin);
             TaxService tax = new TaxService(plugin, gate);
             ReturnsService returns = new ReturnsService(plugin, repo);
@@ -96,6 +102,7 @@ public final class MarketModule {
         upgrades = null;
         robbery = null;
         guards = null;
+        npcs = null;
         gate = null;
         if (manager != null) {
             manager.disable();

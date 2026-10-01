@@ -86,6 +86,30 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
         return api.getClaimById(claimId).map(api::isInGrace).orElse(false);
     }
 
+    @Override
+    public boolean transferTenant(UUID claimId, UUID newTenant) {
+        LoveClaimsAPI api = api();
+        if (api == null) return false;
+        var claimOpt = api.getClaimById(claimId);
+        if (claimOpt.isEmpty() || !api.isTradePoint(claimOpt.get())) return false;
+        try {
+            var m = api.getClass().getMethod("transferTenant", me.lovelace.loveclaims.model.Claim.class, UUID.class);
+            m.invoke(api, claimOpt.get(), newTenant);
+            return true;
+        } catch (Exception e) {
+            plugin.getLogger().warning("LoveClaims transferTenant не выполнен: " + e.getMessage());
+            return false;
+        }
+    }
+
+
+    @Override
+    public Optional<UUID> pointAt(Location loc) {
+        LoveClaimsAPI api = api();
+        if (api == null || loc == null) return Optional.empty();
+        return api.getClaimAt(loc).filter(api::isTradePoint).map(Claim::getId);
+    }
+
     // ----- events ---------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

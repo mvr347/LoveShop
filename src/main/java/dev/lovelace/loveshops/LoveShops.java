@@ -110,6 +110,15 @@ public final class LoveShops extends JavaPlugin {
         // Price-change journal keeps 90 days; trim once a day (the first run shortly after start).
         getServer().getAsyncScheduler().runAtFixedRate(this, task -> adminCmd.pruneAudit(), 5, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
 
+        dev.lovelace.loveshops.commands.TradePointCommand tradePointCmd = new dev.lovelace.loveshops.commands.TradePointCommand(this);
+        for (String cmdName : java.util.List.of("tradepoint", "point", "точка")) {
+            var cmd = getCommand(cmdName);
+            if (cmd != null) {
+                cmd.setExecutor(tradePointCmd);
+                cmd.setTabCompleter(tradePointCmd);
+            }
+        }
+
         // 5. Register Listeners
         getServer().getPluginManager().registerEvents(new InventoryClickListener(this), this);
         getServer().getPluginManager().registerEvents(new ScheduleListener(this), this);
@@ -167,6 +176,7 @@ public final class LoveShops extends JavaPlugin {
     public MarketConfig getMarketConfig() { return marketConfig; }
     public MarketMessages getMarketMessages() { return marketMessages; }
     public MarketStyle getMarketStyle() { return marketStyle; }
+    public dev.lovelace.loveshops.market.MarketRepository getMarketRepository() { return marketModule == null ? null : marketModule.repo(); }
     /** {@code null} while the market is not running (no Citizens/LoveClaims or disabled). */
     public TradePointManager getTradePointManager() { return marketModule == null ? null : marketModule.manager(); }
     public ChatPromptService getChatPromptService() { return marketModule == null ? null : marketModule.prompts(); }
@@ -177,6 +187,7 @@ public final class LoveShops extends JavaPlugin {
     public boolean isFleaPermanent() { return false; }
     public GuardService getGuardService() { return marketModule == null ? null : marketModule.guards(); }
     public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
+    public dev.lovelace.loveshops.market.StallNpcService getStallNpcService() { return marketModule == null ? null : marketModule.npcs(); }
 
     /**
      * Служба валюты ядра. LoveCore проверен обязательным в {@link #onEnable}, поэтому пусто

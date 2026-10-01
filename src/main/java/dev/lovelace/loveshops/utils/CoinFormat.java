@@ -2,6 +2,7 @@ package dev.lovelace.loveshops.utils;
 
 import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
+import dev.lovelace.loveshops.LoveShops;
 import net.kyori.adventure.text.Component;
 
 import java.util.ArrayList;
@@ -80,6 +81,22 @@ public final class CoinFormat {
     }
 
     /**
+     * Форматирует сумму в строку глифов, используя экземпляр LoveShops.
+     */
+    public static String formatGlyphs(long amount) {
+        LoveShops plugin = LoveShops.getInstance();
+        return formatGlyphs(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
+    }
+
+    /**
+     * Форматирует сумму построчно в виде списка Component для lore предметов, используя экземпляр LoveShops.
+     */
+    public static List<Component> formatGlyphLines(long amount) {
+        LoveShops plugin = LoveShops.getInstance();
+        return formatGlyphLines(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
+    }
+
+    /**
      * Форматирует сумму построчно в виде списка Component для lore предметов.
      */
     public static List<Component> formatGlyphLines(LoveEconomy eco, long amount) {
@@ -119,3 +136,4 @@ public final class CoinFormat {
         return lines;
     }
 }
+
