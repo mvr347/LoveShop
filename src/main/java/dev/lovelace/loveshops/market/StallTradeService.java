@@ -72,7 +72,8 @@ public final class StallTradeService {
     private Result access(Player player, TradePoint p) {
         if (!p.isTrading()) return Result.CLOSED;
         if (p.isOwner(player.getUniqueId())) return Result.SELF;
-        if (repo.isBlacklisted(p.claimId(), player.getUniqueId())) {
+        // Staff with point moderation rights are exempt (matches StallBuyerGui, which lets them open the menu).
+        if (!player.hasPermission("loveshops.admin.point") && repo.isBlacklisted(p.claimId(), player.getUniqueId())) {
             return Result.BLACKLISTED;
         }
         if (plugin.getMarketConfig().gatesEnabled() && gate.classify(player.getUniqueId()) == PlayerClass.OUTCAST) {

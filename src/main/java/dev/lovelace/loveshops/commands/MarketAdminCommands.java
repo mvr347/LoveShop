@@ -30,7 +30,7 @@ import java.util.UUID;
 /**
  * Administrator commands of the player market and of price control, mounted under
  * {@code /loveshopsadmin}: {@code price get|list|reset|mult|bounds|history},
- * {@code auction ...}, {@code flea ...} and {@code point ...}. Permissions are checked before any
+ * {@code auction ...} and {@code point ...}. Permissions are checked before any
  * database access; nothing here blocks the main thread beyond a short indexed query, and the
  * heavier lot changes run on the async scheduler and report back on the main thread.
  */

@@ -1215,16 +1215,31 @@ public final class MarketRepository {
         return out;
     }
 
-    public void addBlacklist(UUID pointId, UUID playerUuid, String reason) throws SQLException {
-        try (Connection conn = connect();
-             PreparedStatement ps = conn.prepareStatement(
-                     "INSERT INTO point_blacklist (point_id, player_uuid, reason, created_at) VALUES (?, ?, ?, ?) "
-                             + "ON CONFLICT(point_id, player_uuid) DO UPDATE SET reason = excluded.reason")) {
-            ps.setString(1, pointId.toString());
-            ps.setString(2, playerUuid.toString());
-            ps.setString(3, reason);
-            ps.setLong(4, System.currentTimeMillis());
-            ps.executeUpdate();
+    /**
+     * Adds (or re-reasons) a blacklist entry unless the point already holds {@code maxEntries} others.
+     * The limit lives here, not in the callers, so the GUI and the command cannot disagree about it.
+     *
+     * @return {@code false} when the list is full
+     */
+    public boolean addBlacklist(UUID pointId, UUID playerUuid, String reason, int maxEntries) throws SQLException {
+        String clean = reason == null || reason.isBlank() ? null
+                : (reason.length() > 64 ? reason.substring(0, 64) : reason);
+        try (Connection conn = connect()) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO point_blacklist (point_id, player_uuid, reason, created_at) "
+                            + "SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM point_blacklist WHERE point_id = ? AND player_uuid = ?) "
+                            + "OR (SELECT COUNT(*) FROM point_blacklist WHERE point_id = ?) < ? "
+                            + "ON CONFLICT(point_id, player_uuid) DO UPDATE SET reason = excluded.reason")) {
+                ps.setString(1, pointId.toString());
+                ps.setString(2, playerUuid.toString());
+                ps.setString(3, clean);
+                ps.setLong(4, System.currentTimeMillis());
+                ps.setString(5, pointId.toString());
+                ps.setString(6, playerUuid.toString());
+                ps.setString(7, pointId.toString());
+                ps.setInt(8, maxEntries);
+                return ps.executeUpdate() > 0;
+            }
         }
     }
 

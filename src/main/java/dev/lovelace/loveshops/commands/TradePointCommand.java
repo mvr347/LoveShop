@@ -161,10 +161,18 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(MessageUtils.parse(player, "<red>Нельзя внести себя в чёрный список!</red>"));
                     return;
                 }
+                if (!target.isOnline() && !target.hasPlayedBefore()) {
+                    player.sendMessage(MessageUtils.parse(player, "<red>Игрок с ником " + args[2] + " на сервере не играл.</red>"));
+                    return;
+                }
                 String reason = args.length > 3 ? String.join(" ", java.util.Arrays.copyOfRange(args, 3, args.length)) : null;
                 try {
-                    plugin.getMarketRepository().addBlacklist(point.claimId(), target.getUniqueId(), reason);
-                    player.sendMessage(MessageUtils.parse(player, "<green>Игрок " + (target.getName() != null ? target.getName() : args[2]) + " добавлен в чёрный список точки.</green>"));
+                    if (plugin.getMarketRepository().addBlacklist(point.claimId(), target.getUniqueId(), reason,
+                            plugin.getMarketConfig().blacklistMaxEntries())) {
+                        player.sendMessage(MessageUtils.parse(player, "<green>Игрок " + (target.getName() != null ? target.getName() : args[2]) + " добавлен в чёрный список точки.</green>"));
+                    } else {
+                        player.sendMessage(MessageUtils.parse(player, "<red>Чёрный список заполнен.</red>"));
+                    }
                 } catch (Exception e) {
                     player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при добавлении в чёрный список.</red>"));
                 }
