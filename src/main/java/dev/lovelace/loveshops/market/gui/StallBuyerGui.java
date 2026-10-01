@@ -120,7 +120,7 @@ public final class StallBuyerGui extends MarketGui {
         String hint;
         switch (t) {
             case GOODS -> { base64 = HeadTextures.TAB_SELLER; name = "Товары"; hint = "Что можно купить"; }
-            case ORDERS -> { base64 = HeadTextures.TAB_BUYER; name = "Скупка"; hint = "Что магазин купит у вас"; }
+            case ORDERS -> { base64 = HeadTextures.TAB_BUYER; name = "Скупка"; hint = "Что точка купит у вас"; }
             default -> { base64 = HeadTextures.BANKER_INFO; name = "Рейтинг"; hint = "Отзывы покупателей"; }
         }
         boolean selected = t == tab;
@@ -176,14 +176,14 @@ public final class StallBuyerGui extends MarketGui {
         int have = ItemTransfer.count(viewer, l.template());
         List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
         lore.add(Component.empty());
-        lore.add(MessageUtils.parse(viewer, "<gray>Магазин платит за шт.:</gray> " + style.money(l.unitPrice())));
+        lore.add(MessageUtils.parse(viewer, "<gray>Точка платит за шт.:</gray> " + style.money(l.unitPrice())));
         lore.add(MessageUtils.parse(viewer, "<gray>Ещё примет: <white>" + l.freeCapacity() + "</white></gray>"));
         lore.add(MessageUtils.parse(viewer, "<gray>У вас с собой: <white>" + have + "</white></gray>"));
         lore.add(Component.empty());
         if (l.freeCapacity() <= 0) {
             lore.add(MessageUtils.parse(viewer, "<red>Заказ выполнен</red>"));
         } else if (point.tillCoins() < l.unitPrice()) {
-            lore.add(MessageUtils.parse(viewer, "<red>В кассе магазина не хватает денег</red>"));
+            lore.add(MessageUtils.parse(viewer, "<red>В кассе точки не хватает денег</red>"));
         } else if (have <= 0) {
             lore.add(MessageUtils.parse(viewer, "<gray>Нет такого предмета</gray>"));
         } else {
@@ -203,17 +203,17 @@ public final class StallBuyerGui extends MarketGui {
         lore.add(ratingLine());
         lore.add("");
         lore.add("<gray>Оценки ставят покупатели, которые");
-        lore.add("<gray>реально торговали с этим магазином.");
-        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, "<gold>Рейтинг магазина</gold>", lore));
+        lore.add("<gray>реально торговали с этой точкой.");
+        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, "<gold>Рейтинг торговой точки</gold>", lore));
 
         List<String> rate = new ArrayList<>();
         rate.add("");
-        rate.add("<gray>Оценить можно после сделок на сумму от");
-        rate.add("<white>" + plugin.getMarketConfig().ratingMinTrade() + "</white><gray> монет; повторно — раз в <white>"
-                + plugin.getMarketConfig().ratingCooldownHours() + "</white><gray> ч.");
+        rate.add("<gray>Оценить можно после сделок на сумму от</gray>");
+        rate.add(plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()) + "<gray>; повторно — раз в <white>"
+                + plugin.getMarketConfig().ratingCooldownHours() + "</white><gray> ч.</gray>");
         rate.add("");
         rate.add("<green>ЛКМ </green><gray>— поставить оценку</gray>");
-        inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Оценить магазин</green>", rate));
+        inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Оценить точку</green>", rate));
     }
 
     // ------------------------------------------------------------------ clicks
@@ -322,7 +322,7 @@ public final class StallBuyerGui extends MarketGui {
                         case OK -> msg.send(viewer, "rating-saved");
                         case SELF -> msg.send(viewer, "rating-self");
                         case NOT_TRADED -> msg.send(viewer, "rating-need-trade",
-                                "amount", String.valueOf(plugin.getMarketConfig().ratingMinTrade()));
+                                "amount", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()));
                         case COOLDOWN -> msg.send(viewer, "rating-cooldown",
                                 "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()));
                         case INVALID -> msg.send(viewer, "prompt-invalid");

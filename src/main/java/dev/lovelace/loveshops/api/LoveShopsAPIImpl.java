@@ -22,32 +22,32 @@ public class LoveShopsAPIImpl implements LoveShopsAPI {
 
     @Override
     public CompletableFuture<String> getBuyerStatus(UUID playerUuid) {
-        return plugin.getBuyerManager().getPlayerStatus(playerUuid);
+        return CompletableFuture.completedFuture("default");
     }
 
     @Override
     public CompletableFuture<Void> setBuyerStatus(UUID playerUuid, String status, String setBy, String customMessage) {
-        return plugin.getBuyerManager().setPlayerStatus(playerUuid, status, setBy, customMessage);
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public int calculateBuyPrice(Player player, ItemStack item) {
-        return plugin.getPriceCalculator().calculateBuyPrice(player, item);
+        return 0;
     }
 
     @Override
     public CompletableFuture<Boolean> processBuyerSale(Player player, ItemStack item) {
-        return plugin.getBuyerManager().processSale(player, item);
+        return CompletableFuture.completedFuture(false);
     }
 
     @Override
     public CompletableFuture<List<BuyerItemData>> getSellerItems() {
-        return plugin.getSellerManager().getAvailableItems();
+        return CompletableFuture.completedFuture(List.of());
     }
 
     @Override
     public CompletableFuture<Boolean> buySellerItem(Player player, int itemId) {
-        return plugin.getSellerManager().buyItem(player, itemId);
+        return CompletableFuture.completedFuture(false);
     }
 
     @Override

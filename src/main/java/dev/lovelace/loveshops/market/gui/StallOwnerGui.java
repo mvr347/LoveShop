@@ -135,7 +135,7 @@ public final class StallOwnerGui extends MarketGui {
             case CASH -> {
                 base64 = HeadTextures.BANKER_DEPOSIT_FILLED;
                 name = "Касса";
-                hint = "Выручка и состояние магазина";
+                hint = "Выручка и состояние торговой точки";
             }
             case SELL -> {
                 base64 = HeadTextures.TAB_SELLER;
@@ -145,7 +145,7 @@ public final class StallOwnerGui extends MarketGui {
             case BUY -> {
                 base64 = HeadTextures.TAB_BUYER;
                 name = "Скупка";
-                hint = "Что магазин покупает у игроков";
+                hint = "Что точка покупает у игроков";
             }
             case UPGRADE -> {
                 base64 = HeadTextures.BANKER_INFO;
@@ -176,8 +176,8 @@ public final class StallOwnerGui extends MarketGui {
     private ItemStack toggleItem() {
         MarketStyle style = plugin.getMarketStyle();
         if (point.open()) {
-            return head(HeadTextures.MARKET_OPEN, "<green>Магазин ОТКРЫТ</green>",
-                    List.of("", "<gray>Покупатели могут торговать с вами.</gray>", "", "<red>ЛКМ </red><gray>— закрыть магазин</gray>"));
+            return head(HeadTextures.MARKET_OPEN, "<green>Точка ОТКРЫТА</green>",
+                    List.of("", "<gray>Покупатели могут торговать с вами.</gray>", "", "<red>ЛКМ </red><gray>— закрыть точку</gray>"));
         }
         CloseReason reason = point.closeReason();
         List<String> lore = new ArrayList<>();
@@ -185,21 +185,21 @@ public final class StallOwnerGui extends MarketGui {
         lore.add("<gray>Причина: <white>" + reasonText(reason) + "</white></gray>");
         lore.add("");
         if (reason == null || reason.ownerMayReopen()) {
-            lore.add("<green>ЛКМ </green><gray>— открыть магазин</gray>");
+            lore.add("<green>ЛКМ </green><gray>— открыть точку</gray>");
         } else {
             lore.add("<red>Открыть сейчас нельзя.</red>");
         }
-        return head(HeadTextures.MARKET_CLOSED, style.icon(MarketStyle.Icon.CLOSED) + " <red>Магазин ЗАКРЫТ</red>", lore);
+        return head(HeadTextures.MARKET_CLOSED, style.icon(MarketStyle.Icon.CLOSED) + " <red>Точка ЗАКРЫТА</red>", lore);
     }
 
     private static String reasonText(CloseReason reason) {
         if (reason == null) return "не указана";
         return switch (reason) {
-            case OWNER -> "закрыт вами";
-            case ROBBERY -> "ограбление — откройте магазин вручную";
+            case OWNER -> "закрыта вами";
+            case ROBBERY -> "ограбление — откройте точку вручную";
             case RENT_GRACE -> "просрочена аренда";
             case REPUTATION -> "репутация не позволяет торговать";
-            case ADMIN -> "закрыт администратором";
+            case ADMIN -> "закрыта администратором";
         };
     }
 
@@ -228,7 +228,7 @@ public final class StallOwnerGui extends MarketGui {
 
         List<String> status = new ArrayList<>();
         status.add("");
-        status.add(point.open() ? "<green>Магазин открыт</green>" : "<red>Магазин закрыт</red>");
+        status.add(point.open() ? "<green>Точка открыта</green>" : "<red>Точка закрыта</red>");
         long end = plugin.getTradePointManager().rentEnd(point);
         if (end > 0) status.add("<gray>Аренда до: <white>" + WHEN.format(Instant.ofEpochMilli(end)) + "</white></gray>");
         status.add("");
@@ -432,7 +432,7 @@ public final class StallOwnerGui extends MarketGui {
         }
 
         inventory.setItem(content[5], head(HeadTextures.BANKER_INFO, "<gold>Что делает стража</gold>", List.of("",
-                "<gray>Со стражей агрессивный игрок не может", "<gray>ограбить ваш магазин: торговец не отдаёт", "<gray>товар и не закрывается.",
+                "<gray>Со стражей агрессивный игрок не может", "<gray>ограбить вашу точку: торговец не отдаёт", "<gray>товар и не закрывается.",
                 "", "<gray>Кто слишком долго пристаёт к торговцу —", "<gray>того выведут с рынка.")));
     }
 
@@ -534,9 +534,9 @@ public final class StallOwnerGui extends MarketGui {
             case IS_COIN -> plugin.getMarketMessages().send(viewer, "listing-is-coin");
             case FORBIDDEN -> plugin.getMarketMessages().send(viewer, "listing-forbidden");
             case PRICE_LOW -> plugin.getMarketMessages().send(viewer, "listing-price-low", "min",
-                    String.valueOf(priceItem == null ? 1L : plugin.getTradePointManager().minUnitPrice(priceItem)));
+                    plugin.getMarketStyle().money(priceItem == null ? 1L : plugin.getTradePointManager().minUnitPrice(priceItem)));
             case PRICE_HIGH -> plugin.getMarketMessages().send(viewer, "listing-price-high", "max",
-                    String.valueOf(priceItem == null ? plugin.getMarketConfig().priceMax()
+                    plugin.getMarketStyle().money(priceItem == null ? plugin.getMarketConfig().priceMax()
                             : plugin.getTradePointManager().maxUnitPrice(priceItem)));
             case NO_SLOT -> plugin.getMarketMessages().send(viewer, "listing-no-slot");
             case SLOT_TAKEN -> plugin.getMarketMessages().send(viewer, "listing-slot-taken");

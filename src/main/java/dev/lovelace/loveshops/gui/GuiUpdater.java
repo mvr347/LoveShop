@@ -20,22 +20,7 @@ public final class GuiUpdater {
 
     private GuiUpdater() {}
 
-    public static void broadcastSellerGuiUpdate(LoveShops plugin, int soldItemId) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                InventoryView view = p.getOpenInventory();
-                // Component#toString() is a debug dump of the component tree, not its
-                // rendered text — matching against it is fragile (e.g. breaks for titles
-                // with nested/styled children) and silently leaves stale "in stock" seller
-                // GUIs open for other viewers when a match fails. Use the same plain-text
-                // serialization InventoryClickListener already uses to identify this GUI.
-                if (SERIALIZER.serialize(view.title()).contains(SellerGui.TITLE)) {
-                    // Refresh open seller GUI
-                    new SellerGui(plugin, p).open();
-                }
-            }
-        });
-    }
+
 
     /**
      * Same "reopen with fresh data" refresh {@link #broadcastSellerGuiUpdate} does for

@@ -253,9 +253,7 @@ public class PriceCalculator {
         double variancePercent = getRandomVariancePercent(item.getType().name());
         double penaltyPercent = getPenaltyPercent(player.getUniqueId(), item.getType().name());
         int repBonusPercent = getReputationBonusPercent(player);
-        // Buyer of the day: a bonus for today's categories up to the player's daily limit.
-        var daily = plugin.getDailyBuyer();
-        int dailyBonusPercent = daily == null ? 0 : daily.bonusFor(player, item.getType());
+        int dailyBonusPercent = 0;
 
         double multiplier = 1.0;
         multiplier += (variancePercent / 100.0);

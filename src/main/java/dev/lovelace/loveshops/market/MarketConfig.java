@@ -55,7 +55,11 @@ public final class MarketConfig {
     public int pendingTimeoutSeconds() { return Math.max(5, getInt("stalls.pending-timeout-seconds", 30)); }
 
     /** Name shown above the stall NPC; {@code {owner}} is the tenant's name. Legacy {@code &} codes. */
-    public String npcNameFormat() { return getString("npc.name-format", "&6Торговец &f{owner}"); }
+    public String npcNameFormat() { return getString("npc.name-format", "&6Торговая точка\n&f{owner}"); }
+    public String statusClosed() { return getString("npc.status.closed", "&c[ЗАКРЫТО]"); }
+    public String statusRobbed() { return getString("npc.status.robbed", "&4[ОГРАБЛЕНО]"); }
+    public String statusActive() { return getString("npc.status.active", ""); }
+    public boolean particlesEnabled() { return getBool("particles.enabled", true); }
     public boolean npcLookClose() { return getBool("npc.look-close", true); }
     public String guardName() { return getString("npc.guard-name", "&9Стража"); }
     public String guardSkin() { return getString("npc.guard-skin", ""); }

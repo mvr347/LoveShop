@@ -1,13 +1,16 @@
 package dev.lovelace.loveshops.market;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.market.model.CloseReason;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPCRegistry;
+import net.citizensnpcs.trait.HologramTrait;
 import net.citizensnpcs.trait.LookClose;
 import net.citizensnpcs.trait.SkinTrait;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.EntityType;
 
@@ -48,8 +51,10 @@ public final class StallNpcService {
     public Integer createStallNpc(Location loc, UUID pointId, String ownerName) {
         if (!available() || loc == null || loc.getWorld() == null) return null;
         try {
-            String name = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName == null ? "?" : ownerName);
-            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, name);
+            String rawFormat = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName == null ? "?" : ownerName);
+            String[] lines = rawFormat.split("\\r?\\n");
+            String entityName = lines[lines.length - 1];
+            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, ChatColor.translateAlternateColorCodes('&', entityName));
             npc.data().setPersistent(KEY_STALL, pointId.toString());
             if (ownerName != null && !ownerName.isBlank()) {
                 npc.getOrAddTrait(SkinTrait.class).setSkinName(ownerName);
@@ -58,10 +63,67 @@ public final class StallNpcService {
                 npc.getOrAddTrait(LookClose.class).lookClose(true);
             }
             npc.spawn(loc);
+            TradePoint p = plugin.getTradePointManager() == null ? null : plugin.getTradePointManager().getPoint(pointId);
+            if (p != null) {
+                applyNpcHologram(npc, p);
+            } else {
+                HologramTrait holo = npc.getOrAddTrait(HologramTrait.class);
+                holo.clear();
+                for (int i = 0; i < lines.length - 1; i++) {
+                    if (!lines[i].isBlank()) {
+                        holo.addLine(ChatColor.translateAlternateColorCodes('&', lines[i]));
+                    }
+                }
+            }
             return npc.getId();
         } catch (Throwable t) {
             plugin.getLogger().warning("Не удалось создать NPC торговца для точки " + pointId + ": " + t.getMessage());
             return null;
+        }
+    }
+
+    public void updateStallNpc(TradePoint point) {
+        if (!available() || point == null || point.npcCitizensId() == null) return;
+        try {
+            NPC npc = CitizensAPI.getNPCRegistry().getById(point.npcCitizensId());
+            if (npc != null) {
+                applyNpcHologram(npc, point);
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Не удалось обновить NPC для точки " + point.claimId() + ": " + t.getMessage());
+        }
+    }
+
+    public void applyNpcHologram(NPC npc, TradePoint point) {
+        if (npc == null || point == null) return;
+        String ownerName = point.ownerName() == null ? "?" : point.ownerName();
+        String rawFormat = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName);
+        String[] lines = rawFormat.split("\\r?\\n");
+        String entityName = lines[lines.length - 1];
+        npc.setName(ChatColor.translateAlternateColorCodes('&', entityName));
+
+        HologramTrait holo = npc.getOrAddTrait(HologramTrait.class);
+        holo.clear();
+
+        String status = null;
+        if (!point.open()) {
+            if (point.closeReason() == CloseReason.ROBBERY) {
+                status = plugin.getMarketConfig().statusRobbed();
+            } else {
+                status = plugin.getMarketConfig().statusClosed();
+            }
+        } else {
+            status = plugin.getMarketConfig().statusActive();
+        }
+
+        if (status != null && !status.isBlank()) {
+            holo.addLine(ChatColor.translateAlternateColorCodes('&', status));
+        }
+
+        for (int i = 0; i < lines.length - 1; i++) {
+            if (!lines[i].isBlank()) {
+                holo.addLine(ChatColor.translateAlternateColorCodes('&', lines[i]));
+            }
         }
     }
 
@@ -175,7 +237,12 @@ public final class StallNpcService {
             List<NPC> mine = stalls.getOrDefault(p.claimId(), List.of());
             Integer wanted = mine.isEmpty() ? null : mine.get(0).getId();
             for (int i = 1; i < mine.size(); i++) toDestroy.add(mine.get(i));
-            if (wanted == null) wanted = createStallNpc(loc, p.claimId(), p.ownerName());
+            if (wanted == null) {
+                wanted = createStallNpc(loc, p.claimId(), p.ownerName());
+            } else {
+                NPC npc = registry.getById(wanted);
+                if (npc != null) applyNpcHologram(npc, p);
+            }
             if (!java.util.Objects.equals(wanted, p.npcCitizensId())) {
                 p.npcCitizensId(wanted);
                 changed.add(p);

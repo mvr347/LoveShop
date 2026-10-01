@@ -18,7 +18,6 @@ public final class MarketModule {
     private StallUpgradeService upgrades;
     private RobberyService robbery;
     private GuardService guards;
-    private FleaService flea;
     private ReputationGate gate;
     private ChatPromptService prompts;
     private org.bukkit.scheduler.BukkitTask reconcileTask;
@@ -35,7 +34,6 @@ public final class MarketModule {
     public StallUpgradeService upgrades() { return upgrades; }
     public ReputationGate gate() { return gate; }
     public GuardService guards() { return guards; }
-    public FleaService flea() { return flea; }
     public RobberyService robbery() { return robbery; }
 
     public boolean start() {
@@ -60,7 +58,6 @@ public final class MarketModule {
             ReturnsService returns = new ReturnsService(plugin, repo);
             this.manager = new TradePointManager(plugin, repo, npcs, link, gate, tax, returns);
             this.trade = new StallTradeService(plugin, repo, manager, gate, tax);
-            this.flea = new FleaService(plugin, repo, manager, gate, tax, returns);
             this.robbery = new RobberyService(plugin, repo, manager, gate);
             this.guards = new GuardService(plugin, repo, manager);
             manager.attach(robbery, guards);
@@ -99,7 +96,6 @@ public final class MarketModule {
         upgrades = null;
         robbery = null;
         guards = null;
-        flea = null;
         gate = null;
         if (manager != null) {
             manager.disable();

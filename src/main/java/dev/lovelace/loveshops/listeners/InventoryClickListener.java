@@ -2,8 +2,6 @@ package dev.lovelace.loveshops.listeners;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.AuctionGui;
-import dev.lovelace.loveshops.gui.BuyerGui;
-import dev.lovelace.loveshops.gui.SellerGui;
 import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
@@ -52,14 +50,6 @@ public class InventoryClickListener implements Listener {
         if (npcOpt.isPresent()) {
             event.setCancelled(true);
             NpcData npc = npcOpt.get();
-            if (npc.type().equalsIgnoreCase("seller") && !plugin.isFleaPermanent() && !plugin.getSellerManager().isSellerActive()) {
-                MessageUtils.sendMessage(player, "<red>Торговец-барахолка открыт только по воскресеньям с 10:00 до 18:00!</red>");
-                return;
-            }
-            if (npc.type().equalsIgnoreCase("auctioneer") && !plugin.getSellerManager().isSellerActive()) {
-                MessageUtils.sendMessage(player, "<red>Аукционист появляется вместе с барахолкой, по воскресеньям с 10:00 до 18:00!</red>");
-                return;
-            }
             if (npc.type().equalsIgnoreCase("wanderer")) {
                 plugin.getWandererManager().handleWandererInteraction(player);
                 return;
@@ -69,11 +59,6 @@ public class InventoryClickListener implements Listener {
                 return;
             }
             switch (npc.type().toLowerCase()) {
-                case "buyer" -> new BuyerGui(plugin, player).open();
-                case "seller" -> {
-                    if (plugin.isFleaPermanent()) plugin.getTradePointManager().openFlea(player);
-                    else new SellerGui(plugin, player).open();
-                }
                 case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "warmerchant" -> new WarMerchantGui(plugin, player).open();
                 case "banker" -> new BankerGui(plugin, player).open();
@@ -192,52 +177,6 @@ public class InventoryClickListener implements Listener {
                         }
                     }
                 });
-            }
-        } else if (titleText.contains(BuyerGui.TITLE)) {
-            event.setCancelled(true);
-            int slot = event.getRawSlot();
-            if (slot < 0 || slot >= 27) return;
-
-            if (slot == 26) {
-                player.closeInventory();
-                return;
-            }
-
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && !clicked.getType().isAir() && !clicked.getType().name().endsWith("GLASS_PANE") && slot >= 10 && slot <= 16) {
-                ItemStack cleanItem = clicked.clone();
-                ItemMeta meta = cleanItem.getItemMeta();
-                if (meta != null && meta.lore() != null) {
-                    java.util.List<net.kyori.adventure.text.Component> currentLore = new java.util.ArrayList<>(meta.lore());
-                    if (currentLore.size() >= 2) {
-                        currentLore.subList(currentLore.size() - 2, currentLore.size()).clear();
-                    }
-                    meta.lore(currentLore.isEmpty() ? null : currentLore);
-                    cleanItem.setItemMeta(meta);
-                }
-
-                plugin.getBuyerManager().processSale(player, cleanItem).thenAccept(success -> {
-                    if (success) {
-                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> new BuyerGui(plugin, player).open());
-                    }
-                });
-            }
-        } else if (titleText.contains(SellerGui.TITLE)) {
-            event.setCancelled(true);
-            int slot = event.getRawSlot();
-            if (slot < 0 || slot >= 54) return;
-
-            if (slot == 53) {
-                player.closeInventory();
-                return;
-            }
-
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().lore() != null) {
-                int itemId = extractIdFromLore(clicked);
-                if (itemId > 0) {
-                    plugin.getSellerManager().buyItem(player, itemId);
-                }
             }
         } else if (titleText.contains(WarMerchantGui.TITLE)) {
             event.setCancelled(true);

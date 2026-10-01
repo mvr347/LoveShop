@@ -4,6 +4,7 @@ import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
@@ -225,19 +226,7 @@ public class BankerGui {
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
         lore.add(MessageUtils.parse(player, "<gray>Внесённые монеты:</gray>"));
-
-        long remaining = deposited;
-        List<Denomination> dens = new ArrayList<>(economy.denominations());
-        dens.sort(Comparator.comparingLong(Denomination::value).reversed());
-        for (Denomination den : dens) {
-            if (den.value() <= 0) continue;
-            long count = remaining / den.value();
-            if (count > 0) {
-                remaining %= den.value();
-                String glyph = getCoinGlyph(den);
-                lore.add(MessageUtils.parse(player, glyph + " <yellow>x" + count + "</yellow>"));
-            }
-        }
+        lore.addAll(CoinFormat.formatGlyphLines(economy, deposited));
         lore.add(Component.empty());
         lore.add(MessageUtils.parse(player, "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"));
 
@@ -254,22 +243,11 @@ public class BankerGui {
     }
 
     public static String getCoinName(Denomination den) {
-        if (den == null) return "Монета";
-        String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
-        long val = den.value();
-        if (id.contains("netherite") || val >= 1000) return "<gradient:#9B51E0:#BB6BD9>Незеритовая монета</gradient>";
-        if (id.contains("diamond") || val >= 100) return "<gradient:#00C9FF:#92FE9D>Алмазная монета</gradient>";
-        if (id.contains("gold") || val >= 50) return "<gradient:#FFE000:#799F0C>Золотая монета</gradient>";
-        if (id.contains("iron") || val >= 10) return "<gradient:#E0E0E0:#F2F2F2>Железная монета</gradient>";
-        return "<gradient:#E67E22:#D35400>Медная монета</gradient>";
+        return CoinFormat.getCoinName(den);
     }
 
     public static String getCoinGlyph(Denomination den) {
-        if (den == null || den.itemId() == null) return "%img_copper_coin%";
-        String id = den.itemId();
-        int colon = id.indexOf(':');
-        String tag = colon >= 0 ? id.substring(colon + 1) : id;
-        return "%img_" + tag + "%";
+        return CoinFormat.getCoinGlyph(den);
     }
 
     private static void initItemsAdder() {

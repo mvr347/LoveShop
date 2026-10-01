@@ -40,13 +40,11 @@ public class LoveShopsPlaceholder extends PlaceholderExpansion {
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
         if (params.equalsIgnoreCase("seller_arrival")) {
-            String day = plugin.getConfig().getString("seller.arrival-day", "SUNDAY");
-            String time = plugin.getConfig().getString("seller.arrival-time", "10:00");
-            return TimeUtils.getNextArrivalText(day, time);
+            return "";
         }
 
         if (params.equalsIgnoreCase("seller_active")) {
-            return String.valueOf(plugin.getSellerManager().isSellerActive());
+            return "false";
         }
 
         if (params.equalsIgnoreCase("wanderer_active")) {

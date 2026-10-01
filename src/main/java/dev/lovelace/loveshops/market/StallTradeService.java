@@ -9,6 +9,8 @@ import dev.lovelace.loveshops.market.model.PlayerClass;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -161,6 +163,7 @@ public final class StallTradeService {
 
             manager.refreshViewers(p.claimId());
             notifyOwner(owner, buyer.getName(), r, true);
+            spawnTradeParticles(buyer, p);
             return new Outcome(Result.OK, r.amount(), r.total(), r.tax(), r.net());
         } finally {
             inFlight.remove(buyerId);
@@ -255,9 +258,21 @@ public final class StallTradeService {
             }
             manager.refreshViewers(p.claimId());
             notifyOwner(owner, seller.getName(), r, false);
+            spawnTradeParticles(seller, p);
             return new Outcome(Result.OK, r.amount(), r.total(), r.tax(), r.net());
         } finally {
             inFlight.remove(sellerId);
+        }
+    }
+
+    private void spawnTradeParticles(Player player, TradePoint p) {
+        if (!plugin.getMarketConfig().particlesEnabled()) return;
+        if (player != null && player.isOnline()) {
+            player.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, player.getLocation().add(0, 1.8, 0), 10, 0.3, 0.3, 0.3, 0.0);
+        }
+        Location loc = manager.getNpcOrPointLocation(p);
+        if (loc != null && loc.getWorld() != null) {
+            loc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0, 1.8, 0), 10, 0.3, 0.3, 0.3, 0.0);
         }
     }
 
