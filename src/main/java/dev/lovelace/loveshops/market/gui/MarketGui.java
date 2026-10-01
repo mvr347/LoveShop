@@ -122,4 +122,17 @@ public abstract class MarketGui implements InventoryHolder {
             if (!plugin.getChatPromptService().has(viewer)) reopen.run();
         }, reopen);
     }
+
+    protected void promptPlayer(String messageKey, Runnable reopen, Consumer<Player> onPlayer, String... placeholders) {
+        promptText(messageKey, reopen, text -> {
+            Player target = org.bukkit.Bukkit.getPlayerExact(text);
+            if (target == null) target = org.bukkit.Bukkit.getPlayer(text);
+            if (target == null) {
+                plugin.getMarketMessages().send(viewer, "prompt-invalid");
+                reopen.run();
+                return;
+            }
+            onPlayer.accept(target);
+        }, placeholders);
+    }
 }

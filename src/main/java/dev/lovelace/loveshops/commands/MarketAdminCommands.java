@@ -41,7 +41,10 @@ public final class MarketAdminCommands {
 
     public static final List<String> PRICE_SUBS = List.of("get", "list", "reset", "mult", "bounds", "history");
     private static final List<String> AUCTION_SUBS = List.of("list", "create", "price", "buyout", "extend", "end", "cancel", "step");
-    private static final List<String> POINT_SUBS = List.of("list", "close", "open", "seize", "restore", "robberies");
+    private static final List<String> POINT_SUBS = List.of(
+            "list", "close", "open", "seize", "restore", "robberies",
+            "settrader", "setclosedsign", "clearclosedsign", "transfer", "info"
+    );
 
     private final LoveShops plugin;
     private final MarketRepository repo;
@@ -577,7 +580,7 @@ public final class MarketAdminCommands {
     // ------------------------------------------------------------------ trade points
 
     public void handlePoint(CommandSender sender, String[] args) {
-        if (!allowed(sender, "loveshops.admin.market")) return;
+        if (!allowed(sender, "loveshops.admin.point") && !allowed(sender, "loveshops.admin.market")) return;
         TradePointManager manager = plugin.getTradePointManager();
         if (manager == null) { msg(sender, "admin-market-off"); return; }
         String sub = args.length > 1 ? AdminParse.canonical(args[1]) : "";
@@ -588,6 +591,11 @@ public final class MarketAdminCommands {
             case "seize" -> pointSeize(sender, manager, args);
             case "restore" -> pointRestore(sender, manager, args);
             case "robberies" -> pointRobberies(sender, args);
+            case "settrader" -> pointSetTrader(sender, manager, args);
+            case "setclosedsign" -> pointSetClosedSign(sender, manager, args);
+            case "clearclosedsign" -> pointClearClosedSign(sender, manager, args);
+            case "transfer" -> pointTransfer(sender, manager, args);
+            case "info" -> pointInfo(sender, manager, args);
             default -> msg(sender, "admin-point-usage");
         }
     }
@@ -699,6 +707,107 @@ public final class MarketAdminCommands {
         });
     }
 
+    private TradePoint findPointOrAtLocation(CommandSender sender, TradePointManager manager, String[] args, int index) {
+        if (args.length > index) {
+            return findPoint(sender, manager, args[index]);
+        }
+        if (sender instanceof Player p) {
+            var atLoc = manager.pointAt(p.getLocation());
+            if (atLoc.isPresent()) return atLoc.get();
+        }
+        msg(sender, "admin-point-not-found", "point", "-");
+        return null;
+    }
+
+    private void pointSetTrader(CommandSender sender, TradePointManager manager, String[] args) {
+        if (!(sender instanceof Player p)) { msg(sender, "admin-player-only"); return; }
+        TradePoint point = findPointOrAtLocation(p, manager, args, 2);
+        if (point == null) return;
+        if (point.npcCitizensId() != null) {
+            try {
+                if (net.citizensnpcs.api.CitizensAPI.hasImplementation()) {
+                    var npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(point.npcCitizensId());
+                    if (npc != null) {
+                        npc.teleport(p.getLocation(), org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.COMMAND);
+                    }
+                }
+            } catch (Throwable t) {
+                plugin.getLogger().warning("Не удалось телепортировать NPC: " + t.getMessage());
+            }
+        }
+        manager.updateNpc(point);
+        p.sendMessage(MessageUtils.parse(p, "<green>Позиция торговца точки обновлена на вашу локацию.</green>"));
+    }
+
+    private void pointSetClosedSign(CommandSender sender, TradePointManager manager, String[] args) {
+        if (!(sender instanceof Player p)) { msg(sender, "admin-player-only"); return; }
+        org.bukkit.block.Block target = p.getTargetBlockExact(5);
+        if (target == null || target.getType().isAir()) {
+            p.sendMessage(MessageUtils.parse(p, "<red>Посмотрите на табличку или блок (до 5 блоков)!</red>"));
+            return;
+        }
+        TradePoint point = (args.length >= 3) ? findPoint(sender, manager, args[2])
+                : manager.pointAt(target.getLocation()).or(() -> manager.pointAt(p.getLocation())).orElse(null);
+        if (point == null) {
+            msg(sender, "admin-point-not-found", "point", "-");
+            return;
+        }
+        point.closedSignLocation(target.getLocation());
+        manager.save(point);
+        if (!point.open()) {
+            plugin.getStallNpcService().updateClosedSign(point);
+        }
+        p.sendMessage(MessageUtils.parse(p, "<green>Табличка закрытия установлена на (" + target.getX() + ", " + target.getY() + ", " + target.getZ() + ").</green>"));
+    }
+
+    private void pointClearClosedSign(CommandSender sender, TradePointManager manager, String[] args) {
+        TradePoint point = findPointOrAtLocation(sender, manager, args, 2);
+        if (point == null) return;
+        point.closedSignLocation(null);
+        manager.save(point);
+        sender.sendMessage(MessageUtils.parse(sender, "<green>Табличка закрытия для точки очищена.</green>"));
+    }
+
+    private void pointTransfer(CommandSender sender, TradePointManager manager, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(MessageUtils.parse(sender, "<yellow>Использование: /lsa point transfer <from_owner|claim> <to_player></yellow>"));
+            return;
+        }
+        TradePoint point = findPoint(sender, manager, args[2]);
+        if (point == null) return;
+        OfflinePlayer to = findPlayer(args[3]);
+        if (to == null || to.getUniqueId() == null) {
+            sender.sendMessage(MessageUtils.parse(sender, "<red>Игрок " + esc(args[3]) + " не найден.</red>"));
+            return;
+        }
+        boolean ok = manager.transfer(point, to.getUniqueId());
+        if (ok) {
+            sender.sendMessage(MessageUtils.parse(sender, "<green>Точка успешно передана игроку " + to.getName() + "!</green>"));
+        } else {
+            sender.sendMessage(MessageUtils.parse(sender, "<red>Не удалось передать точку.</red>"));
+        }
+    }
+
+    private void pointInfo(CommandSender sender, TradePointManager manager, String[] args) {
+        TradePoint p = findPointOrAtLocation(sender, manager, args, 2);
+        if (p == null) return;
+        sender.sendMessage(MessageUtils.parse(sender, "<gold>=== Информация о торговой точке ===</gold>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Claim ID:</gray> <white>" + p.claimId() + "</white>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Владелец:</gray> <white>" + (p.ownerName() != null ? p.ownerName() : "нет") + "</white> <gray>(" + (p.ownerUuid() != null ? p.ownerUuid() : "-") + ")</gray>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Уровень:</gray> <white>" + p.level() + "</white> <gray>(Полок витрины: <white>" + p.sellSlots() + "</white>, Ордеров: <white>" + p.buySlots() + "</white>, Склад: <white>" + manager.getStorageCapacity(p) + "</white> ст.)</gray>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Баланс кассы:</gray> " + plugin.getMarketStyle().money(p.tillCoins()) + " <gray>(" + p.tillCoins() + ")</gray>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Режим торговли:</gray> <white>" + p.tradingMode() + "</white>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Статус:</gray> " + (p.open() ? "<green>Открыта</green>" : "<red>Закрыта (" + (p.closeReason() != null ? p.closeReason().name() : "-") + ")</red>")));
+        String guardInfo = p.guardState() == dev.lovelace.loveshops.market.model.GuardState.ACTIVE
+                ? "<green>Активна</green> <gray>(до " + p.guardPaidUntil() + ")</gray>"
+                : "<gray>" + p.guardState() + "</gray>";
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Стража:</gray> " + guardInfo));
+        var signLoc = p.closedSignLocation();
+        String signText = signLoc != null ? (signLoc.getWorld().getName() + " " + signLoc.getBlockX() + ", " + signLoc.getBlockY() + ", " + signLoc.getBlockZ()) : "не установлена";
+        sender.sendMessage(MessageUtils.parse(sender, "<gray>Табличка закрытия:</gray> <white>" + signText + "</white>"));
+        sender.sendMessage(MessageUtils.parse(sender, "<gold>====================================</gold>"));
+    }
+
     // ------------------------------------------------------------------ tab completion
 
     private static List<String> match(String prefix, List<String> options) {
@@ -765,10 +874,13 @@ public final class MarketAdminCommands {
         if (args.length == 2) return match(args[1], POINT_SUBS);
         String sub = AdminParse.canonical(args[1]);
         var manager = plugin.getTradePointManager();
-        if (args.length == 3 && manager != null && List.of("close", "open", "seize").contains(sub)) {
+        if (args.length == 3 && manager != null && List.of("close", "open", "seize", "settrader", "setclosedsign", "clearclosedsign", "transfer", "info").contains(sub)) {
             List<String> names = new ArrayList<>();
             for (TradePoint p : manager.all()) if (p.hasOwner() && p.ownerName() != null) names.add(p.ownerName());
             return match(args[2], names);
+        }
+        if (args.length == 4 && sub.equals("transfer")) {
+            return match(args[3], onlineNames());
         }
         return List.of();
     }

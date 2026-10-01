@@ -25,6 +25,8 @@ public final class TradePoint {
     private long guardPaidUntil;
     private long rentedAt;
     private long version;
+    private TradingMode tradingMode = TradingMode.BOTH;
+    private org.bukkit.Location closedSignLocation;
     /**
      * The owner's tax rate as last seen while the owner was ONLINE. LoveBehavior only knows online
      * players (an offline one reads as neutral), and most sales happen while the owner is away, so
@@ -88,6 +90,12 @@ public final class TradePoint {
 
     public Double lastTaxRate() { return lastTaxRate; }
     public void lastTaxRate(Double rate) { this.lastTaxRate = rate; }
+
+    public TradingMode tradingMode() { return tradingMode; }
+    public void tradingMode(TradingMode mode) { this.tradingMode = mode == null ? TradingMode.BOTH : mode; }
+
+    public org.bukkit.Location closedSignLocation() { return closedSignLocation; }
+    public void closedSignLocation(org.bukkit.Location loc) { this.closedSignLocation = loc; }
 
     public boolean hasOwner() { return ownerUuid != null; }
     public boolean isOwner(UUID player) { return ownerUuid != null && ownerUuid.equals(player); }

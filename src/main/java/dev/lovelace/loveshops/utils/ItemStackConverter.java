@@ -28,4 +28,13 @@ public final class ItemStackConverter {
             return null;
         }
     }
+
+    public static String toBase64(ItemStack item) {
+        return itemStackToBase64(item);
+    }
+
+    public static ItemStack fromBase64(String base64) {
+        return itemStackFromBase64(base64);
+    }
 }
+

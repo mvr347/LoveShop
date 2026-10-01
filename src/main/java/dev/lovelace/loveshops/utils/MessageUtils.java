@@ -16,7 +16,11 @@ public final class MessageUtils {
     private MessageUtils() {}
 
     public static Component parse(String input) {
-        return parse(null, input);
+        return parse((Player) null, input);
+    }
+
+    public static Component parse(CommandSender sender, String input) {
+        return parse(sender instanceof Player p ? p : null, input);
     }
 
     /**

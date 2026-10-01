@@ -8,6 +8,7 @@ import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.PlayerClass;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
+import dev.lovelace.loveshops.market.model.TradingMode;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -33,7 +34,7 @@ public final class StallTradeService {
 
     public enum Result {
         OK, CLOSED, SELF, BAD_REPUTATION, GONE, NOT_ENOUGH_STOCK, NO_MONEY, NO_SPACE,
-        TILL_EMPTY, ORDER_FULL, NO_ITEMS, DB_ERROR, ECONOMY_DOWN, BUSY
+        TILL_EMPTY, ORDER_FULL, NO_ITEMS, DB_ERROR, ECONOMY_DOWN, BUSY, MODE_DENIED, BLACKLISTED
     }
 
     /** {@code net} = what the seller side received after tax. */
@@ -64,9 +65,16 @@ public final class StallTradeService {
         this.tax = tax;
     }
 
+    public Result checkAccess(Player player, TradePoint p) {
+        return access(player, p);
+    }
+
     private Result access(Player player, TradePoint p) {
         if (!p.isTrading()) return Result.CLOSED;
         if (p.isOwner(player.getUniqueId())) return Result.SELF;
+        if (repo.isBlacklisted(p.claimId(), player.getUniqueId())) {
+            return Result.BLACKLISTED;
+        }
         if (plugin.getMarketConfig().gatesEnabled() && gate.classify(player.getUniqueId()) == PlayerClass.OUTCAST) {
             return Result.BAD_REPUTATION;
         }
@@ -81,6 +89,7 @@ public final class StallTradeService {
         try {
             LoveEconomy eco = plugin.getEconomy().orElse(null);
             if (eco == null) return Outcome.fail(Result.ECONOMY_DOWN);
+            if (p.tradingMode() == TradingMode.BUY_ONLY) return Outcome.fail(Result.MODE_DENIED);
             Result denied = access(buyer, p);
             if (denied != null) return Outcome.fail(denied);
             final int amount = Math.max(1, requested);
@@ -101,6 +110,11 @@ public final class StallTradeService {
                         total = Math.multiplyExact(l.unitPrice(), (long) amount);
                     } catch (ArithmeticException e) {
                         return Reserve.fail(Result.GONE);
+                    }
+                    var discount = repo.getDiscount(p.claimId(), buyerId);
+                    if (discount != null && discount.percent() > 0) {
+                        long discountAmount = total * Math.min(plugin.getMarketConfig().discountMaxPercent(), discount.percent()) / 100L;
+                        total = Math.max(1L, total - discountAmount);
                     }
                     if (!eco.has(buyer, total)) return Reserve.fail(Result.NO_MONEY);
                     ItemStack template = l.template();
@@ -190,6 +204,7 @@ public final class StallTradeService {
         try {
             LoveEconomy eco = plugin.getEconomy().orElse(null);
             if (eco == null) return Outcome.fail(Result.ECONOMY_DOWN);
+            if (p.tradingMode() == TradingMode.SELL_ONLY) return Outcome.fail(Result.MODE_DENIED);
             Result denied = access(seller, p);
             if (denied != null) return Outcome.fail(denied);
             final int wanted = Math.max(1, requested);

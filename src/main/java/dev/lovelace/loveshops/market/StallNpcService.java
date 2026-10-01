@@ -3,6 +3,7 @@ package dev.lovelace.loveshops.market;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.model.CloseReason;
 import dev.lovelace.loveshops.market.model.TradePoint;
+import dev.lovelace.loveshops.market.model.TradingMode;
 import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPCRegistry;
@@ -113,7 +114,13 @@ public final class StallNpcService {
                 status = plugin.getMarketConfig().statusClosed();
             }
         } else {
-            status = plugin.getMarketConfig().statusActive();
+            if (point.tradingMode() == TradingMode.SELL_ONLY) {
+                status = plugin.getMarketConfig().statusSellOnly();
+            } else if (point.tradingMode() == TradingMode.BUY_ONLY) {
+                status = plugin.getMarketConfig().statusBuyOnly();
+            } else {
+                status = plugin.getMarketConfig().statusOpen();
+            }
         }
 
         if (status != null && !status.isBlank()) {
@@ -123,6 +130,33 @@ public final class StallNpcService {
         for (int i = 0; i < lines.length - 1; i++) {
             if (!lines[i].isBlank()) {
                 holo.addLine(ChatColor.translateAlternateColorCodes('&', lines[i]));
+            }
+        }
+    }
+
+    public void updateClosedSign(TradePoint point) {
+        if (point == null) return;
+        Location loc = point.closedSignLocation();
+        if (loc == null || loc.getWorld() == null) return;
+        org.bukkit.block.Block block = loc.getBlock();
+        if (!point.open()) {
+            if (!(block.getState() instanceof org.bukkit.block.Sign)) {
+                block.setType(org.bukkit.Material.OAK_SIGN);
+            }
+            if (block.getState() instanceof org.bukkit.block.Sign sign) {
+                List<String> lines = plugin.getMarketConfig().closedSignLines();
+                String owner = point.ownerName() == null ? "" : point.ownerName();
+                for (int i = 0; i < 4; i++) {
+                    String line = i < lines.size() ? lines.get(i).replace("{owner}", owner) : "";
+                    sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
+                }
+                sign.update(true);
+            }
+        } else {
+            if (plugin.getMarketConfig().closedSignRemoveOnOpen()) {
+                if (block.getState() instanceof org.bukkit.block.Sign) {
+                    block.setType(org.bukkit.Material.AIR);
+                }
             }
         }
     }
@@ -223,6 +257,8 @@ public final class StallNpcService {
         }
 
         for (TradePoint p : points) {
+            updateClosedSign(p);
+
             if (!p.hasOwner()) {
                 if (p.npcCitizensId() != null || p.guardCitizensId() != null) {
                     p.npcCitizensId(null);
@@ -231,6 +267,17 @@ public final class StallNpcService {
                 }
                 continue;
             }
+
+            if (!p.open()) {
+                for (NPC npc : stalls.getOrDefault(p.claimId(), List.of())) {
+                    if (npc.isSpawned()) npc.despawn();
+                }
+                for (NPC npc : guards.getOrDefault(p.claimId(), List.of())) {
+                    if (npc.isSpawned()) npc.despawn();
+                }
+                continue;
+            }
+
             Location loc = locationOf.apply(p.claimId());
             if (loc == null) continue;
 
@@ -241,7 +288,10 @@ public final class StallNpcService {
                 wanted = createStallNpc(loc, p.claimId(), p.ownerName());
             } else {
                 NPC npc = registry.getById(wanted);
-                if (npc != null) applyNpcHologram(npc, p);
+                if (npc != null) {
+                    if (!npc.isSpawned()) npc.spawn(loc);
+                    applyNpcHologram(npc, p);
+                }
             }
             if (!java.util.Objects.equals(wanted, p.npcCitizensId())) {
                 p.npcCitizensId(wanted);
@@ -253,6 +303,10 @@ public final class StallNpcService {
                 Integer guardId = myGuards.isEmpty() ? null : myGuards.get(0).getId();
                 for (int i = 1; i < myGuards.size(); i++) toDestroy.add(myGuards.get(i));
                 if (guardId == null) guardId = createGuardNpc(loc.clone().add(1.5, 0, 0), p.claimId());
+                else {
+                    NPC gNpc = registry.getById(guardId);
+                    if (gNpc != null && !gNpc.isSpawned()) gNpc.spawn(loc.clone().add(1.5, 0, 0));
+                }
                 if (!java.util.Objects.equals(guardId, p.guardCitizensId())) {
                     p.guardCitizensId(guardId);
                     if (!changed.contains(p)) changed.add(p);

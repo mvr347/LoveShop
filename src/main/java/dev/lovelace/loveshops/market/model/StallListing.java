@@ -39,11 +39,13 @@ public final class StallListing {
     public UUID pointId() { return pointId; }
     public ListingType type() { return type; }
     public int slotIndex() { return slotIndex; }
+    public int slot() { return slotIndex; }
     /** A defensive copy: callers must not be able to change the stored template. */
     public ItemStack template() { return template.clone(); }
     public String itemHash() { return itemHash; }
 
     public long unitPrice() { return unitPrice; }
+    public long price() { return unitPrice; }
     public void unitPrice(long unitPrice) { this.unitPrice = unitPrice; }
 
     public int stock() { return stock; }

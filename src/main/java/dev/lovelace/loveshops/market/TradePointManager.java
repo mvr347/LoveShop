@@ -169,6 +169,10 @@ public final class TradePointManager {
         return List.copyOf(points.values());
     }
 
+    public Optional<TradePoint> pointAt(Location loc) {
+        return claims.pointAt(loc).flatMap(this::byClaim);
+    }
+
     public List<StallListing> listings(TradePoint p) {
         try {
             return repo.listings(p.claimId());
@@ -225,6 +229,27 @@ public final class TradePointManager {
         p.guardPaidUntil(0);
         p.rentedAt(System.currentTimeMillis());
         save(p);
+    }
+
+    public boolean transfer(TradePoint p, UUID newOwner) {
+        if (p == null || newOwner == null) return false;
+        String name = Bukkit.getOfflinePlayer(newOwner).getName();
+        int level = 1;
+        try {
+            level = repo.traderLevel(newOwner);
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Уровень торговца " + newOwner + " не прочитан: " + e.getMessage());
+        }
+        p.ownerUuid(newOwner);
+        p.ownerName(name);
+        p.level(level);
+        p.sellSlots(UpgradeMath.slots(plugin.getMarketConfig().baseSellSlots(), level));
+        p.buySlots(UpgradeMath.slots(plugin.getMarketConfig().baseBuySlots(), level));
+        claims.transferTenant(p.claimId(), newOwner);
+        save(p);
+        reconcileNpcs();
+        refreshViewers(p.claimId());
+        return true;
     }
 
     public void onReleased(UUID player, UUID claimId, String reason) {
@@ -657,6 +682,25 @@ public final class TradePointManager {
         return ListingResult.OK;
     }
 
+    /** Puts a specified item stack on shelf {@code slot}. */
+    public ListingResult addSellListing(Player owner, TradePoint p, int slot, ItemStack item, long unitPrice) {
+        if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
+        if (slot < 0 || slot >= p.sellSlots()) return ListingResult.NO_SLOT;
+        ListingResult bad = validateItemAndPrice(item, unitPrice);
+        if (bad != null) return bad;
+
+        ItemStack taken = item.clone();
+        try {
+            long id = repo.inTransaction(conn -> repo.insertListing(conn, p.claimId(), ListingType.SELL, slot, taken, unitPrice, taken.getAmount(), 0));
+            if (id < 0) return ListingResult.SLOT_TAKEN;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Лот не создан: " + e.getMessage());
+            return ListingResult.DB_ERROR;
+        }
+        refreshViewers(p.claimId());
+        return ListingResult.OK;
+    }
+
     /** Creates a buy order: the item in hand is only a sample (it stays with the owner). */
     public ListingResult addBuyListing(Player owner, TradePoint p, int slot, long unitPrice, int maxAmount) {
         if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
@@ -673,6 +717,63 @@ public final class TradePointManager {
         }
         refreshViewers(p.claimId());
         return ListingResult.OK;
+    }
+
+    /** Creates a buy order with a template item. */
+    public ListingResult addBuyListing(Player owner, TradePoint p, int slot, ItemStack template, long unitPrice, int maxAmount) {
+        if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
+        if (slot < 0 || slot >= p.buySlots()) return ListingResult.NO_SLOT;
+        ListingResult bad = validateItemAndPrice(template, unitPrice);
+        if (bad != null) return bad;
+        try {
+            long id = repo.inTransaction(conn -> repo.insertListing(conn, p.claimId(), ListingType.BUY, slot, template.clone(), unitPrice, 0, Math.max(1, maxAmount)));
+            if (id < 0) return ListingResult.SLOT_TAKEN;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Заказ на скупку не создан: " + e.getMessage());
+            return ListingResult.DB_ERROR;
+        }
+        refreshViewers(p.claimId());
+        return ListingResult.OK;
+    }
+
+    public int getStorageCapacity(TradePoint p) {
+        return UpgradeMath.storageCapacity(plugin.getMarketConfig().baseStorageStacks(), plugin.getMarketConfig().storagePerLevel(), p.level());
+    }
+
+    public List<dev.lovelace.loveshops.market.model.StorageItem> getStorage(TradePoint p) {
+        try {
+            return repo.loadStorage(p.claimId());
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Склад точки " + p.claimId() + " не прочитан: " + e.getMessage());
+            return List.of();
+        }
+    }
+
+    public boolean putStorageItem(TradePoint p, int slot, ItemStack item) {
+        try {
+            repo.saveStorageItem(p.claimId(), slot, item);
+            refreshViewers(p.claimId());
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Предмет не сохранён на склад: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public ItemStack takeStorageItem(TradePoint p, int slot) {
+        try {
+            List<dev.lovelace.loveshops.market.model.StorageItem> items = repo.loadStorage(p.claimId());
+            for (var it : items) {
+                if (it.slot() == slot) {
+                    repo.removeStorageItem(p.claimId(), slot);
+                    refreshViewers(p.claimId());
+                    return it.item();
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Предмет не взят со склада: " + e.getMessage());
+        }
+        return null;
     }
 
     /** Adds the stack in the owner's hand to an existing SELL listing of the same item. */
@@ -766,6 +867,13 @@ public final class TradePointManager {
             plugin.getLogger().warning("Вывод товара не удался: " + e.getMessage());
             return -1;
         }
+    }
+
+    public record CollectResult(boolean ok, int items) {}
+
+    public CollectResult collectListing(Player owner, TradePoint p, long listingId, boolean remove) {
+        int count = withdraw(owner, p, listingId, remove);
+        return new CollectResult(count >= 0, Math.max(0, count));
     }
 
     // ------------------------------------------------------------------ NPC clicks

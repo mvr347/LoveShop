@@ -35,6 +35,22 @@ public final class RatingService {
         }
     }
 
+    public java.util.Optional<Result> canRate(Player rater, TradePoint p) {
+        UUID id = rater.getUniqueId();
+        if (!p.hasOwner()) return java.util.Optional.of(Result.INVALID);
+        if (p.isOwner(id)) return java.util.Optional.of(Result.SELF);
+        try {
+            long volume = repo.tradeVolume(id, p.claimId());
+            if (volume < plugin.getMarketConfig().ratingMinTrade()) return java.util.Optional.of(Result.NOT_TRADED);
+            long cooldown = plugin.getMarketConfig().ratingCooldownHours() * 3_600_000L;
+            long last = repo.inTransaction(conn -> repo.ratingTime(conn, p.claimId(), id));
+            if (last >= 0 && System.currentTimeMillis() - last < cooldown) return java.util.Optional.of(Result.COOLDOWN);
+            return java.util.Optional.empty();
+        } catch (SQLException e) {
+            return java.util.Optional.of(Result.DB_ERROR);
+        }
+    }
+
     public Result rate(Player rater, TradePoint p, int stars, String rawComment) {
         UUID id = rater.getUniqueId();
         if (!p.hasOwner()) return Result.INVALID;

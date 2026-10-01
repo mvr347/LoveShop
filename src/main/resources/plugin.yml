@@ -21,10 +21,17 @@ commands:
     usage: /loveshops <subcommand>
   loveshopsadmin:
     description: Административные команды LoveShops (npc, item, event, point, banker, auction)
-    aliases: [lspa, lssa]
+    aliases: [lsa, lspa, lssa]
     usage: /loveshopsadmin <subcommand>
+  tradepoint:
+    description: Управление торговой точкой игрока
+    aliases: [point, точка]
+    usage: /tradepoint <returns|transfer|blacklist|discount|mode>
 
 permissions:
+  loveshops.admin.point:
+    description: Moderate trade points (/loveshopsadmin point)
+    default: op
   loveshops.admin:
     description: Access to all LoveShops admin commands
     default: op

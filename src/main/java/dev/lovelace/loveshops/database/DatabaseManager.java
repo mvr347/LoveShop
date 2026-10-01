@@ -206,7 +206,12 @@ public class DatabaseManager {
                 guard_state TEXT NOT NULL DEFAULT 'NONE',
                 guard_paid_until INTEGER NOT NULL DEFAULT 0,
                 rented_at INTEGER,
-                version INTEGER NOT NULL DEFAULT 0
+                version INTEGER NOT NULL DEFAULT 0,
+                trading_mode TEXT NOT NULL DEFAULT 'BOTH',
+                closed_sign_world TEXT,
+                closed_sign_x INTEGER,
+                closed_sign_y INTEGER,
+                closed_sign_z INTEGER
             );
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_points_owner ON trade_points(owner_uuid)");
@@ -399,6 +404,43 @@ public class DatabaseManager {
             );
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_flea_seller ON flea_listings(seller_uuid)");
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS point_blacklist (
+                point_id TEXT NOT NULL,
+                player_uuid TEXT NOT NULL,
+                reason TEXT,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (point_id, player_uuid)
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS point_discounts (
+                point_id TEXT NOT NULL,
+                beneficiary_uuid TEXT NOT NULL,
+                percent INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                PRIMARY KEY (point_id, beneficiary_uuid)
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS stall_storage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                point_id TEXT NOT NULL,
+                slot_index INTEGER NOT NULL,
+                item_data TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                UNIQUE (point_id, slot_index)
+            );
+        """);
+
+        addColumnIfMissing(stmt, "trade_points", "trading_mode", "TEXT NOT NULL DEFAULT 'BOTH'");
+        addColumnIfMissing(stmt, "trade_points", "closed_sign_world", "TEXT");
+        addColumnIfMissing(stmt, "trade_points", "closed_sign_x", "INTEGER");
+        addColumnIfMissing(stmt, "trade_points", "closed_sign_y", "INTEGER");
+        addColumnIfMissing(stmt, "trade_points", "closed_sign_z", "INTEGER");
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {

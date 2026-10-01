@@ -25,4 +25,9 @@ public final class UpgradeMath {
     public static int slots(int baseSlots, int level) {
         return baseSlots + Math.max(0, level - 1);
     }
+
+    /** Storage capacity (in stacks) at a level: base plus storage-per-level for each level above the first. */
+    public static int storageCapacity(int baseStorage, int storagePerLevel, int level) {
+        return Math.max(1, baseStorage + Math.max(0, level - 1) * Math.max(0, storagePerLevel));
+    }
 }

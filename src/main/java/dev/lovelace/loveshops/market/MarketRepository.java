@@ -1,12 +1,17 @@
 package dev.lovelace.loveshops.market;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.market.model.BlacklistEntry;
 import dev.lovelace.loveshops.market.model.CloseReason;
+import dev.lovelace.loveshops.market.model.DiscountEntry;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.StallListing;
+import dev.lovelace.loveshops.market.model.StorageItem;
 import dev.lovelace.loveshops.market.model.TradePoint;
+import dev.lovelace.loveshops.market.model.TradingMode;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
+import org.bukkit.Bukkit;
 import org.bukkit.inventory.ItemStack;
 
 import java.nio.charset.StandardCharsets;
@@ -71,7 +76,7 @@ public final class MarketRepository {
 
     private static final String POINT_COLS = "claim_id, owner_uuid, owner_name, npc_citizens_id, guard_citizens_id, level, "
             + "sell_slots, buy_slots, is_open, close_reason, till_coins, revenue_total, sales_total, guard_state, "
-            + "guard_paid_until, rented_at, version";
+            + "guard_paid_until, rented_at, version, trading_mode, closed_sign_world, closed_sign_x, closed_sign_y, closed_sign_z";
 
     public List<TradePoint> loadPoints() throws SQLException {
         List<TradePoint> out = new ArrayList<>();
@@ -104,6 +109,14 @@ public final class MarketRepository {
         p.guardPaidUntil(rs.getLong("guard_paid_until"));
         p.rentedAt(rs.getLong("rented_at"));
         p.version(rs.getLong("version"));
+        p.tradingMode(TradingMode.parse(rs.getString("trading_mode")));
+        String cWorld = rs.getString("closed_sign_world");
+        if (cWorld != null && !cWorld.isBlank()) {
+            org.bukkit.World w = Bukkit.getWorld(cWorld);
+            if (w != null) {
+                p.closedSignLocation(new org.bukkit.Location(w, rs.getInt("closed_sign_x"), rs.getInt("closed_sign_y"), rs.getInt("closed_sign_z")));
+            }
+        }
         return p;
     }
 
@@ -126,14 +139,16 @@ public final class MarketRepository {
     public void savePoint(Connection conn, TradePoint p) throws SQLException {
         p.version(p.version() + 1);
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                         + "ON CONFLICT(claim_id) DO UPDATE SET owner_uuid=excluded.owner_uuid, owner_name=excluded.owner_name, "
                         + "npc_citizens_id=excluded.npc_citizens_id, guard_citizens_id=excluded.guard_citizens_id, "
                         + "level=excluded.level, sell_slots=excluded.sell_slots, buy_slots=excluded.buy_slots, "
                         + "is_open=excluded.is_open, close_reason=excluded.close_reason, till_coins=excluded.till_coins, "
                         + "revenue_total=excluded.revenue_total, sales_total=excluded.sales_total, "
                         + "guard_state=excluded.guard_state, guard_paid_until=excluded.guard_paid_until, "
-                        + "rented_at=excluded.rented_at, version=excluded.version")) {
+                        + "rented_at=excluded.rented_at, version=excluded.version, trading_mode=excluded.trading_mode, "
+                        + "closed_sign_world=excluded.closed_sign_world, closed_sign_x=excluded.closed_sign_x, "
+                        + "closed_sign_y=excluded.closed_sign_y, closed_sign_z=excluded.closed_sign_z")) {
             ps.setString(1, p.claimId().toString());
             ps.setString(2, p.ownerUuid() == null ? null : p.ownerUuid().toString());
             ps.setString(3, p.ownerName());
@@ -151,6 +166,18 @@ public final class MarketRepository {
             ps.setLong(15, p.guardPaidUntil());
             ps.setLong(16, p.rentedAt());
             ps.setLong(17, p.version());
+            ps.setString(18, p.tradingMode().name());
+            if (p.closedSignLocation() != null && p.closedSignLocation().getWorld() != null) {
+                ps.setString(19, p.closedSignLocation().getWorld().getName());
+                ps.setInt(20, p.closedSignLocation().getBlockX());
+                ps.setInt(21, p.closedSignLocation().getBlockY());
+                ps.setInt(22, p.closedSignLocation().getBlockZ());
+            } else {
+                ps.setNull(19, java.sql.Types.VARCHAR);
+                ps.setNull(20, java.sql.Types.INTEGER);
+                ps.setNull(21, java.sql.Types.INTEGER);
+                ps.setNull(22, java.sql.Types.INTEGER);
+            }
             ps.executeUpdate();
         }
     }
@@ -171,6 +198,22 @@ public final class MarketRepository {
     // ------------------------------------------------------------------ listings
 
     private static final String LISTING_COLS = "id, point_id, type, slot_index, item_data, item_hash, unit_price, stock, max_amount, active";
+
+    public int countListings(UUID pointId, ListingType type) {
+        if (pointId == null || type == null) return 0;
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM stall_listings WHERE point_id = ? AND type = ? AND active = 1")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, type.name());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Не удалось посчитать лоты точки " + pointId + ": " + e.getMessage());
+            return 0;
+        }
+    }
 
     public List<StallListing> listings(UUID pointId) throws SQLException {
         List<StallListing> out = new ArrayList<>();
@@ -1148,6 +1191,186 @@ public final class MarketRepository {
             }
         }
         return out;
+    }
+
+    // ------------------------------------------------------------------ blacklist
+
+    public List<BlacklistEntry> loadBlacklist(UUID pointId) throws SQLException {
+        List<BlacklistEntry> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT point_id, player_uuid, reason, created_at FROM point_blacklist WHERE point_id = ? ORDER BY created_at DESC")) {
+            ps.setString(1, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new BlacklistEntry(
+                            UUID.fromString(rs.getString("point_id")),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getString("reason"),
+                            rs.getLong("created_at")
+                    ));
+                }
+            }
+        }
+        return out;
+    }
+
+    public void addBlacklist(UUID pointId, UUID playerUuid, String reason) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO point_blacklist (point_id, player_uuid, reason, created_at) VALUES (?, ?, ?, ?) "
+                             + "ON CONFLICT(point_id, player_uuid) DO UPDATE SET reason = excluded.reason")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, playerUuid.toString());
+            ps.setString(3, reason);
+            ps.setLong(4, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    public void removeBlacklist(UUID pointId, UUID playerUuid) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM point_blacklist WHERE point_id = ? AND player_uuid = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, playerUuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    public boolean isBlacklisted(UUID pointId, UUID playerUuid) {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT 1 FROM point_blacklist WHERE point_id = ? AND player_uuid = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------ discounts
+
+    public List<DiscountEntry> loadDiscounts(UUID pointId) throws SQLException {
+        List<DiscountEntry> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT point_id, beneficiary_uuid, percent, expires_at FROM point_discounts WHERE point_id = ?")) {
+            ps.setString(1, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new DiscountEntry(
+                            UUID.fromString(rs.getString("point_id")),
+                            UUID.fromString(rs.getString("beneficiary_uuid")),
+                            rs.getInt("percent"),
+                            rs.getLong("expires_at")
+                    ));
+                }
+            }
+        }
+        return out;
+    }
+
+    public void setDiscount(UUID pointId, UUID beneficiaryUuid, int percent, long expiresAt) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO point_discounts (point_id, beneficiary_uuid, percent, expires_at) VALUES (?, ?, ?, ?) "
+                             + "ON CONFLICT(point_id, beneficiary_uuid) DO UPDATE SET percent = excluded.percent, expires_at = excluded.expires_at")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, beneficiaryUuid.toString());
+            ps.setInt(3, percent);
+            ps.setLong(4, expiresAt);
+            ps.executeUpdate();
+        }
+    }
+
+    public void removeDiscount(UUID pointId, UUID beneficiaryUuid) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM point_discounts WHERE point_id = ? AND beneficiary_uuid = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, beneficiaryUuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    public DiscountEntry getDiscount(UUID pointId, UUID beneficiaryUuid) {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT point_id, beneficiary_uuid, percent, expires_at FROM point_discounts WHERE point_id = ? AND beneficiary_uuid = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setString(2, beneficiaryUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    DiscountEntry d = new DiscountEntry(
+                            UUID.fromString(rs.getString("point_id")),
+                            UUID.fromString(rs.getString("beneficiary_uuid")),
+                            rs.getInt("percent"),
+                            rs.getLong("expires_at")
+                    );
+                    return d.isExpired() ? null : d;
+                }
+            }
+        } catch (SQLException e) {
+            return null;
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------ storage
+
+    public List<StorageItem> loadStorage(UUID pointId) throws SQLException {
+        List<StorageItem> out = new ArrayList<>();
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT slot_index, item_data, amount FROM stall_storage WHERE point_id = ? ORDER BY slot_index ASC")) {
+            ps.setString(1, pointId.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ItemStack is = ItemStackConverter.fromBase64(rs.getString("item_data"));
+                    if (is != null) {
+                        is.setAmount(rs.getInt("amount"));
+                        out.add(new StorageItem(rs.getInt("slot_index"), is));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    public void saveStorageItem(UUID pointId, int slot, ItemStack item) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO stall_storage (point_id, slot_index, item_data, amount) VALUES (?, ?, ?, ?) "
+                             + "ON CONFLICT(point_id, slot_index) DO UPDATE SET item_data = excluded.item_data, amount = excluded.amount")) {
+            ps.setString(1, pointId.toString());
+            ps.setInt(2, slot);
+            ps.setString(3, ItemStackConverter.toBase64(item));
+            ps.setInt(4, item.getAmount());
+            ps.executeUpdate();
+        }
+    }
+
+    public void removeStorageItem(UUID pointId, int slot) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM stall_storage WHERE point_id = ? AND slot_index = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.setInt(2, slot);
+            ps.executeUpdate();
+        }
+    }
+
+    public void clearStorage(UUID pointId) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM stall_storage WHERE point_id = ?")) {
+            ps.setString(1, pointId.toString());
+            ps.executeUpdate();
+        }
     }
 
     // ------------------------------------------------------------------ util
