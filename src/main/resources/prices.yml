@@ -4,9 +4,9 @@
 # Здесь настраиваются базовые цены для всех торговцев сервера.
 #
 # Настройка через внутриигровые команды:
-# - /loveshopsadmin price <buyer|seller|war_merchant|wanderer|auctioneer|all> <цена>
+# - /loveshopsadmin price <buyer|war_merchant|wanderer|all> <цена>
 #   (устанавливает цену для предмета в руке)
-# - /loveshopsadmin price <buyer|seller|war_merchant|wanderer|auctioneer|all> <материал/id> <цена>
+# - /loveshopsadmin price <buyer|war_merchant|wanderer|all> <материал/id> <цена>
 #   (устанавливает цену по имени материала или ID предмета Странника)
 #
 # Экономический баланс:
@@ -16,7 +16,6 @@
 # - Минералы и слитки: 2-50 монет (Незеритовый слиток: 100)
 # - Обычные инструменты и броня: 10-95 монет
 # - Потолок скупки Скупщика ~ 100 монет (1 алмазная монета)
-# - Редкие, зачарованные и легендарные предметы уходят на Аукцион или продаются Странником.
 # ==============================================================================
 
 # ==============================================================================
@@ -250,24 +249,6 @@ common:
   DIAMOND: 50
   NETHERITE_INGOT: 100
 
-# ==============================================================================
-# 2. БАРАХОЛКА (seller)
-# Фиксированные цены или переопределения для продажи на Барахолке.
-# ==============================================================================
-seller:
-  ARROW: 2
-  TORCH: 1
-  LANTERN: 4
-  BREAD: 4
-  IRON_INGOT: 12
-  GOLD_INGOT: 22
-  DIAMOND: 75
-  SHIELD: 25
-  COMPASS: 20
-  CLOCK: 30
-  SADDLE: 45
-  NAME_TAG: 35
-  LEAD: 10
 
 # ==============================================================================
 # 3. ВОЕННЫЙ ТОРГОВЕЦ (war_merchant)
@@ -342,101 +323,4 @@ wanderer:
   book_silk_touch: 130
   book_wind_burst: 180
 
-# ==============================================================================
-# 5. АУКЦИОНИСТ (auctioneer) / РЕДКИЕ ПРЕДМЕТЫ
-# Предметы, принудительно направляемые на Аукцион, со стартовой ценой лота.
-# ==============================================================================
-auctioneer:
-  NETHERITE_SWORD:
-    rare: true
-    price: 250
-  NETHERITE_PICKAXE:
-    rare: true
-    price: 300
-  NETHERITE_AXE:
-    rare: true
-    price: 300
-  NETHERITE_SHOVEL:
-    rare: true
-    price: 200
-  NETHERITE_HOE:
-    rare: true
-    price: 180
-  NETHERITE_HELMET:
-    rare: true
-    price: 350
-  NETHERITE_CHESTPLATE:
-    rare: true
-    price: 450
-  NETHERITE_LEGGINGS:
-    rare: true
-    price: 400
-  NETHERITE_BOOTS:
-    rare: true
-    price: 350
-  ELYTRA:
-    rare: true
-    price: 500
-  TRIDENT:
-    rare: true
-    price: 400
-  TOTEM_OF_UNDYING:
-    rare: true
-    price: 250
-  HEAVY_CORE:
-    rare: true
-    price: 600
-  MACE:
-    rare: true
-    price: 700
-  ENCHANTED_GOLDEN_APPLE:
-    rare: true
-    price: 200
 
-# Алиас для Аукциониста (обратная совместимость)
-rare:
-  NETHERITE_SWORD:
-    rare: true
-    price: 250
-  NETHERITE_PICKAXE:
-    rare: true
-    price: 300
-  NETHERITE_AXE:
-    rare: true
-    price: 300
-  NETHERITE_SHOVEL:
-    rare: true
-    price: 200
-  NETHERITE_HOE:
-    rare: true
-    price: 180
-  NETHERITE_HELMET:
-    rare: true
-    price: 350
-  NETHERITE_CHESTPLATE:
-    rare: true
-    price: 450
-  NETHERITE_LEGGINGS:
-    rare: true
-    price: 400
-  NETHERITE_BOOTS:
-    rare: true
-    price: 350
-  ELYTRA:
-    rare: true
-    price: 500
-  TRIDENT:
-    rare: true
-    price: 400
-  TOTEM_OF_UNDYING:
-    rare: true
-    price: 250
-  HEAVY_CORE:
-    rare: true
-    price: 600
-  MACE:
-    rare: true
-    price: 700
-  ENCHANTED_GOLDEN_APPLE:
-    rare: true
-    price: 200

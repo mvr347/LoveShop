@@ -437,8 +437,8 @@ public final class TradePointManager {
                 try {
                     if (dayKey != null) repo.pruneRobberyState(7L * 24 * 3_600_000L, dayKey);
                     int[] n = repo.pruneHistory(System.currentTimeMillis(), 365L * 24 * 3_600_000L, 90L * 24 * 3_600_000L);
-                    if (n[0] + n[1] + n[2] > 0) {
-                        plugin.getLogger().info("Рынок: очищено сделок " + n[0] + ", ограблений " + n[1] + ", истёкших запретов " + n[2]);
+                    if (n[0] + n[1] > 0) {
+                        plugin.getLogger().info("Рынок: очищено сделок " + n[0] + ", ограблений " + n[1]);
                     }
                 } catch (SQLException e) {
                     plugin.getLogger().warning("Очистка истории рынка не удалась: " + e.getMessage());

@@ -14,8 +14,6 @@ commands:
   # "<aqua>/команда аргументы</aqua> <gray>- описание</gray>", разделитель.
   admin-moved: "<yellow>Эта команда переехала: используйте <aqua>{command}</aqua>.</yellow>"
   help-header: "<dark_gray>========== <aqua>LoveShops Помощь</aqua> ==========</dark_gray>"
-  help-open: "<aqua>/loveshops open auctioneer [игрок]</aqua> <gray>- Открыть меню</gray>"
-  help-aliases: "<aqua>/auction</aqua> <gray>- Быстрый алиас для открытия меню</gray>"
   help-admin: "<aqua>/loveshopsadmin</aqua> <gray>- Административные команды LoveShops</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"
 
@@ -26,13 +24,7 @@ admin:
   help-footer: "<dark_gray>=========================================</dark_gray>"
 
 gui:
-  auction:
-    title: "Аукцион редких предметов"
-  sold-item: "<red>Уже куплено</red>"
   item-bought: "<green>Вы успешно купили предмет!</green>"
-  bid-success: "<green>Ваша ставка {amount} успешно принята!</green>"
-  bid-error-low: "<red>Ставка должна быть не менее {min_bid}!</red>"
-  bid-error-balance: "<red>У вас недостаточно средств на балансе!</red>"
 
 # ===== Рынок игроков (торговые точки) =====
 # Тексты рынка. Вместо {i_stall}, {i_guard}, {i_robbery}, {i_star}, {i_closed}, {i_till}
@@ -143,7 +135,7 @@ market:
   guard-disabled: "<gray>Стража сейчас недоступна.</gray>"
   guard-unpaid: "{i_guard} <red>Стража ушла:</red> <gray>не хватило денег на зарплату. Торговая точка снова беззащитна.</gray>"
 
-  # --- Администрирование: цены, аукцион, точки ---
+  # --- Администрирование: цены, точки ---
   admin-empty: "<gray>Пусто.</gray>"
   admin-db-error: "<red>Ошибка базы данных, подробности в консоли.</red>"
   admin-bad-id: "<red>Нужен номер — целое положительное число.</red>"
@@ -167,8 +159,8 @@ market:
   admin-price-reset-usage: "<yellow>Использование:</yellow> <gold>/lsa price reset <торговец> <предмет></gold>"
   admin-price-reset: "<green>Цена</green> <gold>{item}</gold> <green>у {target} сброшена на значение по умолчанию.</green>"
   admin-price-reset-none: "<gray>У {target} для</gray> <white>{item}</white> <gray>нет своей цены.</gray>"
-  admin-price-mult-usage: "<yellow>Использование:</yellow> <gold>/lsa price mult <buyer|seller> <+10|-15|reset></gold>"
-  admin-price-mult-unsupported: "<red>Множитель работает только для buyer и seller, а не для {target}.</red>"
+  admin-price-mult-usage: "<yellow>Использование:</yellow> <gold>/lsa price mult <buyer> <+10|-15|reset></gold>"
+  admin-price-mult-unsupported: "<red>Множитель работает только для buyer, а не для {target}.</red>"
   admin-price-mult-range: "<red>Множитель должен быть от {min} до {max}.</red>"
   admin-price-mult: "<green>Множитель цен {target}:</green> <gray>{old}</gray> <green>→</green> <yellow>{new}</yellow>"
   admin-price-bounds-usage: "<yellow>Использование:</yellow> <gold>/lsa price bounds <предмет> <мин> <макс></gold> <gray>(0 = без границы)</gray><yellow>,</yellow> <gold>/lsa price bounds <предмет> off</gold><yellow>,</yellow> <gold>/lsa price bounds list</gold>"
@@ -180,31 +172,7 @@ market:
   admin-price-bounds-line: "<gray>-</gray> <white>{item}</white><gray>:</gray> <white>{min}</white><gray>–</gray><white>{max}</white>"
   admin-price-history-header: "<dark_gray>==</dark_gray> <gold>Журнал цен</gold> <gray>стр. {page}/{pages}, всего {total}</gray>"
   admin-price-history-line: "<gray>{when}</gray> <white>{admin}</white> <gray>[{kind}]</gray> <aqua>{target}</aqua> <white>{item}</white><gray>:</gray> <red>{old}</red> <gray>→</gray> <green>{new}</green>"
-  admin-auction-usage: "<yellow>Аукцион:</yellow> <gold>/lsa auction <list|create|price|buyout|extend|end|cancel|step></gold>"
-  admin-auction-list-header: "<dark_gray>==</dark_gray> <gold>Активные лоты</gold> <gray>стр. {page}/{pages}, всего {total}</gray>"
-  admin-auction-list-line: "<gold>#{id}</gold> <white>{item}</white> <gray>старт</gray> <yellow>{start}</yellow> <gray>ставка</gray> <yellow>{bid}</yellow> <gray>({leader}) выкуп</gray> <yellow>{buyout}</yellow> <gray>осталось {left}</gray>"
-  admin-auction-create-usage: "<yellow>Использование:</yellow> <gold>/lsa auction create <старт> [выкуп|off] [часы]</gold> <gray>(предмет в руке)</gray>"
-  admin-auction-created: "<green>Лот</green> <gold>#{id}</gold> <green>создан:</green> <white>{item}</white>"
-  admin-auction-not-found: "<red>Активного лота #{id} нет.</red>"
-  admin-auction-has-bids: "<red>У лота #{id} уже есть ставки: цену менять нельзя, только завершить (end) или отменить (cancel).</red>"
-  admin-auction-bad-value: "<red>Недопустимое значение: цена выкупа должна быть выше текущей ставки и стартовой цены, старт — выше нуля и ниже выкупа.</red>"
-  admin-auction-price-usage: "<yellow>Использование:</yellow> <gold>/lsa auction price <номер> <старт></gold>"
-  admin-auction-price: "<green>Стартовая цена лота</green> <gold>#{id}</gold><green>:</green> <yellow>{price}</yellow>"
-  admin-auction-buyout-usage: "<yellow>Использование:</yellow> <gold>/lsa auction buyout <номер> <цена|off></gold>"
-  admin-auction-buyout: "<green>Выкуп лота</green> <gold>#{id}</gold><green>:</green> <yellow>{price}</yellow>"
-  admin-auction-buyout-off: "<green>Выкуп лота</green> <gold>#{id}</gold> <green>снят.</green>"
-  admin-auction-extend-usage: "<yellow>Использование:</yellow> <gold>/lsa auction extend <номер> <часы></gold>"
-  admin-auction-extended: "<green>Лот</green> <gold>#{id}</gold> <green>продлён на {hours} ч.</green>"
-  admin-auction-end-usage: "<yellow>Использование:</yellow> <gold>/lsa auction end <номер></gold>"
-  admin-auction-ended: "<green>Лот</green> <gold>#{id}</gold> <green>завершается сейчас, победитель получит его как обычно.</green>"
-  admin-auction-cancel-usage: "<yellow>Использование:</yellow> <gold>/lsa auction cancel <номер> [причина]</gold>"
-  admin-auction-cancelled: "<green>Лот</green> <gold>#{id}</gold> <green>отменён, ставки сняты.</green>"
-  admin-auction-item-returned: "<gray>Предмет лота вернулся вам:</gray> <white>{item} x{amount}</white>"
-  admin-auction-item-logged: "<yellow>Команда из консоли: предмет лота записан в лог сервера.</yellow>"
-  admin-auction-step-usage: "<yellow>Использование:</yellow> <gold>/lsa auction step <5%|50|reset></gold> <gray>(процент от ставки или фиксированная сумма)</gray>"
-  admin-auction-step: "<green>Шаг ставки:</green> <yellow>{step}</yellow>"
-  admin-auction-step-reset: "<green>Шаг ставки снова берётся из config.yml.</green>"
-  notice-auction-cancelled: "<yellow>Аукцион</yellow> <gold>#{id}</gold> <yellow>отменён администрацией, ваша ставка снята.</yellow> <gray>Причина: {reason}</gray>"
+
   admin-point-usage: "<yellow>Торговые точки:</yellow> <gold>/lsa point <list|close|open|seize|restore|robberies></gold>"
   admin-point-not-found: "<red>Точка '{point}' не найдена (укажите ник владельца или номер точки).</red>"
   admin-point-list-header: "<dark_gray>==</dark_gray> <gold>Торговые точки</gold> <gray>стр. {page}/{pages}, всего {total}</gray>"
@@ -751,3 +719,38 @@ market:
   # --- Напоминания об аренде (2026-10-02) ---
   rent-reminder: "{i_stall} <yellow>Аренда торговой точки закончится через <white>{time}</white>.</yellow> <gray>Для продления нужно {cost}, в кассе {till}. Не хватит — точку закроют, а затем <red>конфискуют</red> вместе с товарами и кассой.</gray>"
   rent-grace-reminder: "{i_closed} <red>Торговая точка закрыта за долг по аренде.</red> <gray>Нужно {cost}, в кассе {till}. Пополните кассу, иначе точку <red>конфискуют</red>.</gray>"
+
+  # --- Караванщик (Daily Caravaner) ---
+  caravan:
+    daily:
+      arrival: "<gold><bold>📦 Караванщик прибыл в город!</bold></gold> <yellow>Приём товаров открыт на {hours} ч. Успейте сдать ресурсы!</yellow>"
+      almost-leaving: "<gold><bold>⚡ Караванщик скоро уезжает!</bold></gold> <yellow>Осталось мало времени или почти все ящики заполнены.</yellow>"
+      departure-full: "<gold><bold>📦 Все ящики Караванщика заполнены!</bold></gold> <yellow>Караван покидает город до следующего визита.</yellow>"
+      departure-time: "<gold><bold>📦 Время визита Караванщика истекло.</bold></gold> <gray>Караван отправился в путь.</gray>"
+      submit-success: "<green>Вы сдали <gold>{count} шт.</gold> в «{name}» и получили {money}!</green>"
+      limit-reached: "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>"
+      no-items: "<red>У вас нет подходящих предметов для этого ящика!</red>"
+      crate-closed: "<red>Этот ящик уже заполнен или закрыт.</red>"
+      no-space: "<red>В вашем инвентаре нет места для монет выплаты!</red>"
+    lost:
+      arrival: "<gold><bold>⚔ [Потерянный Караван]</bold></gold> <yellow>В окрестностях обнаружен потерянный караван! Регистрация открыта на {minutes} мин. Внесите залог у торговца.</yellow>"
+      registration-success: "<green>Вы успешно зарегистрировались в Потерянном Караване! Залог внесён.</green>"
+      cooldown: "<red>Вы можете участвовать в Потерянном Караване только 1 раз в 7 дней!</red>"
+      no-fee: "<red>У вас недостаточно монет для внесения залога!</red>"
+      bid-success: "<green>Ваша ставка {amount} принята! Вы лидируете в торгах.</green>"
+      bid-outbid: "<yellow>Ваша ставка на ящик каравана перебита! Монеты ({amount}) возвращены.</yellow>"
+      lot-sold: "<green>Ящик #{index} продан игроку <gold>{player}</gold> за {amount}!</green>"
+      lot-expired: "<gray>Ящик #{index} не нашёл покупателя.</gray>"
+      instant-buy: "<green>Вы успешно приобрели ящик каравана за {amount}!</green>"
+      deposit-refund: "<yellow>Вам возвращено 50% залога за участие: {amount}.</yellow>"
+
+  commission:
+    lot-created: "<green>Лот успешно выставлен на комиссию за {price}! Комиссия брокера: {fee}%.</green>"
+    lot-sold-seller: "<green>Ваш лот был куплен игроком <gold>{player}</gold>! Вам начислено {payout}.</green>"
+    lot-bought: "<green>Вы успешно приобрели товар на комиссии за {price}!</green>"
+    lot-cancelled: "<yellow>Лот снят с комиссии, предмет возвращён в ваш инвентарь.</yellow>"
+    offline-payout: "<gold><bold>📦 [Комиссионер]</bold></gold> <green>Пока вас не было в сети, ваши лоты были проданы! Начислено: {amount}.</green>"
+    already-has-lot: "<red>У вас уже есть активный лот на комиссии! Лимит: 1 лот на игрока.</red>"
+    cant-buy-self: "<red>Вы не можете купить свой собственный лот!</red>"
+    no-space: "<red>В инвентаре нет свободного места!</red>"
+

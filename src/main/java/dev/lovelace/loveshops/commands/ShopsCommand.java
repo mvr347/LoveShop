@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -35,8 +34,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
         String cmdLabel = label.toLowerCase();
 
-        // Direct alias handling (/auction, /auctioneer, /wanderer)
-        if (cmdLabel.equals("auction") || cmdLabel.equals("auctioneer") || cmdLabel.equals("wanderer")) {
+        // Direct alias handling (/wanderer)
+        if (cmdLabel.equals("wanderer")) {
             Player target = null;
             if (args.length >= 1) {
                 target = Bukkit.getPlayer(args[0]);
@@ -51,10 +50,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            switch (cmdLabel) {
-                case "auction", "auctioneer" -> new AuctionGui(plugin, target).open();
-                case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
-            }
+            plugin.getWandererManager().handleWandererInteraction(target);
 
             if (sender != target) {
                 sender.sendMessage(MessageUtils.parse("<green>Меню " + cmdLabel + " успешно открыто для " + target.getName() + "!</green>"));
@@ -71,7 +67,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         switch (sub) {
             case "gui", "open", "openmenu" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <auctioneer|wanderer> [игрок]</yellow>"));
+                    sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshops open <wanderer> [игрок]</yellow>"));
                     return true;
                 }
                 String menuType = args[1].toLowerCase();
@@ -93,9 +89,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 }
 
                 switch (menuType) {
-                    case "auctioneer", "auction" -> new AuctionGui(plugin, target).open();
                     case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
-                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: auctioneer, wanderer</red>"));
+                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: wanderer</red>"));
                 }
 
                 if (sender != target) {
@@ -122,8 +117,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <auctioneer|wanderer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/auction, /wanderer</gold> <gray>- Быстрые алиасы для открытия меню</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <wanderer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/wanderer</gold> <gray>- Быстрый алиас для открытия меню</gray>"));
         if (sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"));
         }
@@ -139,7 +134,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
         String cmdLabel = label.toLowerCase();
 
-        if (List.of("auction", "auctioneer", "wanderer").contains(cmdLabel)) {
+        if (cmdLabel.equals("wanderer")) {
             if (args.length == 1) {
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase())).toList();
@@ -153,7 +148,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
                 completions.addAll(List.of("npc", "wanderer", "reload"));
             }
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
-            completions.addAll(List.of("auctioneer", "wanderer"));
+            completions.add("wanderer");
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         }

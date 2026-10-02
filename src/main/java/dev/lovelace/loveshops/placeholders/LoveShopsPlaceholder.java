@@ -39,14 +39,6 @@ public class LoveShopsPlaceholder extends PlaceholderExpansion {
 
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
-        if (params.equalsIgnoreCase("seller_arrival")) {
-            return "";
-        }
-
-        if (params.equalsIgnoreCase("seller_active")) {
-            return "false";
-        }
-
         if (params.equalsIgnoreCase("wanderer_active")) {
             return String.valueOf(plugin.getWandererManager().isWandererActive());
         }
@@ -73,13 +65,6 @@ public class LoveShopsPlaceholder extends PlaceholderExpansion {
             }
         }
 
-        if (params.equalsIgnoreCase("auction_count")) {
-            try {
-                return String.valueOf(plugin.getAuctionManager().getActiveAuctions().get().size());
-            } catch (Exception e) {
-                return "0";
-            }
-        }
 
         if (params.startsWith("item_") && params.endsWith("_price")) {
             String matName = params.substring(5, params.length() - 6).toUpperCase();

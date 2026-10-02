@@ -200,14 +200,20 @@ public class NpcManager {
     public boolean isTypeAllowedToSpawn(String type) {
         if (type == null) return false;
         String t = type.toLowerCase(Locale.ROOT);
-        if (t.equals("seller") || t.equals("buyer")) {
+        if (t.equals("seller") || t.equals("buyer") || t.equals("auctioneer")) {
             return false;
-        }
-        if (t.equals("auctioneer")) {
-            return true;
         }
         if (t.equals("wanderer")) {
             return plugin.getWandererManager().isWandererActive();
+        }
+        if (t.equals("caravaner")) {
+            return plugin.getDailyCaravanManager() != null && plugin.getDailyCaravanManager().isCaravanerActive();
+        }
+        if (t.equals("commissioner")) {
+            return plugin.getCommissionManager() != null && plugin.getCommissionManager().isEnabled();
+        }
+        if (t.equals("lostcaravan")) {
+            return plugin.getLostCaravanManager() != null && plugin.getLostCaravanManager().isEventActive();
         }
         return true;
     }

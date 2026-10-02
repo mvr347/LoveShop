@@ -14,40 +14,6 @@ npc:
   bind-distance: 6.0
 
 
-# ===== АУКЦИОН (РЕДКИЕ ПРЕДМЕТЫ) =====
-auctioneer:
-  enabled: true
-  auction-duration-hours: 24                  # длительность аукциона
-  price-threshold: 100                        # цена скупки (~1 алмазная монета), начиная с которой предмет уходит на аукцион
-  buyout-multiplier: 2.5                      # цена мгновенного выкупа = стартовая цена * множитель
-  # 2026-09-30: потолок одного продления командой /lsa auction extend. 72 часа — трое суток
-  # хватает, чтобы дождаться игроков из другого часового пояса, но опечатка вроде "extend 1 9999"
-  # не превращает лот в вечный и не держит его предмет и резервы ставок годами.
-  max-extension-hours: 72
-
-  # Редкие/зачарованные предметы уходят на аукцион независимо от price-threshold выше.
-  route-rare-items: true
-  # Минимальная редкость (COMMON/UNCOMMON/RARE/EPIC, см. org.bukkit.inventory.ItemRarity),
-  # начиная с которой предмет считается "редким" — фиолетово-золотистые цвета в тултипе ванильи.
-  # Работает только для предметов, у которых явно проставлен компонент редкости; для
-  # обычных зачарованных вещей без такого компонента срабатывает отдельная проверка на
-  # зачарования (всегда включена, не зависит от этого порога).
-  min-rarity: "RARE"
-
-  anti-snipe:
-    enabled: true
-    threshold-seconds: 30                     # ставка позже этого времени до конца продлевает аукцион
-    extension-seconds: 30                     # на сколько продлевать от момента ставки
-
-  bid-step:
-    type: "percentage"                        # 'percentage' или 'fixed'
-    value: 5                                  # 5% от текущей ставки
-
-  messages:
-    auction-started: "&6Аукцион! &eПредмет: {item_name} &eна сумму {starting_price}"
-    auction-ended: "&6Аукцион завершён! &eПобедитель: {winner} за {final_price}"
-    bid-placed: "&a✓ Ставка принята: {bid_amount}"
-    bid-outbid: "&c✗ Ваша ставка перебита на {new_amount}"
 
 # ===== ЗАЩИТА И СИСТЕМНЫЕ ПАРАМЕТРЫ =====
 protection:
@@ -60,7 +26,7 @@ placeholders:
   enabled: true                               # включить PlaceholderAPI интеграцию
 
 # ===== "ЖИВЫЕ" НПС: РЕАКЦИЯ НА ВЕЖЛИВОСТЬ/СТИЛЬ ИГРЫ (LoveBehavior) =====
-# Срабатывает при клике на любого НПС (Скупщик/Барахолка/Аукционист), до открытия
+# Срабатывает при клике на любого НПС (Скупщик/Военный торговец/Банкир/Странник), до открытия
 # GUI. Это отдельный, более ранний слой поверх ручного /lssa status у Скупщика —
 # тот статус (buyer_reputation_overrides) как проверялся, так и проверяется отдельно
 # в момент финализации сделки Скупщика, здесь не участвует. Без LoveBehavior секция
@@ -123,10 +89,10 @@ war-merchant:
       price: 250
       enchantments: { }
 
-# ===== НАЛОГ ТОРГОВЦЕВ (Скупщик/Барахолка/Военный торговец — БЕЗ Странника) =====
+# ===== НАЛОГ ТОРГОВЦЕВ (Скупщик/Военный торговец — БЕЗ Странника) =====
 # 2026-09-24, по явной просьбе владельца: фиксированный процент, которым магазины LoveShop
 # "съедают" часть каждой сделки - экономический сток / мера сохранения ценности золота на
-# сервере. Скупщик платит игроку МЕНЬШЕ на этот процент; Барахолка и Военный торговец берут с
+# сервере. Скупщик платит игроку МЕНЬШЕ на этот процент; Военный торговец берёт с
 # игрока БОЛЬШЕ на этот процент. Странник ИСКЛЮЧЁН СОЗНАТЕЛЬНО - владелец прямо попросил не
 # трогать его цены этим налогом (см. wanderer.dynamic-pricing выше - у него своя, отдельная
 # логика ценообразования).
@@ -149,10 +115,9 @@ merchant-tax:
 # действует до множителей variance/reputation-bonus/repetition-penalty ниже, так что
 # соотношение между ними и итоговый разброс цены не меняются — меняется только база.
 # Проверьте эти значения в игре и подправьте под свою экономику при необходимости.
-# Обычные и редкие предметы теперь в отдельном файле prices.yml — см. common/rare там.
+# Обычные предметы теперь в отдельном файле prices.yml — см. buyer там.
 # Здесь остаются только клановые артефакты LoveClans: цена по типу, а не по материалу,
-# им отдельный список не нужен. Выше порога аукциона (auctioneer.price-threshold),
-# поэтому артефакт уходит на торги, а не на барахолку.
+# им отдельный список не нужен.
 prices-config:
   artifacts:
     default-price: 2500
@@ -244,8 +209,8 @@ wanderer:
   #      неделю (buyer_inventory.received_at). Мало продаж = дефицит товаров = Странник дороже.
   #      При weeklySold >= scarcity-reference-weekly-sold бонус равен нулю (рынок и так насыщен).
   #   2) activity (активность экономики, вторичный сигнал, слабее scarcity по просьбе владельца) -
-  #      сколько разных игроков за неделю продавали Скупщику ИЛИ делали ставки на аукционе
-  #      (buyer_inventory + auction_bids). Богатая/активная экономика выдерживает цены повыше.
+  #      сколько разных игроков за неделю продавали Скупщику ИЛИ покупали на рынке
+  #      (buyer_inventory + market_transactions). Богатая/активная экономика выдерживает цены повыше.
   # Оба веса и порог насыщения независимо настраиваются - шаблон значений ниже: 50 продаж/неделю
   # и 20 активных игроков/неделю взяты как "обычная неделя" по объёму органично играющего сервера
   # среднего размера; поправить под свой сервер после недели наблюдений в /loveshopsadmin.
@@ -889,4 +854,166 @@ market:
   # Иконки. По умолчанию — монеты банкира (%img_...%) и простые символы. Свой глиф ItemsAdder:
   # glyphs: { STALL: "%img_my_tag%" }
   glyphs: {}
+
+# ========================================================
+# СИСТЕМЫ КАРАВАНОВ (Ежедневный Караванщик и Потерянные Караваны)
+# ========================================================
+caravan:
+  daily:
+    enabled: true
+    spawn-time: "12:00"
+    duration-hours: 4
+    almost-leaving-threshold-minutes: 15
+    price-variance-percent: 8
+    crates-per-visit:
+      min: 3
+      max: 5
+    max-stacks-per-player-visit: 15
+    urgent-order:
+      enabled: true
+      chance-per-visit: 0.25
+      duration-minutes: 60
+      price-multiplier: 1.8
+      display-name: "<red><bold>⚡ СРОЧНЫЙ ЗАКАЗ:</bold></red>"
+    crate-pool:
+      wood:
+        display-name: "<gold>Ящик с древесиной</gold>"
+        icon: OAK_LOG
+        accepted:
+          - material: OAK_LOG
+            price-per-unit: 2
+          - material: BIRCH_LOG
+            price-per-unit: 2
+          - material: SPRUCE_LOG
+            price-per-unit: 2
+        max-stacks: 30
+        stack-bonus-percent: 8
+      planks:
+        display-name: "<gold>Ящик с досками</gold>"
+        icon: OAK_PLANKS
+        accepted:
+          - material: OAK_PLANKS
+            price-per-unit: 1
+          - material: SPRUCE_PLANKS
+            price-per-unit: 1
+          - material: BIRCH_PLANKS
+            price-per-unit: 1
+        max-stacks: 40
+        stack-bonus-percent: 10
+      stone:
+        display-name: "<gray>Ящик с камнем</gray>"
+        icon: STONE
+        accepted:
+          - material: STONE
+            price-per-unit: 1
+          - material: COBBLESTONE
+            price-per-unit: 1
+          - material: DEEPSLATE
+            price-per-unit: 2
+        max-stacks: 45
+        stack-bonus-percent: 5
+      ores:
+        display-name: "<aqua>Ящик с рудой</aqua>"
+        icon: RAW_IRON
+        accepted:
+          - material: COAL
+            price-per-unit: 3
+          - material: RAW_IRON
+            price-per-unit: 8
+          - material: RAW_COPPER
+            price-per-unit: 4
+        max-stacks: 20
+        stack-bonus-percent: 12
+      farming:
+        display-name: "<yellow>Ящик с урожаем</yellow>"
+        icon: WHEAT
+        accepted:
+          - material: WHEAT
+            price-per-unit: 1
+          - material: CARROT
+            price-per-unit: 1
+          - material: POTATO
+            price-per-unit: 1
+        max-stacks: 35
+        stack-bonus-percent: 8
+
+  lost:
+    enabled: true
+    spawn-window-start: "10:00"
+    spawn-window-end: "20:00"
+    announce-minutes: 10
+    bid-duration-seconds: 60
+    settle-minutes: 15
+    min-players-for-auction: 6
+    starting-price: 10
+    entry-fee:
+      item: "lovecore:iron_coin"
+      amount: 1
+      refund-percent-if-no-win: 50
+    crates-count: 5
+    secret-crate-chance-players: 12
+    crates:
+      default:
+        diamond:
+          material: DIAMOND
+          chance: 40
+          min: 3
+          max: 8
+        emerald:
+          material: EMERALD
+          chance: 50
+          min: 6
+          max: 16
+        gold:
+          material: GOLD_INGOT
+          chance: 70
+          min: 12
+          max: 32
+        iron:
+          material: IRON_INGOT
+          chance: 80
+          min: 24
+          max: 64
+        scrap:
+          material: NETHERITE_SCRAP
+          chance: 15
+          min: 1
+          max: 2
+        golden_apple:
+          material: GOLDEN_APPLE
+          chance: 25
+          min: 1
+          max: 3
+      secret:
+        netherite:
+          material: NETHERITE_INGOT
+          chance: 60
+          min: 1
+          max: 3
+        enchanted_apple:
+          material: ENCHANTED_GOLDEN_APPLE
+          chance: 40
+          min: 1
+          max: 2
+        diamond_block:
+          material: DIAMOND_BLOCK
+          chance: 45
+          min: 2
+          max: 5
+        totem:
+          material: TOTEM_OF_UNDYING
+          chance: 50
+          min: 1
+          max: 2
+
+# ========================================================
+# КОМИССИОННЫЙ БРОКЕР (COMMISSION AGENT)
+# ========================================================
+commission:
+  enabled: true
+  fee-percent: 10
+  max-lots-per-player: 1
+  max-items-per-lot: 64
+  hot-offer-threshold-sales: 3
+
 

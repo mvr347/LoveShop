@@ -39,12 +39,14 @@ public final class LoveShops extends JavaPlugin {
     private PricesManager pricesManager;
     private ForbiddenManager forbiddenManager;
     private NpcManager npcManager;
-    private AuctionManager auctionManager;
     private NpcDialogueManager npcDialogueManager;
     private WarMerchantManager warMerchantManager;
     private WandererManager wandererManager;
     private BankerManager bankerManager;
     private CitizensIntegration citizensIntegration;
+    private dev.lovelace.loveshops.managers.DailyCaravanManager dailyCaravanManager;
+    private dev.lovelace.loveshops.managers.CommissionManager commissionManager;
+    private dev.lovelace.loveshops.managers.LostCaravanManager lostCaravanManager;
     private MarketConfig marketConfig;
     private MarketMessages marketMessages;
     private MarketStyle marketStyle;
@@ -78,10 +80,14 @@ public final class LoveShops extends JavaPlugin {
         this.priceCalculator = new PriceCalculator(this);
         this.wandererManager = new WandererManager(this);
         this.npcManager = new NpcManager(this);
-        this.auctionManager = new AuctionManager(this);
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
         this.bankerManager = new BankerManager(this);
+        this.dailyCaravanManager = new dev.lovelace.loveshops.managers.DailyCaravanManager(this);
+        this.dailyCaravanManager.start();
+        this.commissionManager = new dev.lovelace.loveshops.managers.CommissionManager(this);
+        this.lostCaravanManager = new dev.lovelace.loveshops.managers.LostCaravanManager(this);
+        this.lostCaravanManager.start();
         this.citizensIntegration = new CitizensIntegration();
 
         // 3b. Рынок игроков: конфиг/тексты/оформление создаются всегда, сам модуль — только с Citizens и LoveClaims
@@ -93,7 +99,7 @@ public final class LoveShops extends JavaPlugin {
 
         // 4. Register Commands
         ShopsCommand shopsCmd = new ShopsCommand(this);
-        for (String cmdName : java.util.List.of("loveshops", "shops", "шоп", "loveshop", "lshops", "lshop", "auction", "auctioneer", "wanderer")) {
+        for (String cmdName : java.util.List.of("loveshops", "shops", "шоп", "loveshop", "lshops", "lshop", "wanderer")) {
             var cmd = getCommand(cmdName);
             if (cmd != null) {
                 cmd.setExecutor(shopsCmd);
@@ -122,6 +128,7 @@ public final class LoveShops extends JavaPlugin {
         // 5. Register Listeners
         getServer().getPluginManager().registerEvents(new InventoryClickListener(this), this);
         getServer().getPluginManager().registerEvents(new ScheduleListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.CaravanPlayerListener(this), this);
         if (getServer().getPluginManager().isPluginEnabled("Citizens")) {
             getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.CitizensListener(this), this);
             getLogger().info("✓ Citizens интеграция активирована.");
@@ -147,6 +154,12 @@ public final class LoveShops extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (dailyCaravanManager != null) {
+            dailyCaravanManager.stop();
+        }
+        if (lostCaravanManager != null) {
+            lostCaravanManager.stop();
+        }
         if (marketModule != null) {
             marketModule.stop();
         }
@@ -167,11 +180,13 @@ public final class LoveShops extends JavaPlugin {
     public PricesManager getPricesManager() { return pricesManager; }
     public ForbiddenManager getForbiddenManager() { return forbiddenManager; }
     public NpcManager getNpcManager() { return npcManager; }
-    public AuctionManager getAuctionManager() { return auctionManager; }
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
     public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
     public WandererManager getWandererManager() { return wandererManager; }
     public BankerManager getBankerManager() { return bankerManager; }
+    public dev.lovelace.loveshops.managers.DailyCaravanManager getDailyCaravanManager() { return dailyCaravanManager; }
+    public dev.lovelace.loveshops.managers.CommissionManager getCommissionManager() { return commissionManager; }
+    public dev.lovelace.loveshops.managers.LostCaravanManager getLostCaravanManager() { return lostCaravanManager; }
     public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
     public MarketConfig getMarketConfig() { return marketConfig; }
     public MarketMessages getMarketMessages() { return marketMessages; }
@@ -183,8 +198,6 @@ public final class LoveShops extends JavaPlugin {
     public StallTradeService getTradeService() { return marketModule == null ? null : marketModule.trade(); }
     public RatingService getRatingService() { return marketModule == null ? null : marketModule.ratings(); }
     public StallUpgradeService getUpgradeService() { return marketModule == null ? null : marketModule.upgrades(); }
-    /** {@code true} while the flea trader is open around the clock (market running, no Sunday schedule). */
-    public boolean isFleaPermanent() { return false; }
     public GuardService getGuardService() { return marketModule == null ? null : marketModule.guards(); }
     public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
     public dev.lovelace.loveshops.market.StallNpcService getStallNpcService() { return marketModule == null ? null : marketModule.npcs(); }

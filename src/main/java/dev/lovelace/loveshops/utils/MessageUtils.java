@@ -105,6 +105,11 @@ public final class MessageUtils {
         sender.sendMessage(parse(player, message));
     }
 
+    public static void sendMessage(CommandSender sender, Component message) {
+        if (sender == null || message == null) return;
+        sender.sendMessage(message);
+    }
+
     public static String escapeTags(String input) {
         if (input == null || input.isEmpty()) return input;
         return MINI_MESSAGE.escapeTags(input);

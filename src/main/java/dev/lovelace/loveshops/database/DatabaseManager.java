@@ -96,51 +96,7 @@ public class DatabaseManager {
                 );
             """);
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS auctions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    auctioneer_npc_id INTEGER,
-                    item_data TEXT NOT NULL,
-                    starting_price INTEGER NOT NULL,
-                    current_highest_bid INTEGER DEFAULT 0,
-                    highest_bidder_uuid TEXT,
-                    starts_at INTEGER NOT NULL,
-                    ends_at INTEGER NOT NULL,
-                    status TEXT DEFAULT 'active',
-                    winner_uuid TEXT,
-                    completed_at INTEGER,
-                    FOREIGN KEY (auctioneer_npc_id) REFERENCES shops_npcs(id) ON DELETE SET NULL
-                );
-            """);
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS auction_bids (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    auction_id INTEGER NOT NULL,
-                    bidder_uuid TEXT NOT NULL,
-                    bid_amount INTEGER NOT NULL,
-                    placed_at INTEGER DEFAULT (strftime('%s', 'now')),
-                    FOREIGN KEY (auction_id) REFERENCES auctions(id) ON DELETE CASCADE
-                );
-            """);
-
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS reserved_currency (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    player_uuid TEXT NOT NULL UNIQUE,
-                    reserved_amount INTEGER DEFAULT 0,
-                    last_bid_auction_id INTEGER
-                );
-            """);
-
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS seller_price_state (
-                    item_type TEXT PRIMARY KEY,
-                    demand_count INTEGER DEFAULT 0,
-                    noise_percent REAL DEFAULT 0,
-                    cycle_id INTEGER DEFAULT 0
-                );
-            """);
 
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS wanderer_deals (
@@ -172,13 +128,10 @@ public class DatabaseManager {
             """);
 
             createMarketTables(stmt);
+            createCaravanAndCommissionTables(stmt);
 
             addColumnIfMissing(stmt, "buyer_inventory", "item_type", "TEXT");
-            addColumnIfMissing(stmt, "buyer_inventory", "channel", "TEXT DEFAULT 'seller'");
-            addColumnIfMissing(stmt, "buyer_inventory", "auctioned_at", "INTEGER");
-            addColumnIfMissing(stmt, "auctions", "buyout_price", "INTEGER");
             addColumnIfMissing(stmt, "wanderer_deals", "requested_category", "TEXT");
-            addColumnIfMissing(stmt, "auctions", "delivered_at", "INTEGER");
             addColumnIfMissing(stmt, "shops_npcs", "citizens_id", "INTEGER");
         }
     }
@@ -365,23 +318,6 @@ public class DatabaseManager {
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_price_changes_time ON price_changes(created_at)");
 
-        // Players barred from putting lots up at the flea trader, and individual lot limits.
-        stmt.execute("""
-            CREATE TABLE IF NOT EXISTS flea_bans (
-                player_uuid TEXT PRIMARY KEY,
-                until_ts INTEGER NOT NULL,
-                reason TEXT,
-                set_by TEXT,
-                set_at INTEGER NOT NULL
-            );
-        """);
-        stmt.execute("""
-            CREATE TABLE IF NOT EXISTS flea_limits (
-                player_uuid TEXT PRIMARY KEY,
-                max_listings INTEGER NOT NULL
-            );
-        """);
-
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS daily_buyer_usage (
                 player_uuid TEXT NOT NULL,
@@ -390,20 +326,6 @@ public class DatabaseManager {
                 PRIMARY KEY (player_uuid, day_key)
             );
         """);
-
-        stmt.execute("""
-            CREATE TABLE IF NOT EXISTS flea_listings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                seller_uuid TEXT NOT NULL,
-                item_data TEXT NOT NULL,
-                item_hash TEXT NOT NULL,
-                unit_price INTEGER NOT NULL,
-                amount_left INTEGER NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1,
-                created_at INTEGER NOT NULL
-            );
-        """);
-        stmt.execute("CREATE INDEX IF NOT EXISTS idx_flea_seller ON flea_listings(seller_uuid)");
 
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS point_blacklist (
@@ -441,6 +363,147 @@ public class DatabaseManager {
         addColumnIfMissing(stmt, "trade_points", "closed_sign_x", "INTEGER");
         addColumnIfMissing(stmt, "trade_points", "closed_sign_y", "INTEGER");
         addColumnIfMissing(stmt, "trade_points", "closed_sign_z", "INTEGER");
+    }
+
+    private void createCaravanAndCommissionTables(Statement stmt) throws SQLException {
+        // --- Daily Caravaner ---
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS daily_caravan_visits (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                spawned_at      INTEGER NOT NULL,
+                despawn_at      INTEGER NOT NULL,
+                status          TEXT DEFAULT 'ACTIVE',
+                created_at      INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS daily_caravan_crates (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                visit_id           INTEGER NOT NULL REFERENCES daily_caravan_visits(id) ON DELETE CASCADE,
+                crate_key          TEXT NOT NULL,
+                display_name       TEXT NOT NULL,
+                current_amount     INTEGER DEFAULT 0,
+                max_amount         INTEGER NOT NULL,
+                price_per_unit     INTEGER NOT NULL,
+                is_urgent          INTEGER DEFAULT 0,
+                urgent_expires_at  INTEGER DEFAULT 0,
+                closed             INTEGER DEFAULT 0
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS daily_caravan_submissions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                crate_id        INTEGER NOT NULL REFERENCES daily_caravan_crates(id) ON DELETE CASCADE,
+                player_uuid     TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                paid            INTEGER NOT NULL,
+                submitted_at    INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        // --- Commission Agent ---
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS commission_lots (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                seller_uuid     TEXT NOT NULL,
+                item_data       TEXT NOT NULL,
+                price           INTEGER NOT NULL,
+                fee_percent     INTEGER NOT NULL DEFAULT 10,
+                status          TEXT DEFAULT 'ACTIVE',
+                created_at      INTEGER DEFAULT (strftime('%s','now')),
+                sold_at         INTEGER,
+                buyer_uuid      TEXT,
+                is_hot          INTEGER DEFAULT 0
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS commission_sales_history (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                lot_id          INTEGER,
+                seller_uuid     TEXT NOT NULL,
+                buyer_uuid      TEXT NOT NULL,
+                price           INTEGER NOT NULL,
+                fee             INTEGER NOT NULL,
+                sold_at         INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS commission_pending_payouts (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                seller_uuid     TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                created_at      INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        // --- Lost Caravans ---
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS lost_caravan_sessions (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                scheduled_at      INTEGER NOT NULL,
+                opened_at         INTEGER,
+                closed_at         INTEGER,
+                status            TEXT NOT NULL DEFAULT 'SCHEDULED',
+                mode              TEXT,
+                participant_count INTEGER DEFAULT 0,
+                secret_crate      INTEGER DEFAULT 0,
+                created_at        INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS lost_caravan_participants (
+                session_id      INTEGER NOT NULL REFERENCES lost_caravan_sessions(id) ON DELETE CASCADE,
+                player_uuid     TEXT NOT NULL,
+                entry_fee_paid  INTEGER NOT NULL DEFAULT 1,
+                refunded        INTEGER DEFAULT 0,
+                won_crates      INTEGER DEFAULT 0,
+                registered_at   INTEGER DEFAULT (strftime('%s','now')),
+                PRIMARY KEY (session_id, player_uuid)
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS lost_caravan_lots (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id      INTEGER NOT NULL REFERENCES lost_caravan_sessions(id) ON DELETE CASCADE,
+                lot_index       INTEGER NOT NULL,
+                is_secret       INTEGER DEFAULT 0,
+                crate_item_data TEXT NOT NULL,
+                starting_price  INTEGER NOT NULL,
+                current_bid     INTEGER DEFAULT 0,
+                highest_bidder  TEXT,
+                status          TEXT DEFAULT 'PENDING',
+                started_at      INTEGER,
+                ended_at        INTEGER
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS lost_caravan_bids (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                lot_id          INTEGER NOT NULL REFERENCES lost_caravan_lots(id) ON DELETE CASCADE,
+                bidder_uuid     TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                placed_at       INTEGER DEFAULT (strftime('%s','now'))
+            );
+        """);
+
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS caravan_cooldowns (
+                player_uuid       TEXT PRIMARY KEY,
+                last_participated INTEGER NOT NULL
+            );
+        """);
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_daily_crates_visit ON daily_caravan_crates(visit_id, closed);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_active ON commission_lots(status, is_hot);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_seller ON commission_lots(seller_uuid, status);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_lost_lots_session ON lost_caravan_lots(session_id, status);");
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {

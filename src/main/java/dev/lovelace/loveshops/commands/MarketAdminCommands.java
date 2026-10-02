@@ -1,13 +1,11 @@
 package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.managers.AuctionManager;
 import dev.lovelace.loveshops.managers.PricesManager;
 import dev.lovelace.loveshops.market.AdminParse;
 import dev.lovelace.loveshops.market.MarketRepository;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.market.model.TradePoint;
-import dev.lovelace.loveshops.models.AuctionData;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
@@ -29,10 +27,9 @@ import java.util.UUID;
 
 /**
  * Administrator commands of the player market and of price control, mounted under
- * {@code /loveshopsadmin}: {@code price get|list|reset|mult|bounds|history},
- * {@code auction ...} and {@code point ...}. Permissions are checked before any
- * database access; nothing here blocks the main thread beyond a short indexed query, and the
- * heavier lot changes run on the async scheduler and report back on the main thread.
+ * {@code /loveshopsadmin}: {@code price get|list|reset|mult|bounds|history} and {@code point ...}.
+ * Permissions are checked before any database access; nothing here blocks the main thread
+ * beyond a short indexed query.
  */
 public final class MarketAdminCommands {
 
@@ -40,7 +37,6 @@ public final class MarketAdminCommands {
     private static final long RETENTION_MILLIS = 90L * 86_400_000L;
 
     public static final List<String> PRICE_SUBS = List.of("get", "list", "reset", "mult", "bounds", "history");
-    private static final List<String> AUCTION_SUBS = List.of("list", "create", "price", "buyout", "extend", "end", "cancel", "step");
     private static final List<String> POINT_SUBS = List.of(
             "list", "close", "open", "seize", "restore", "robberies",
             "settrader", "setclosedsign", "clearclosedsign", "transfer", "info"
@@ -335,248 +331,6 @@ public final class MarketAdminCommands {
         return AdminParse.duration(Math.max(0, (System.currentTimeMillis() - millis) / 1000)) + " назад";
     }
 
-    // ------------------------------------------------------------------ auction
-
-    public void handleAuction(CommandSender sender, String[] args) {
-        if (!allowed(sender, "loveshops.admin.auction")) return;
-        String sub = args.length > 1 ? AdminParse.canonical(args[1]) : "";
-        switch (sub) {
-            case "list" -> auctionList(sender, args);
-            case "create" -> auctionCreate(sender, args);
-            case "price" -> auctionPrice(sender, args);
-            case "buyout" -> auctionBuyout(sender, args);
-            case "extend" -> auctionExtend(sender, args);
-            case "end" -> auctionEnd(sender, args);
-            case "cancel" -> auctionCancel(sender, args);
-            case "step" -> auctionStep(sender, args);
-            default -> msg(sender, "admin-auction-usage");
-        }
-    }
-
-    private Integer auctionId(CommandSender sender, String raw) {
-        Long id = AdminParse.amount(raw, Integer.MAX_VALUE);
-        if (id == null) msg(sender, "admin-bad-id");
-        return id == null ? null : id.intValue();
-    }
-
-    private void auctionList(CommandSender sender, String[] args) {
-        int page = pageArg(args, 2);
-        plugin.getAuctionManager().getActiveAuctions().thenAccept(all -> sync(() -> {
-            printPage(sender, "admin-auction-list-header", all.size(), page);
-            long now = System.currentTimeMillis() / 1000;
-            for (int i = (page - 1) * PAGE; i < Math.min(all.size(), page * PAGE); i++) {
-                AuctionData a = all.get(i);
-                ItemStack item = ItemStackConverter.itemStackFromBase64(a.itemData());
-                String name = item == null ? "?" : item.getType().name() + (item.getAmount() > 1 ? " x" + item.getAmount() : "");
-                msg(sender, "admin-auction-list-line", "id", String.valueOf(a.id()), "item", esc(name),
-                        "start", String.valueOf(a.startingPrice()), "bid", String.valueOf(a.currentHighestBid()),
-                        "leader", a.highestBidderUuid() == null ? "-" : esc(nameOf(a.highestBidderUuid())),
-                        "buyout", a.buyoutPrice() > 0 ? String.valueOf(a.buyoutPrice()) : "-",
-                        "left", AdminParse.duration(a.endsAt() - now));
-            }
-        }));
-    }
-
-    private void auctionCreate(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) { msg(sender, "admin-player-only"); return; }
-        if (args.length < 3) { msg(sender, "admin-auction-create-usage"); return; }
-        ItemStack hand = player.getInventory().getItemInMainHand();
-        if (hand.getType().isAir()) { msg(sender, "admin-need-item"); return; }
-        long cap = Math.min(plugin.getMarketConfig().priceMax(), Integer.MAX_VALUE);
-        Long start = AdminParse.amount(args[2], cap);
-        if (start == null) { msg(sender, "admin-price-range", "max", String.valueOf(cap)); return; }
-        Integer buyout = null;
-        Integer hours = null;
-        if (args.length > 3) {
-            if (args[3].equalsIgnoreCase("off") || args[3].equals("0")) {
-                buyout = 0;
-            } else {
-                Long b = AdminParse.amount(args[3], cap);
-                if (b == null) { msg(sender, "admin-price-range", "max", String.valueOf(cap)); return; }
-                buyout = b.intValue();
-            }
-        }
-        if (args.length > 4) {
-            Long h = AdminParse.amount(args[4], AdminParse.MAX_LOT_HOURS);
-            if (h == null) { msg(sender, "admin-hours-range", "max", String.valueOf(AdminParse.MAX_LOT_HOURS)); return; }
-            hours = h.intValue();
-        }
-        if (buyout != null && buyout > 0 && buyout <= start) { msg(sender, "admin-buyout-low"); return; }
-        if (!withinBounds(sender, hand.getType(), start)) return;
-        if (plugin.getForbiddenManager().isForbidden(hand)) { msg(sender, "listing-forbidden"); return; }
-
-        ItemStack taken = hand.clone();
-        player.getInventory().setItemInMainHand(null);
-        final Integer fBuyout = buyout;
-        final Integer fHours = hours;
-        plugin.getAuctionManager().createAuction(taken, start.intValue(), fBuyout, fHours).whenComplete((id, err) -> sync(() -> {
-            if (err != null || id == null || id <= 0) {
-                giveBack(player, taken);
-                msg(sender, "admin-db-error");
-                return;
-            }
-            audit(sender, "auction", "auction#" + id, null, taken.getType().name() + " " + start, "create");
-            msg(sender, "admin-auction-created", "id", String.valueOf(id), "item", taken.getType().name());
-            dev.lovelace.loveshops.gui.GuiUpdater.broadcastAuctionGuiUpdate(plugin);
-        }));
-    }
-
-    /** Auction start prices obey the same admin bounds as the players' markets. */
-    private boolean withinBounds(CommandSender sender, Material material, long price) {
-        PricesManager.Bounds b = plugin.getPricesManager().getBounds(material.name());
-        if ((b.min() > 0 && price < b.min()) || (b.max() > 0 && price > b.max())) {
-            msg(sender, "admin-price-outside-bounds", "item", material.name(),
-                    "min", b.min() > 0 ? String.valueOf(b.min()) : "-", "max", b.max() > 0 ? String.valueOf(b.max()) : "-");
-            return false;
-        }
-        return true;
-    }
-
-    private void giveBack(Player player, ItemStack item) {
-        int left = dev.lovelace.loveshops.market.ItemTransfer.give(player, item, item.getAmount());
-        if (left > 0) {
-            ItemStack drop = item.clone();
-            drop.setAmount(left);
-            player.getWorld().dropItemNaturally(player.getLocation(), drop);
-        }
-    }
-
-    private void auctionPrice(CommandSender sender, String[] args) {
-        if (args.length < 4) { msg(sender, "admin-auction-price-usage"); return; }
-        Integer id = auctionId(sender, args[2]);
-        if (id == null) return;
-        long cap = Math.min(plugin.getMarketConfig().priceMax(), Integer.MAX_VALUE);
-        Long price = AdminParse.amount(args[3], cap);
-        if (price == null) { msg(sender, "admin-price-range", "max", String.valueOf(cap)); return; }
-        AuctionManager auctions = plugin.getAuctionManager();
-        auctions.getActiveAuctions().thenAccept(all -> sync(() -> {
-            AuctionData lot = all.stream().filter(a -> a.id() == id).findFirst().orElse(null);
-            if (lot == null) { msg(sender, "admin-auction-not-found", "id", String.valueOf(id)); return; }
-            ItemStack item = ItemStackConverter.itemStackFromBase64(lot.itemData());
-            if (item != null && !withinBounds(sender, item.getType(), price)) return;
-            auctions.adminSetStartPrice(id, price.intValue()).thenAccept(r -> sync(() -> {
-                report(sender, r, id);
-                if (r == AuctionManager.AdminResult.OK) {
-                    audit(sender, "auction", "auction#" + id, String.valueOf(lot.startingPrice()), String.valueOf(price), "auction");
-                    msg(sender, "admin-auction-price", "id", String.valueOf(id), "price", String.valueOf(price));
-                }
-            }));
-        }));
-    }
-
-    private void auctionBuyout(CommandSender sender, String[] args) {
-        if (args.length < 4) { msg(sender, "admin-auction-buyout-usage"); return; }
-        Integer id = auctionId(sender, args[2]);
-        if (id == null) return;
-        long cap = Math.min(plugin.getMarketConfig().priceMax(), Integer.MAX_VALUE);
-        boolean off = args[3].equalsIgnoreCase("off") || args[3].equalsIgnoreCase("выкл");
-        Long price = off ? Long.valueOf(0) : AdminParse.amount(args[3], cap);
-        if (price == null) { msg(sender, "admin-price-range", "max", String.valueOf(cap)); return; }
-        plugin.getAuctionManager().adminSetBuyout(id, price.intValue()).thenAccept(r -> sync(() -> {
-            report(sender, r, id);
-            if (r == AuctionManager.AdminResult.OK) {
-                audit(sender, "auction", "auction#" + id, null, off ? "off" : String.valueOf(price), "auction");
-                msg(sender, off ? "admin-auction-buyout-off" : "admin-auction-buyout", "id", String.valueOf(id), "price", String.valueOf(price));
-            }
-        }));
-    }
-
-    private void auctionExtend(CommandSender sender, String[] args) {
-        if (args.length < 4) { msg(sender, "admin-auction-extend-usage"); return; }
-        Integer id = auctionId(sender, args[2]);
-        if (id == null) return;
-        Long hours = AdminParse.amount(args[3], Integer.MAX_VALUE);
-        if (hours == null) { msg(sender, "admin-hours-range", "max", String.valueOf(plugin.getConfig().getInt("auctioneer.max-extension-hours", 72))); return; }
-        plugin.getAuctionManager().adminExtend(id, hours.intValue()).thenAccept(r -> sync(() -> {
-            report(sender, r, id);
-            if (r == AuctionManager.AdminResult.OK) {
-                audit(sender, "auction", "auction#" + id, null, "+" + hours + "h", "auction");
-                msg(sender, "admin-auction-extended", "id", String.valueOf(id), "hours", String.valueOf(hours));
-            }
-        }));
-    }
-
-    private void auctionEnd(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-auction-end-usage"); return; }
-        Integer id = auctionId(sender, args[2]);
-        if (id == null) return;
-        plugin.getAuctionManager().adminEndNow(id).thenAccept(r -> sync(() -> {
-            report(sender, r, id);
-            if (r == AuctionManager.AdminResult.OK) {
-                audit(sender, "auction", "auction#" + id, null, "ended", "auction");
-                msg(sender, "admin-auction-ended", "id", String.valueOf(id));
-            }
-        }));
-    }
-
-    private void auctionCancel(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-auction-cancel-usage"); return; }
-        Integer id = auctionId(sender, args[2]);
-        if (id == null) return;
-        String reason = joinFrom(args, 3);
-        plugin.getAuctionManager().adminCancel(id).thenAccept(out -> sync(() -> {
-            report(sender, out.result(), id);
-            if (out.result() != AuctionManager.AdminResult.OK) return;
-            audit(sender, "auction", "auction#" + id, out.item() == null ? null : out.item().getType().name(),
-                    "cancelled" + (reason.isEmpty() ? "" : ": " + reason), "auction");
-            msg(sender, "admin-auction-cancelled", "id", String.valueOf(id));
-            // The lot's goods come back to whoever cancelled it; nobody was charged yet.
-            ItemStack item = out.item();
-            if (item != null) {
-                if (sender instanceof Player p) {
-                    giveBack(p, item);
-                    msg(sender, "admin-auction-item-returned", "item", item.getType().name(), "amount", String.valueOf(item.getAmount()));
-                } else {
-                    plugin.getLogger().warning("Лот #" + id + " отменён из консоли, предмет " + item.getType() + " x" + item.getAmount()
-                            + " не выдан: " + ItemStackConverter.itemStackToBase64(item));
-                    msg(sender, "admin-auction-item-logged");
-                }
-            }
-            UUID bidder = out.bidder();
-            if (bidder != null) {
-                var manager = plugin.getTradePointManager();
-                String text = plugin.getMarketMessages().raw("notice-auction-cancelled", "id", String.valueOf(id),
-                        "reason", reason.isEmpty() ? "-" : esc(reason));
-                Player online = Bukkit.getPlayer(bidder);
-                if (online != null) {
-                    online.sendMessage(MessageUtils.parse(online, plugin.getLangManager().getRaw("prefix", "") + text));
-                } else if (manager != null) {
-                    manager.notice(bidder, text);
-                }
-            }
-        }));
-    }
-
-    private void auctionStep(CommandSender sender, String[] args) {
-        if (args.length < 3) { msg(sender, "admin-auction-step-usage"); return; }
-        PricesManager prices = plugin.getPricesManager();
-        String old = prices.getBidStep().map(s -> s.type().equals("percentage") ? s.value() + "%" : String.valueOf(s.value()))
-                .orElse("config.yml");
-        if (args[2].equalsIgnoreCase("reset") || args[2].equalsIgnoreCase("сброс")) {
-            prices.clearBidStep();
-            audit(sender, "auction", "bid-step", old, "config.yml", "auction");
-            msg(sender, "admin-auction-step-reset");
-            return;
-        }
-        AdminParse.Step step = AdminParse.step(args[2], (int) Math.min(plugin.getMarketConfig().priceMax(), Integer.MAX_VALUE));
-        if (step == null) { msg(sender, "admin-auction-step-usage"); return; }
-        prices.setBidStep(step.type(), step.value());
-        String text = step.type().equals("percentage") ? step.value() + "%" : String.valueOf(step.value());
-        audit(sender, "auction", "bid-step", old, text, "auction");
-        msg(sender, "admin-auction-step", "step", text);
-    }
-
-    private void report(CommandSender sender, AuctionManager.AdminResult r, int id) {
-        switch (r) {
-            case OK -> { }
-            case NOT_FOUND -> msg(sender, "admin-auction-not-found", "id", String.valueOf(id));
-            case HAS_BIDS -> msg(sender, "admin-auction-has-bids", "id", String.valueOf(id));
-            case BAD_VALUE -> msg(sender, "admin-auction-bad-value");
-            case TOO_LONG -> msg(sender, "admin-hours-range", "max", String.valueOf(plugin.getConfig().getInt("auctioneer.max-extension-hours", 72)));
-            case DB_ERROR -> msg(sender, "admin-db-error");
-        }
-    }
-
     // ------------------------------------------------------------------ trade points
 
     public void handlePoint(CommandSender sender, String[] args) {
@@ -854,19 +608,6 @@ public final class MarketAdminCommands {
                 default -> List.of();
             };
         }
-        return List.of();
-    }
-
-    public List<String> tabAuction(String[] args) {
-        if (args.length == 2) return match(args[1], AUCTION_SUBS);
-        String sub = AdminParse.canonical(args[1]);
-        if (args.length == 3 && List.of("price", "buyout", "extend", "end", "cancel").contains(sub)) {
-            return match(args[2], plugin.getAuctionManager().activeAuctionIds(25).stream().map(String::valueOf).toList());
-        }
-        if (args.length == 3 && sub.equals("step")) return match(args[2], List.of("5%", "10%", "50", "100", "reset"));
-        if (args.length == 4 && sub.equals("buyout")) return match(args[3], List.of("off"));
-        if (args.length == 4 && sub.equals("extend")) return match(args[3], List.of("1", "6", "12", "24"));
-        if (args.length == 4 && sub.equals("create")) return match(args[3], List.of("off"));
         return List.of();
     }
 

@@ -520,7 +520,7 @@ public class WandererManager {
      *       well-supplied and this signal contributes nothing (never a discount — see below).</li>
      *   <li><b>Activity</b> (smaller signal, per the owner's request) — how many distinct
      *       players were economically active in the last 7 days: sold something to the Buyer NPC
-     *       OR placed an auction bid. A richer, more active economy can absorb a bit more, so
+     *       OR bought at a market stall. A richer, more active economy can absorb a bit more, so
      *       this nudges prices up too, capped independently and weighted lower than scarcity.</li>
      * </ul>
      *
@@ -550,7 +550,7 @@ public class WandererManager {
                 SELECT COUNT(*) AS cnt FROM (
                     SELECT player_uuid FROM buyer_inventory WHERE received_at >= ?
                     UNION
-                    SELECT bidder_uuid FROM auction_bids WHERE placed_at >= ?
+                    SELECT buyer_uuid AS player_uuid FROM market_transactions WHERE created_at >= ?
                 )
             """)) {
             ps.setLong(1, weekAgo);

@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.models.BuyerItemData;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -13,11 +12,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 public class PriceCalculator {
 
@@ -32,7 +29,7 @@ public class PriceCalculator {
         if (item == null) return 0;
 
         // Клановые артефакты ценятся не по материалу, а по типу: иначе боевой рог
-        // ушёл бы на барахолку по цене обычного предмета того же материала.
+        // ушёл бы по цене обычного предмета того же материала.
         String artifactType = artifactTypeOf(item);
         if (artifactType != null) {
             int artifactPrice = plugin.getConfig().getInt("prices-config.artifacts." + artifactType, -1);
@@ -43,14 +40,6 @@ public class PriceCalculator {
         }
 
         String materialName = item.getType().name();
-
-        // Редкий предмет с явно заданной ценой (см. prices.yml — rare.<материал>.price)
-        // перебивает и обычную цену, и цену по формуле: если админ вручную задал цену
-        // лота для этого материала, значит так и надо.
-        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(materialName);
-        if (override.isPresent() && override.get().price() != null) {
-            return override.get().price();
-        }
 
         int configuredPrice = plugin.getPricesManager().getCommonPrice(materialName, -1);
         if (configuredPrice > 0) {
@@ -71,53 +60,6 @@ public class PriceCalculator {
         NamespacedKey key = new NamespacedKey("loveclans", "artifact");
         return item.getItemMeta().getPersistentDataContainer()
                 .get(key, PersistentDataType.STRING);
-    }
-
-    /**
-     * Rare/enchanted items get routed to the Auctioneer instead of a flat per-material buyout
-     * — see BuyerManager#processSale. Two independent signals: an explicit item rarity
-     * (org.bukkit.inventory.ItemRarity, available since this project's Paper API 26.2 — the
-     * purple/gold-ish vanilla tooltip colors) at or above the configured minimum, or any
-     * enchantment on the item (covers enchanted gear that vanilla doesn't always tag with a
-     * distinct rarity component).
-     */
-    public boolean isRareItem(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        // Ручная метка (prices.yml — rare.<материал>.rare) перебивает автоматическое
-        // определение в обе стороны: true — принудительно на аукцион, даже если авто-проверка
-        // ниже ничего не заметила; false — принудительно исключить, даже если предмет
-        // зачарован или несёт компонент редкости (например, авто-проверка ошиблась).
-        java.util.Optional<PricesManager.RareOverride> override = plugin.getPricesManager().getRareOverride(item.getType().name());
-        if (override.isPresent()) {
-            return override.get().rare();
-        }
-
-        if (!item.hasItemMeta()) {
-            return false;
-        }
-        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
-        if (meta.hasEnchants()) {
-            return true;
-        }
-        if (meta.hasRarity()) {
-            return rarityMeetsThreshold(meta.getRarity());
-        }
-        return false;
-    }
-
-    /** Достигает ли редкость configured-порога (auctioneer.min-rarity, по умолчанию RARE). */
-    public boolean rarityMeetsThreshold(org.bukkit.inventory.ItemRarity rarity) {
-        String minRarityName = plugin.getConfig().getString("auctioneer.min-rarity", "RARE");
-        try {
-            org.bukkit.inventory.ItemRarity minRarity = org.bukkit.inventory.ItemRarity.valueOf(minRarityName.toUpperCase(java.util.Locale.ROOT));
-            return rarity.ordinal() >= minRarity.ordinal();
-        } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("Некорректное значение auctioneer.min-rarity: " + minRarityName);
-            return false;
-        }
     }
 
     public double getRandomVariancePercent() {
@@ -189,40 +131,8 @@ public class PriceCalculator {
         return history;
     }
 
-    /** Куда движется цена лота относительно спокойной цены без спроса, предложения и шума. */
-    public enum PriceTrend { RISING, FALLING, STABLE }
-
-    /** Цена лота без динамики — только базовая цена и наценка барахолки. */
-    public int getNeutralSellPrice(int basePrice) {
-        double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
-        int neutral = Math.max(1, (int) Math.round(basePrice * (1.0 + markup / 100.0)));
-        return plugin.getPricesManager().applyMultiplier("seller", neutral);
-    }
-
     /**
-     * Тренд цены лота. Спрос, предложение и шум цикла уже собираются в базе,
-     * но игрок их не видел — цена просто менялась между заходами в меню.
-     */
-    public PriceTrend getTrend(int basePrice, int currentPrice) {
-        int neutral = getNeutralSellPrice(basePrice);
-        if (neutral <= 0) return PriceTrend.STABLE;
-
-        double thresholdPercent = plugin.getConfig().getDouble("seller.dynamic-pricing.trend-threshold-percent", 5.0);
-        double deltaPercent = (currentPrice - neutral) * 100.0 / neutral;
-
-        if (deltaPercent > thresholdPercent) return PriceTrend.RISING;
-        if (deltaPercent < -thresholdPercent) return PriceTrend.FALLING;
-        return PriceTrend.STABLE;
-    }
-
-    /**
-     * Надбавка или штраф к цене скупки по репутации игрока. Раньше здесь была рефлексия на
-     * {@code dev.lovelace.lovebehavior.api.LoveBehaviorAPI.getReputation(UUID)} — пакета с таким
-     * именем в LoveBehavior нет и не было (реальный — {@code me.lovelace.lovebehavior.api}), так
-     * что интеграция не срабатывала никогда, и всё, кроме «good», давало ровно ноль.
-     *
-     * <p>{@code ReputationOracle} ядра возвращает пять ступеней вместо одной строки: bad-status
-     * из конфига (раньше не использовался вовсе) теперь тоже применяется.</p>
+     * Надбавка или штраф к цене скупки по репутации игрока.
      */
     public int getReputationBonusPercent(Player player) {
         if (Bukkit.getPluginManager().getPlugin("LoveCore") == null) {
@@ -267,99 +177,12 @@ public class PriceCalculator {
         return Math.max(1, singleUnitPrice * item.getAmount());
     }
 
-    // ===== Flea market (seller) dynamic pricing: markup + demand + supply + per-cycle noise =====
-
-    public CompletableFuture<Map<Integer, Integer>> calculateSellPrices(List<BuyerItemData> items) {
-        CompletableFuture<Map<Integer, Integer>> future = new CompletableFuture<>();
-        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-            Map<Integer, Integer> prices = new HashMap<>();
-            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-                for (BuyerItemData item : items) {
-                    prices.put(item.id(), calculateSellPrice(conn, item));
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Error calculating seller prices: " + e.getMessage());
-            }
-            future.complete(prices);
-        });
-        return future;
-    }
-
-    public int calculateSellPrice(Connection conn, BuyerItemData itemData) throws SQLException {
-        double markup = plugin.getConfig().getDouble("seller.markup-percent", 15.0);
-
-        if (!plugin.getConfig().getBoolean("seller.dynamic-pricing.enabled", true) || itemData.itemType() == null) {
-            return Math.max(1, plugin.getPricesManager().applyMultiplier("seller",
-                (int) Math.round(itemData.basePrice() * (1.0 + markup / 100.0))));
-        }
-
-        double demandWeight = plugin.getConfig().getDouble("seller.dynamic-pricing.demand-weight-percent", 3.0);
-        double supplyWeight = plugin.getConfig().getDouble("seller.dynamic-pricing.supply-weight-percent", 2.0);
-        double minMultiplier = plugin.getConfig().getDouble("seller.dynamic-pricing.min-multiplier", 0.3);
-
-        int demandCount = 0;
-        double noisePercent = 0.0;
-        try (PreparedStatement ps = conn.prepareStatement(
-            "SELECT demand_count, noise_percent FROM seller_price_state WHERE item_type = ?")) {
-            ps.setString(1, itemData.itemType());
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                demandCount = rs.getInt("demand_count");
-                noisePercent = rs.getDouble("noise_percent");
-            }
-        }
-
-        int supplyCount;
-        try (PreparedStatement ps = conn.prepareStatement(
-            "SELECT COUNT(*) AS cnt FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' AND item_type = ?")) {
-            ps.setString(1, itemData.itemType());
-            ResultSet rs = ps.executeQuery();
-            supplyCount = rs.next() ? rs.getInt("cnt") : 0;
-        }
-
-        double multiplier = 1.0 + (markup / 100.0);
-        multiplier *= (1.0 + (demandCount * demandWeight) / 100.0);
-        multiplier *= Math.max(minMultiplier, 1.0 - (supplyCount * supplyWeight) / 100.0);
-        multiplier *= (1.0 + noisePercent / 100.0);
-        multiplier = Math.max(minMultiplier, multiplier);
-
-        return Math.max(1, plugin.getPricesManager().applyMultiplier("seller",
-            (int) Math.round(itemData.basePrice() * multiplier)));
-    }
-
-    public void trackDemand(Connection conn, String itemType) throws SQLException {
-        if (itemType == null) return;
-        String sql = """
-            INSERT INTO seller_price_state (item_type, demand_count, noise_percent, cycle_id)
-            VALUES (?, 1, 0, 0)
-            ON CONFLICT(item_type) DO UPDATE SET demand_count = demand_count + 1
-        """;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, itemType);
-            ps.executeUpdate();
-        }
-    }
-
     // ===== merchant-tax: flat economy-sink cut on LoveShop's own NPCs (NOT Wanderer) =====
 
     /**
      * 2026-09-24 (owner request): a flat percentage cut applied on top of everything else at
-     * the final price for the Buyer NPC (Скупщик), the flea-market Seller NPC (Барахолка) and
-     * WarMerchant — see {@code merchant-tax} in config.yml. Wanderer is explicitly excluded per
-     * the owner's instruction; its prices are governed only by {@code wanderer.dynamic-pricing}
-     * and the personal-request surcharge, never by this cut.
-     *
-     * <p>This is independent from {@code dev.lovelace.lovecore.api.economy.TaxOracle} (LoveCore's
-     * ecosystem-wide, per-player politeness-based tax, already applied at the same call sites in
-     * BuyerManager/SellerManager before this runs) — TaxOracle reacts to player behavior and
-     * covers every plugin; this is a constant, LoveShop-only sink the owner wanted independently
-     * of player behavior, to preserve gold value across three specific NPCs. Applied last, on
-     * top of TaxOracle's result, not merged into a single formula, so TaxOracle's existing
-     * behavior is unaffected.</p>
-     *
-     * <p>Called from each manager's final price computation (BuyerManager#processSale,
-     * SellerManager#buyItem, WarMerchantManager#purchase) rather than scattered ad-hoc, so the
-     * rate lives in exactly one place.</p>
+     * the final price for the Buyer NPC (Скупщик) and WarMerchant — see {@code merchant-tax}
+     * in config.yml. Wanderer is explicitly excluded per the owner's instruction.
      */
     public long applyMerchantTaxToPayout(long basePayout) {
         return Math.max(0, Math.round(basePayout * (1.0 - merchantTaxRate())));
@@ -376,37 +199,5 @@ public class PriceCalculator {
         }
         double percent = plugin.getConfig().getDouble("merchant-tax.percent", 7.0);
         return Math.max(0.0, Math.min(100.0, percent)) / 100.0;
-    }
-
-    public void rollSellerPriceCycle() {
-        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-            double noiseMin = plugin.getConfig().getDouble("seller.dynamic-pricing.noise-min-percent", -10.0);
-            double noiseMax = plugin.getConfig().getDouble("seller.dynamic-pricing.noise-max-percent", 10.0);
-            long cycleId = System.currentTimeMillis() / 1000;
-
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement select = conn.prepareStatement(
-                     "SELECT DISTINCT item_type FROM buyer_inventory WHERE sold_at IS NULL AND channel = 'seller' AND item_type IS NOT NULL")) {
-                ResultSet rs = select.executeQuery();
-                String upsertSql = """
-                    INSERT INTO seller_price_state (item_type, demand_count, noise_percent, cycle_id)
-                    VALUES (?, 0, ?, ?)
-                    ON CONFLICT(item_type) DO UPDATE SET demand_count = 0, noise_percent = EXCLUDED.noise_percent, cycle_id = EXCLUDED.cycle_id
-                """;
-                try (PreparedStatement upsert = conn.prepareStatement(upsertSql)) {
-                    while (rs.next()) {
-                        String itemType = rs.getString("item_type");
-                        double noise = noiseMin + (noiseMax - noiseMin) * random.nextDouble();
-                        upsert.setString(1, itemType);
-                        upsert.setDouble(2, noise);
-                        upsert.setLong(3, cycleId);
-                        upsert.addBatch();
-                    }
-                    upsert.executeBatch();
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Error rolling seller price cycle: " + e.getMessage());
-            }
-        });
     }
 }

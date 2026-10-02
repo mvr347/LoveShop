@@ -338,21 +338,7 @@ public final class StallTradeService {
                                 repo.addListingStock(conn, t.listingId(), -t.amount());
                                 repo.setPendingState(conn, t.id(), "ROLLED_BACK_RECOVERY");
                             }
-                            // Flea lot reserved, coins not (recorded as) taken: the goods go back on the lot.
-                            case "FLEA:RESERVED" -> {
-                                repo.addFleaAmount(conn, t.listingId(), t.amount());
-                                repo.setPendingState(conn, t.id(), "ROLLED_BACK_RECOVERY");
-                            }
-                            // Coins taken and items handed over: pay the seller (as a return) and close the row.
-                            case "FLEA:CHARGED" -> {
-                                MarketRepository.FleaListing f = repo.fleaListing(conn, t.listingId());
-                                if (f != null) {
-                                    repo.addReturnCoins(conn, f.seller(), t.sellerGets(), "flea-sale-recovery");
-                                    repo.insertTransaction(conn, "FLEA", null, f.seller(), t.player(), f.itemHash(), t.amount(), t.total(), t.tax());
-                                    repo.deleteFleaIfEmpty(conn, t.listingId());
-                                }
-                                repo.setPendingState(conn, t.id(), "DONE_RECOVERY");
-                            }
+
                             default -> repo.setPendingState(conn, t.id(), "ABANDONED");
                         }
                         return null;

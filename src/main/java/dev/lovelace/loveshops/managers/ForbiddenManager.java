@@ -13,9 +13,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Список материалов, запрещённых к продаже — скупщику, на барахолку и на аукцион (все три
- * канала берут начало в {@link BuyerManager#processSale}, аукцион дополнительно проверяется
- * в {@link AuctionManager#createAuction} на случай внешних вызовов вроде LoveBrew).
+ * Список материалов, запрещённых к продаже скупщику.
  * Отдельный файл forbidden.yml, заполняется командами
  * {@code /loveshopsadmin forbidden}/{@code allowed}.
  */

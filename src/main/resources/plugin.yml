@@ -17,10 +17,10 @@ softdepend:
 commands:
   loveshops:
     description: LoveShops main administration and trading command
-    aliases: [shops, шоп, loveshop, lshops, lshop, auction, auctioneer, wanderer]
+    aliases: [shops, шоп, loveshop, lshops, lshop, wanderer]
     usage: /loveshops <subcommand>
   loveshopsadmin:
-    description: Административные команды LoveShops (npc, item, event, point, banker, auction)
+    description: Административные команды LoveShops (npc, item, event, point, banker)
     aliases: [lsa, lspa, lssa]
     usage: /loveshopsadmin <subcommand>
   tradepoint:
@@ -55,12 +55,6 @@ permissions:
     default: op
   loveshops.admin.price:
     description: Set the price of the item held in hand
-    default: op
-  loveshops.admin.rarity:
-    description: Set the rarity of the item held in hand
-    default: op
-  loveshops.admin.auction:
-    description: Moderate auction lots (/loveshopsadmin auction)
     default: op
   loveshops.admin.market:
     description: Close, open, seize trade points and restore robberies (/loveshopsadmin point)
