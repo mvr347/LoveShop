@@ -5,6 +5,7 @@ import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.Inventory;
@@ -43,6 +44,21 @@ public abstract class MarketGui implements InventoryHolder {
 
     /** A click inside the top inventory; the event is already cancelled. */
     public abstract void handleClick(InventoryClickEvent event);
+
+    /**
+     * A click in the viewer's own inventory while this menu is open; the event is already cancelled.
+     * Menus that take items from the player's inventory override this; the default does nothing.
+     */
+    public void handleBottomClick(InventoryClickEvent event) {
+    }
+
+    /**
+     * A drag over this menu; the event is already cancelled. Return {@code true} if the menu handled
+     * it itself (nothing is ever moved by vanilla either way).
+     */
+    public boolean handleDrag(InventoryDragEvent event) {
+        return false;
+    }
 
     /** Called when the viewer closes the menu. */
     public void onClose() {
