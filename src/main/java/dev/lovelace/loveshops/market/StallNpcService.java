@@ -24,10 +24,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 /**
- * Creates, finds and removes the Citizens NPCs of trade points: the trader and the guard. NPCs are
- * persistent (Citizens saves them) and tagged with the point they belong to, so {@link #reconcile}
- * can put things right after a restart: a missing NPC is created, a duplicate or an orphan removed.
- * Main thread only.
+ * Creates, finds and removes the Citizens NPCs of trade points: the trader and the guard.
  */
 public final class StallNpcService {
 
@@ -48,10 +45,12 @@ public final class StallNpcService {
         return text == null ? "" : text;
     }
 
-    /** @return the Citizens id, or {@code null} if it could not be created */
     public Integer createStallNpc(Location loc, UUID pointId, String ownerName) {
         if (!available() || loc == null || loc.getWorld() == null) return null;
         try {
+            // Убираем возможных дублей перед созданием
+            destroyAllForPoint(pointId);
+
             String rawFormat = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName == null ? "?" : ownerName);
             String[] lines = rawFormat.split("\\r?\\n");
             String entityName = lines[lines.length - 1];
@@ -181,17 +180,59 @@ public final class StallNpcService {
         }
     }
 
+    /** Жёсткое удаление: despawn + destroy по id. */
     public void destroy(Integer citizensId) {
         if (citizensId == null || !available()) return;
         try {
             NPC npc = CitizensAPI.getNPCRegistry().getById(citizensId);
-            if (npc != null) npc.destroy();
+            if (npc != null) {
+                hardDestroy(npc);
+            }
         } catch (Throwable t) {
             plugin.getLogger().warning("Не удалось удалить NPC #" + citizensId + ": " + t.getMessage());
         }
     }
 
-    /** {@code true} if the entity is the body of a market NPC (trader or guard). */
+    /**
+     * Удаляет ВСЕ NPC (торговец + стража), помеченные точкой — даже если id в БД устарел.
+     * Решает проблему «NPC не удаляется после удаления плота».
+     */
+    public void destroyAllForPoint(UUID pointId) {
+        if (pointId == null || !available()) return;
+        String id = pointId.toString();
+        List<NPC> victims = new ArrayList<>();
+        try {
+            for (NPC npc : CitizensAPI.getNPCRegistry()) {
+                String stall = npc.data().get(KEY_STALL, null);
+                String guard = npc.data().get(KEY_GUARD, null);
+                if (id.equals(stall) || id.equals(guard)) {
+                    victims.add(npc);
+                }
+            }
+            for (NPC npc : victims) {
+                hardDestroy(npc);
+            }
+            if (!victims.isEmpty()) {
+                plugin.getLogger().info("Удалено NPC торговой точки " + pointId + ": " + victims.size());
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("destroyAllForPoint(" + pointId + "): " + t.getMessage());
+        }
+    }
+
+    private void hardDestroy(NPC npc) {
+        try {
+            if (npc.isSpawned()) {
+                npc.despawn();
+            }
+        } catch (Throwable ignored) {}
+        try {
+            npc.destroy();
+        } catch (Throwable t) {
+            plugin.getLogger().warning("npc.destroy #" + npc.getId() + ": " + t.getMessage());
+        }
+    }
+
     public boolean isMarketEntity(org.bukkit.entity.Entity entity) {
         if (entity == null || !available()) return false;
         try {
@@ -221,13 +262,6 @@ public final class StallNpcService {
         }
     }
 
-    /**
-     * Brings the world in line with the database: every point with a tenant has exactly one trader
-     * NPC (and one guard when it pays for one); every other tagged NPC is removed.
-     *
-     * @param wantGuard whether a point should have a guard right now
-     * @return the points whose stored NPC ids changed and need saving
-     */
     public List<TradePoint> reconcile(java.util.Collection<TradePoint> points,
                                       Function<UUID, Location> locationOf,
                                       Function<TradePoint, Boolean> wantGuard) {
@@ -246,7 +280,6 @@ public final class StallNpcService {
         Map<UUID, TradePoint> byId = new HashMap<>();
         for (TradePoint p : points) byId.put(p.claimId(), p);
 
-        // Tagged NPCs whose point is unknown or has no tenant: orphans.
         for (Map.Entry<UUID, List<NPC>> e : stalls.entrySet()) {
             TradePoint p = byId.get(e.getKey());
             if (p == null || !p.hasOwner()) toDestroy.addAll(e.getValue());
@@ -318,11 +351,7 @@ public final class StallNpcService {
         }
 
         for (NPC npc : toDestroy) {
-            try {
-                npc.destroy();
-            } catch (Throwable t) {
-                plugin.getLogger().warning("Не удалось удалить лишний NPC #" + npc.getId() + ": " + t.getMessage());
-            }
+            hardDestroy(npc);
         }
         return changed;
     }
