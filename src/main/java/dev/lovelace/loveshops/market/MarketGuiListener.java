@@ -30,14 +30,22 @@ public final class MarketGuiListener implements Listener {
         if (!(event.getView().getTopInventory().getHolder() instanceof MarketGui gui)) return;
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player)) return;
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) return;
-        gui.handleClick(event);
+        if (event.getClickedInventory() == null) return;
+        if (event.getClickedInventory() == event.getView().getTopInventory()) {
+            gui.handleClick(event);
+        } else if (event.getClickedInventory() == event.getView().getBottomInventory()) {
+            gui.handleBottomClick(event);
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof MarketGui) {
-            event.setCancelled(true);
+        if (!(event.getView().getTopInventory().getHolder() instanceof MarketGui gui)) return;
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        // Let storage/sell GUIs accept drags into empty content slots.
+        if (gui.handleDrag(event)) {
+            // handled; stay cancelled so vanilla does not move items twice
         }
     }
 
