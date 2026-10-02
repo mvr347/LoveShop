@@ -37,7 +37,7 @@ public abstract class MarketGui implements InventoryHolder {
     protected int page = 0;
 
     /** A header control button together with what it does. */
-    protected record Control(ItemStack item, Consumer<InventoryClickEvent> action) {}
+    public record Control(ItemStack item, Consumer<InventoryClickEvent> action) {}
 
     protected MarketGui(LoveShops plugin, Player viewer) {
         this.plugin = plugin;

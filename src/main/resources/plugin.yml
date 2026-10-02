@@ -26,9 +26,20 @@ commands:
   tradepoint:
     description: Управление торговой точкой игрока
     aliases: [point, точка, торговаяточка]
-    usage: /tradepoint <returns|transfer|blacklist|discount|mode>
+    usage: /tradepoint [returns|transfer|blacklist|discount|mode]
+  tp:
+    description: Телепорт к торговой точке (остальное передаётся ванильному /tp)
+    aliases: [тп]
+    usage: /tp [id точки]
+  tradepointadmin:
+    description: Админ торговых точек (NPC, создание, удаление, владелец, уровень)
+    aliases: [tpadmin, tpa]
+    usage: /tradepointadmin <npc|create|wizard|delete|owner|lvl|price|list|info|reconcile>
 
 permissions:
+  loveshops.tp.any:
+    description: Teleport to any trade point by its id (/tp <id>); everyone may go to their own point
+    default: op
   loveshops.admin.point:
     description: Moderate trade points (/loveshopsadmin point)
     default: op

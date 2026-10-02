@@ -48,6 +48,22 @@ public final class MarketConfig {
 
     public boolean enabled() { return getBool("enabled", true); }
 
+    // ----- id sign, landlord ("Феодал") -----
+    public java.util.List<String> idSignLines() {
+        ConfigurationSection s = root();
+        java.util.List<String> lines = s == null ? java.util.List.of() : s.getStringList("id-sign.lines");
+        return lines.isEmpty() ? java.util.List.of("&6Торговая точка", "&f{id}", "{status}", "&7Аренда у Феодала") : lines;
+    }
+
+    /** Weekly rent given to a point made by the wizard when the admin does not type a price. */
+    public long defaultRentPrice() { return Math.max(0L, getLong("feudal.default-rent-price", 100L)); }
+
+    public String feudalName() { return getString("npc.feudal-name", "&6Феодал"); }
+    public String feudalSkin() { return getString("npc.feudal-skin", ""); }
+
+    /** Share (percent) of the unspent rent given back when a tenant returns the point to the landlord. */
+    public int feudalRefundPercent() { return Math.max(0, Math.min(100, getInt("feudal.refund-percent", 50))); }
+
     // ----- rent reminders -----
     public boolean rentRemindersEnabled() { return getBool("rent.reminders-enabled", true); }
 

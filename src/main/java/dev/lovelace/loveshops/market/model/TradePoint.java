@@ -27,6 +27,10 @@ public final class TradePoint {
     private long version;
     private TradingMode tradingMode = TradingMode.BOTH;
     private org.bukkit.Location closedSignLocation;
+    /** Where a player is taken by {@code /tp <id>}; null = next to the trader. */
+    private org.bukkit.Location teleportLocation;
+    /** The sign that shows the point's id; null = none. */
+    private org.bukkit.Location idSignLocation;
     /**
      * The owner's tax rate as last seen while the owner was ONLINE. LoveBehavior only knows online
      * players (an offline one reads as neutral), and most sales happen while the owner is away, so
@@ -96,6 +100,12 @@ public final class TradePoint {
 
     public org.bukkit.Location closedSignLocation() { return closedSignLocation; }
     public void closedSignLocation(org.bukkit.Location loc) { this.closedSignLocation = loc; }
+
+    public org.bukkit.Location teleportLocation() { return teleportLocation; }
+    public void teleportLocation(org.bukkit.Location loc) { this.teleportLocation = loc; }
+
+    public org.bukkit.Location idSignLocation() { return idSignLocation; }
+    public void idSignLocation(org.bukkit.Location loc) { this.idSignLocation = loc; }
 
     public boolean hasOwner() { return ownerUuid != null; }
     public boolean isOwner(UUID player) { return ownerUuid != null && ownerUuid.equals(player); }

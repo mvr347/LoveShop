@@ -160,10 +160,33 @@ public final class StallNpcService {
         }
     }
 
+    /**
+     * The sign with the point's id (set by the creation wizard): id, and whether the point is free or
+     * who rents it. Rewritten on every reconcile, so it follows rents and releases by itself.
+     */
+    public void updateIdSign(TradePoint point, String id, String status) {
+        if (point == null) return;
+        Location loc = point.idSignLocation();
+        if (loc == null || loc.getWorld() == null) return;
+        org.bukkit.block.Block block = loc.getBlock();
+        if (!(block.getState() instanceof org.bukkit.block.Sign sign)) return;
+        List<String> lines = plugin.getMarketConfig().idSignLines();
+        for (int i = 0; i < 4; i++) {
+            String line = i < lines.size() ? lines.get(i).replace("{id}", id == null ? "?" : id)
+                    .replace("{status}", status == null ? "" : status) : "";
+            sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
+        }
+        sign.update(true);
+    }
+
     /** The point is gone for good: take its "closed" sign down too, so no orphan sign is left in the world. */
     public void removeClosedSign(TradePoint point) {
         if (point == null) return;
-        Location loc = point.closedSignLocation();
+        removeSignAt(point.closedSignLocation());
+        removeSignAt(point.idSignLocation());
+    }
+
+    private static void removeSignAt(Location loc) {
         if (loc == null || loc.getWorld() == null) return;
         org.bukkit.block.Block block = loc.getBlock();
         if (block.getState() instanceof org.bukkit.block.Sign) block.setType(org.bukkit.Material.AIR);
