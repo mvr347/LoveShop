@@ -34,7 +34,8 @@ import java.util.UUID;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "item", "price", "event", "banker", "auction", "point", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "item", "price", "event", "banker", "auction", "point", "flea", "help");
+    private static final List<String> FLEA_ACTIONS = List.of("create", "remove", "tp", "reload", "info");
     private static final List<String> PRICE_TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer", "all");
     // Extra spellings PricesManager#setNpcPrice already understands.
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war", "rare", "auction");
@@ -81,6 +82,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             case "banker" -> handleBanker(sender, args);
             case "auction" -> market.handleAuction(sender, args);
             case "point" -> market.handlePoint(sender, args);
+            case "flea" -> handleFlea(sender, args);
             default -> sendHelp(sender);
         }
         return true;
@@ -604,6 +606,44 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /**
+     * {@code /lsa flea <create|remove|tp|reload|info>}: the flea trader is a stub, so every action
+     * only reports the state. Real creation/removal is a TODO in {@code FleaTraderService}.
+     */
+    private void handleFlea(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("loveshops.admin")) {
+            plugin.getMarketMessages().send(sender, "cmd-flea-no-permission");
+            return;
+        }
+        var flea = plugin.getFleaTraderService();
+        String sub = args.length < 2 ? "" : AdminParse.canonical(args[1]);
+        if (!FLEA_ACTIONS.contains(sub)) {
+            plugin.getMarketMessages().send(sender, "cmd-flea-usage");
+            return;
+        }
+        if (flea == null) {
+            plugin.getMarketMessages().send(sender, "cmd-flea-market-off");
+            return;
+        }
+        switch (sub) {
+            case "info" -> plugin.getMarketMessages().send(sender, flea.isEnabled() ? "cmd-flea-info-on" : "cmd-flea-info-off",
+                    "tax", String.valueOf(plugin.getMarketConfig().fleaTaxPercent()),
+                    "items", String.valueOf(plugin.getMarketConfig().fleaItemsPerDay()));
+            case "reload" -> {
+                plugin.reloadConfig();
+                plugin.getMarketMessages().send(sender, flea.isEnabled() ? "cmd-flea-reloaded-on" : "cmd-flea-reloaded-off");
+            }
+            default -> {
+                if (!flea.isEnabled()) {
+                    plugin.getMarketMessages().send(sender, "cmd-flea-disabled");
+                    return;
+                }
+                // Enabled in config, but the trader itself is not written yet: say so instead of pretending.
+                plugin.getMarketMessages().send(sender, "cmd-flea-not-implemented");
+            }
+        }
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-header", "<dark_gray>========== <gold>LoveShops Admin</gold> ==========</dark_gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-reload", "<gold>/loveshopsadmin reload</gold> <gray>- Перезагрузить конфигурацию</gray>"));
@@ -618,6 +658,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin point <list|close|open|seize|restore|robberies> ...</gold> <gray>- Торговые точки и ограбления</gray>"));
+        }
+        if (sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin flea <create|remove|tp|reload|info></gold> <gray>- Барахольщик (заготовка, по умолчанию выключен)</gray>"));
         }
         sender.sendMessage(plugin.getLangManager().getMessage("admin.help-footer", "<dark_gray>=========================================</dark_gray>"));
     }
@@ -637,6 +680,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (first.equals("point") && (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin"))) {
             return market.tabPoint(args);
+        }
+        if (first.equals("flea") && args.length == 2 && sender.hasPermission("loveshops.admin")) {
+            return StringUtil.copyPartialMatches(args[1], FLEA_ACTIONS, new ArrayList<>());
         }
         if (first.equals("price") && args.length >= 2 && MarketAdminCommands.isPriceSub(args[1])
                 && (sender.hasPermission("loveshops.admin.price") || sender.hasPermission("loveshops.admin"))) {

@@ -200,6 +200,7 @@ public final class LoveShops extends JavaPlugin {
     public boolean isFleaPermanent() { return false; }
     public GuardService getGuardService() { return marketModule == null ? null : marketModule.guards(); }
     public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
+    public dev.lovelace.loveshops.market.FleaTraderService getFleaTraderService() { return marketModule == null ? null : marketModule.flea(); }
     public dev.lovelace.loveshops.market.feudal.FeudalService getFeudalService() { return marketModule == null ? null : marketModule.feudal(); }
     public dev.lovelace.loveshops.market.wizard.WizardService getWizardService() { return marketModule == null ? null : marketModule.wizard(); }
     public dev.lovelace.loveshops.market.StallNpcService getStallNpcService() { return marketModule == null ? null : marketModule.npcs(); }
