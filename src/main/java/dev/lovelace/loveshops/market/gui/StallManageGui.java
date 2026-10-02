@@ -66,11 +66,20 @@ public final class StallManageGui extends MarketGui {
         button(13, tile(HeadTextures.MARKET_CLOSED, "gui-manage-blacklist", "gui-manage-blacklist-lore",
                 "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries())),
                 e -> new StallBlacklistGui(plugin, viewer, point).open());
-        button(15, tile(HeadTextures.MARKET_OPEN, "gui-manage-guard", "gui-manage-guard-lore"),
-                e -> new StallGuardGui(plugin, viewer, point).open());
+        // The guard is hired at the landlord now; here only its state is shown.
+        inventory.setItem(15, tile(HeadTextures.MARKET_OPEN, "gui-manage-guard", "gui-manage-guard-lore",
+                "status", guardStatus()));
 
         footer(() -> new StallOwnerGui(plugin, viewer, point).open());
         refreshClient();
+    }
+
+    private String guardStatus() {
+        return switch (point.guardState()) {
+            case ACTIVE -> t("gui-guard-active", "time", duration(point.guardPaidUntil() - System.currentTimeMillis()));
+            case UNPAID -> t("gui-guard-unpaid");
+            case NONE -> t("gui-guard-none");
+        };
     }
 
     private ItemStack modeButton() {

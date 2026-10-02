@@ -211,7 +211,9 @@ public class DatabaseManager {
                 closed_sign_world TEXT,
                 closed_sign_x INTEGER,
                 closed_sign_y INTEGER,
-                closed_sign_z INTEGER
+                closed_sign_z INTEGER,
+                tp_loc TEXT,
+                id_sign_loc TEXT
             );
         """);
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_points_owner ON trade_points(owner_uuid)");
@@ -441,6 +443,8 @@ public class DatabaseManager {
         addColumnIfMissing(stmt, "trade_points", "closed_sign_x", "INTEGER");
         addColumnIfMissing(stmt, "trade_points", "closed_sign_y", "INTEGER");
         addColumnIfMissing(stmt, "trade_points", "closed_sign_z", "INTEGER");
+        addColumnIfMissing(stmt, "trade_points", "tp_loc", "TEXT");
+        addColumnIfMissing(stmt, "trade_points", "id_sign_loc", "TEXT");
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {
