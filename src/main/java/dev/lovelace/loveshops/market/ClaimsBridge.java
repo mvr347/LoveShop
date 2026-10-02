@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import me.lovelace.loveclaims.api.LoveClaimsAPI;
 import me.lovelace.loveclaims.api.TradePointRentPayer;
 import me.lovelace.loveclaims.api.event.TradePointExpiryWarningEvent;
+import me.lovelace.loveclaims.api.event.TradePointDeletedEvent;
 import me.lovelace.loveclaims.api.event.TradePointReleasedEvent;
 import me.lovelace.loveclaims.api.event.TradePointRentRequestEvent;
 import me.lovelace.loveclaims.api.event.TradePointRentedEvent;
@@ -58,7 +59,6 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
 
     private PointInfo info(LoveClaimsAPI api, Claim claim) {
         UUID tenant = api.hasTenant(claim) ? claim.getOwnerUuid() : null;
-        // The trader stands where the admin stood when creating the point: block centre, same facing.
         Location home = claim.getHomeLocation();
         Location loc = home == null || home.getWorld() == null ? null
                 : new Location(home.getWorld(), home.getBlockX() + 0.5, home.getY(), home.getBlockZ() + 0.5, home.getYaw(), home.getPitch());
@@ -102,15 +102,12 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
         }
     }
 
-
     @Override
     public Optional<UUID> pointAt(Location loc) {
         LoveClaimsAPI api = api();
         if (api == null || loc == null) return Optional.empty();
         return api.getClaimAt(loc).filter(api::isTradePoint).map(Claim::getId);
     }
-
-    // ----- events ---------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRentRequest(TradePointRentRequestEvent event) {
@@ -134,5 +131,10 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
     @EventHandler
     public void onWarning(TradePointExpiryWarningEvent event) {
         if (manager != null) manager.onExpiryWarning(event.getPlayer(), event.getPoint().getId(), event.getMillisLeft());
+    }
+
+    @EventHandler
+    public void onDeleted(TradePointDeletedEvent event) {
+        if (manager != null) manager.onClaimDeleted(event.getClaimId());
     }
 }

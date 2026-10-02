@@ -25,7 +25,7 @@ commands:
     usage: /loveshopsadmin <subcommand>
   tradepoint:
     description: Управление торговой точкой игрока
-    aliases: [point, точка]
+    aliases: [point, точка, торговаяточка]
     usage: /tradepoint <returns|transfer|blacklist|discount|mode>
 
 permissions:
