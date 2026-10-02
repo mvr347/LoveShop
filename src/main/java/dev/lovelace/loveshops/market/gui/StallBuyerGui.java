@@ -40,7 +40,7 @@ public final class StallBuyerGui extends MarketGui {
 
     public enum Tab { GOODS, ORDERS, RATING }
 
-    private static final int SIZE = 27;
+    private final int size;
 
     private final TradePoint point;
     private Tab tab;
@@ -54,6 +54,8 @@ public final class StallBuyerGui extends MarketGui {
         super(plugin, viewer);
         this.point = point;
         this.tab = tab;
+        // Enough rows for every shelf of the point: 27 shows 7 lots, 36 shows 14.
+        this.size = MarketLayout.sizeForContent(Math.max(point.sellSlots(), point.buySlots()));
     }
 
     public void open() {
@@ -62,7 +64,7 @@ public final class StallBuyerGui extends MarketGui {
             return;
         }
         Component title = MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName()));
-        show(Bukkit.createInventory(this, SIZE, title));
+        show(Bukkit.createInventory(this, size, title));
     }
 
     @Override
@@ -97,18 +99,22 @@ public final class StallBuyerGui extends MarketGui {
             tab = tabs.getFirst();
         }
 
-        MarketLayout.frame(inventory);
+        frame();
         listingAt.clear();
 
         inventory.setItem(0, ownerHead());
 
-        int[] slots = MarketLayout.controlSlots(tabs.size());
-        for (int i = 0; i < tabs.size(); i++) {
-            inventory.setItem(slots[i], tabItem(tabs.get(i)));
+        List<Control> tabControls = new ArrayList<>();
+        for (Tab each : tabs) {
+            tabControls.add(new Control(tabItem(each), e -> {
+                if (each != tab) {
+                    tab = each;
+                    render();
+                }
+            }));
         }
-
-        inventory.setItem(MarketLayout.closeSlot(SIZE), head(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+        controls(tabControls);
+        footer(null);
 
         switch (tab) {
             case GOODS -> renderListings(ListingType.SELL);
@@ -121,8 +127,9 @@ public final class StallBuyerGui extends MarketGui {
     private String ratingLine() {
         RatingSummary s = plugin.getRatingService().summary(point);
         String star = plugin.getMarketStyle().icon(MarketStyle.Icon.STAR);
-        if (s.count() == 0) return "<gray>Оценок пока нет</gray>";
-        return "<gold>" + star + " " + String.format(Locale.ROOT, "%.1f", s.average()) + "</gold> <gray>(" + s.count() + ")</gray>";
+        if (s.count() == 0) return t("gui-main-rating-none");
+        return t("gui-main-rating", "star", star, "avg", String.format(Locale.ROOT, "%.1f", s.average()),
+                "count", String.valueOf(s.count()));
     }
 
     private ItemStack ownerHead() {
@@ -132,27 +139,26 @@ public final class StallBuyerGui extends MarketGui {
             meta.setOwningPlayer(owner);
             meta.displayName(MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName())));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(viewer, ratingLine()));
-            lore.add(MessageUtils.parse(viewer, "<gray>Уровень торговца: <white>" + point.level() + "</white></gray>"));
+            for (String line : lines("gui-customer-head-lore", "rating", ratingLine(), "level", String.valueOf(point.level()))) {
+                lore.add(MessageUtils.parse(viewer, line));
+            }
             meta.lore(lore);
             head.setItemMeta(meta);
         }
         return head;
     }
 
-    private ItemStack tabItem(Tab t) {
+    private ItemStack tabItem(Tab each) {
         String base64;
-        String name;
-        String hint;
-        switch (t) {
-            case GOODS -> { base64 = HeadTextures.TAB_SELLER; name = "Товары"; hint = "Что можно купить"; }
-            case ORDERS -> { base64 = HeadTextures.TAB_BUYER; name = "Скупка"; hint = "Что точка купит у вас"; }
-            default -> { base64 = HeadTextures.BANKER_INFO; name = "Рейтинг"; hint = "Отзывы покупателей"; }
+        String key;
+        switch (each) {
+            case GOODS -> { base64 = HeadTextures.TAB_SELLER; key = "goods"; }
+            case ORDERS -> { base64 = HeadTextures.TAB_BUYER; key = "orders"; }
+            default -> { base64 = HeadTextures.BANKER_INFO; key = "rating"; }
         }
-        boolean selected = t == tab;
-        ItemStack item = head(base64, (selected ? "<gold>" : "<white>") + name + (selected ? "</gold>" : "</white>"),
-                List.of("", "<gray>" + hint + "</gray>", "", selected ? "<green>▶ Открыто</green>" : "<yellow>ЛКМ </yellow><gray>— открыть</gray>"));
+        boolean selected = each == tab;
+        ItemStack item = head(base64, t("gui-customer-tab-" + key + (selected ? "-on" : "")),
+                lines("gui-customer-tab-" + key + "-lore", "state", t(selected ? "gui-customer-tab-open" : "gui-customer-tab-click")));
         if (selected && item.getItemMeta() != null) {
             ItemMeta meta = item.getItemMeta();
             meta.setEnchantmentGlintOverride(true);
@@ -162,7 +168,7 @@ public final class StallBuyerGui extends MarketGui {
     }
 
     private void renderListings(ListingType type) {
-        int[] content = MarketLayout.contentSlots(SIZE);
+        int[] content = MarketLayout.contentSlots(size);
         List<StallListing> all;
         try {
             all = plugin.getMarketRepository().listings(point.claimId())
@@ -187,130 +193,75 @@ public final class StallBuyerGui extends MarketGui {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
         List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-        lore.add(Component.empty());
-
+        List<String> extra = new ArrayList<>();
+        extra.add("");
         DiscountEntry discount = plugin.getMarketRepository().getDiscount(point.claimId(), viewer.getUniqueId());
         if (discount != null && discount.percent() > 0) {
-            long origPrice = l.unitPrice();
-            long discountAmount = origPrice * Math.min(plugin.getMarketConfig().discountMaxPercent(), discount.percent()) / 100L;
-            long discountedPrice = Math.max(1L, origPrice - discountAmount);
-            lore.add(MessageUtils.parse(viewer, "<gray>Цена: " + style.money(origPrice) + "</gray>"));
-            lore.add(MessageUtils.parse(viewer, "<green>Ваша цена:</green> " + style.money(discountedPrice) + " <gray>(скидка -" + discount.percent() + "%)</gray>"));
+            long orig = l.unitPrice();
+            long off = orig * Math.min(plugin.getMarketConfig().discountMaxPercent(), discount.percent()) / 100L;
+            extra.addAll(lines("gui-customer-goods-discount", "price", style.money(orig),
+                    "now", style.money(Math.max(1L, orig - off)), "percent", String.valueOf(discount.percent())));
         } else {
-            lore.add(MessageUtils.parse(viewer, "<gray>Цена за шт.:</gray> " + style.money(l.unitPrice())));
+            extra.addAll(lines("gui-customer-goods-price", "price", style.money(l.unitPrice())));
         }
-
-        if (l.stock() > 0) {
-            lore.add(MessageUtils.parse(viewer, "<gray>В наличии: <white>" + l.stock() + "</white> шт.</gray>"));
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(viewer, "<green>ЛКМ </green><gray>— купить 1</gray>"));
-            lore.add(MessageUtils.parse(viewer, "<yellow>Shift+ЛКМ </yellow><gray>— купить стек</gray>"));
-        } else {
-            lore.add(MessageUtils.parse(viewer, "<red>Товар закончился</red>"));
-        }
+        extra.addAll(lines("gui-customer-goods-stock", "stock", String.valueOf(l.stock())));
+        for (String line : extra) lore.add(MessageUtils.parse(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
     }
 
     private ItemStack orderItem(StallListing l) {
-        MarketStyle style = plugin.getMarketStyle();
         ItemStack item = l.template().clone();
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
         List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-        lore.add(Component.empty());
-        lore.add(MessageUtils.parse(viewer, "<gray>Точка платит за шт.:</gray> " + style.money(l.unitPrice())));
         int needed = Math.max(0, l.maxAmount() - l.stock());
-        lore.add(MessageUtils.parse(viewer, "<gray>Требуется ещё: <white>" + needed + "</white> шт.</gray>"));
-        if (needed > 0) {
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(viewer, "<green>ЛКМ </green><gray>— продать 1</gray>"));
-            lore.add(MessageUtils.parse(viewer, "<yellow>Shift+ЛКМ </yellow><gray>— продать всё возможное</gray>"));
-        }
+        List<String> extra = new ArrayList<>();
+        extra.add("");
+        extra.addAll(lines("gui-customer-order", "price", plugin.getMarketStyle().money(l.unitPrice()), "needed", String.valueOf(needed)));
+        if (needed > 0) extra.addAll(lines("gui-customer-order-actions"));
+        for (String line : extra) lore.add(MessageUtils.parse(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
     }
 
     private void renderRating() {
-        int[] content = MarketLayout.contentSlots(SIZE);
-        RatingSummary s = plugin.getRatingService().summary(point);
-        List<String> lore = new ArrayList<>();
-        lore.add("");
-        lore.add(ratingLine());
-        lore.add("");
-        lore.add("<gray>Оценки ставят покупатели, которые</gray>");
-        lore.add("<gray>реально торговали с этой точкой.</gray>");
-        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, "<gold>Рейтинг торговой точки</gold>", lore));
+        int[] content = MarketLayout.contentSlots(size);
+        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, t("gui-customer-rating"),
+                lines("gui-customer-rating-lore", "rating", ratingLine())));
 
-        // Pre-check rating eligibility
         Optional<RatingService.Result> cannotRate = plugin.getRatingService().canRate(viewer, point);
         if (cannotRate.isPresent()) {
             String reason = switch (cannotRate.get()) {
-                case SELF -> "Нельзя оценивать собственную точку";
-                case NOT_TRADED -> "Требуются сделки на сумму от " + plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade());
-                case COOLDOWN -> "Вы уже оценивали эту точку недавно (раз в " + plugin.getMarketConfig().ratingCooldownHours() + " ч.)";
-                case INVALID -> "Точка не имеет владельца";
-                default -> "Оценка временно недоступна";
+                case SELF -> t("gui-customer-rate-self");
+                case NOT_TRADED -> t("gui-customer-rate-not-traded", "min", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()));
+                case COOLDOWN -> t("gui-customer-rate-cooldown", "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()));
+                case INVALID -> t("gui-customer-rate-invalid");
+                default -> t("gui-customer-rate-unavailable");
             };
-            List<String> rateLore = List.of(
-                    "",
-                    "<red>Оценка недоступна:</red>",
-                    "<gray>" + reason + "</gray>"
-            );
-            inventory.setItem(content[3], icon(Material.GRAY_DYE, "<dark_gray>Оценить точку</dark_gray>", rateLore));
+            inventory.setItem(content[3], head(HeadTextures.MARKET_CLOSED, t("gui-customer-rate-off"),
+                    lines("gui-customer-rate-off-lore", "reason", reason)));
         } else {
-            List<String> rate = new ArrayList<>();
-            rate.add("");
-            rate.add("<gray>Оценить можно после сделок на сумму от</gray>");
-            rate.add(plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()) + "<gray>; повторно — раз в <white>"
-                    + plugin.getMarketConfig().ratingCooldownHours() + "</white><gray> ч.</gray>");
-            rate.add("");
-            rate.add("<green>ЛКМ </green><gray>— поставить оценку</gray>");
-            inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, "<green>Оценить точку</green>", rate));
+            inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, t("gui-customer-rate"),
+                    lines("gui-customer-rate-lore", "min", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()),
+                            "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()))));
+            actions.put(content[3], e -> onRate());
         }
-    }
-
-    private ItemStack icon(Material material, String name, List<String> lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(MessageUtils.parse(viewer, name));
-        List<Component> compLore = new ArrayList<>();
-        for (String line : lore) compLore.add(MessageUtils.parse(viewer, line));
-        meta.lore(compLore);
-        item.setItemMeta(meta);
-        return item;
     }
 
     @Override
     public void handleClick(InventoryClickEvent event) {
         int slot = event.getRawSlot();
-        if (slot < 0 || slot >= SIZE) return;
+        if (slot < 0 || slot >= size) return;
+        if (actions.containsKey(slot)) {
+            super.handleClick(event);
+            return;
+        }
+        if (tab == Tab.RATING) return;
+
         ClickType click = event.getClick();
-
-        if (slot == MarketLayout.closeSlot(SIZE)) {
-            viewer.closeInventory();
-            return;
-        }
-
-        List<Tab> tabs = availableTabs();
-        int[] tabSlots = MarketLayout.controlSlots(tabs.size());
-        for (int i = 0; i < tabs.size(); i++) {
-            if (slot == tabSlots[i]) {
-                if (tabs.get(i) != tab) {
-                    tab = tabs.get(i);
-                    render();
-                }
-                return;
-            }
-        }
-
-        if (tab == Tab.RATING) {
-            if (slot == MarketLayout.contentSlots(SIZE)[3]) onRate();
-            return;
-        }
-
         StallListing l = listingAt.get(slot);
         if (l == null) return;
         boolean many = click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
@@ -343,10 +294,9 @@ public final class StallBuyerGui extends MarketGui {
             finish(plugin.getTradeService().buy(viewer, point, l.id(), amount), l);
             return;
         }
-        List<String> summary = List.of(
-                "<gray>Товар: <white>" + l.template().getType().name() + "</white> x<white>" + amount + "</white></gray>",
-                "<gray>К оплате:</gray> " + plugin.getMarketStyle().money(total));
-        new StallConfirmGui(plugin, viewer, point.claimId(), "<gold>Подтвердите покупку</gold>", summary,
+        List<String> summary = lines("gui-confirm-buy-summary", "item", l.template().getType().name(),
+                "amount", String.valueOf(amount), "total", plugin.getMarketStyle().money(total));
+        new StallConfirmGui(plugin, viewer, point.claimId(), t("gui-confirm-buy-title"), summary,
                 () -> {
                     finish(plugin.getTradeService().buy(viewer, point, l.id(), amount), l);
                     reopen(returnTo);

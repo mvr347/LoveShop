@@ -48,6 +48,18 @@ public final class MarketConfig {
 
     public boolean enabled() { return getBool("enabled", true); }
 
+    // ----- rent reminders -----
+    public boolean rentRemindersEnabled() { return getBool("rent.reminders-enabled", true); }
+
+    /** Hours before the end of the rent at which the tenant is reminded, biggest first. */
+    public int[] rentReminderHours() {
+        ConfigurationSection s = root();
+        return RentReminderMath.normalize(s == null ? null : s.getIntegerList("rent.reminder-hours"));
+    }
+
+    /** How often (minutes) an overdue tenant is told the point is closed and will be confiscated. */
+    public long rentGraceReminderMinutes() { return Math.max(5L, getLong("rent.grace-reminder-minutes", 180L)); }
+
     public int baseSellSlots() { return Math.max(1, getInt("stalls.base-sell-slots", 5)); }
     public int baseBuySlots() { return Math.max(1, getInt("stalls.base-buy-slots", 5)); }
     public int maxLevel() { return Math.max(1, getInt("stalls.max-level", 10)); }

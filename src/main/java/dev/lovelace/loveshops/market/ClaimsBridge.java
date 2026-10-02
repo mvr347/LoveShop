@@ -80,6 +80,13 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
     }
 
     @Override
+    public long renewCost(UUID claimId) {
+        LoveClaimsAPI api = api();
+        if (api == null) return 0L;
+        return api.getClaimById(claimId).map(api::getRenewCost).orElse(0L);
+    }
+
+    @Override
     public boolean inGrace(UUID claimId) {
         LoveClaimsAPI api = api();
         if (api == null) return false;

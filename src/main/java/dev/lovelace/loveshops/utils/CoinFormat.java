@@ -97,6 +97,31 @@ public final class CoinFormat {
     }
 
     /**
+     * Сумма построчно строками MiniMessage: {@code %img_gold_coin% <yellow>x3</yellow>}, по строке на номинал.
+     * Для lore, которое строит GUI из текстов (в отличие от {@link #formatGlyphLines}, возвращающего Component).
+     */
+    public static List<String> glyphLineStrings(LoveEconomy eco, long amount) {
+        List<String> lines = new ArrayList<>();
+        List<Denomination> dens = eco == null ? List.of() : new ArrayList<>(eco.denominations());
+        dens = new ArrayList<>(dens);
+        dens.sort(Comparator.comparingLong(Denomination::value).reversed());
+        long remaining = Math.max(0L, amount);
+        for (Denomination den : dens) {
+            if (den.value() <= 0) continue;
+            long count = remaining / den.value();
+            if (count > 0) {
+                lines.add(getCoinGlyph(den) + " <yellow>x" + count + "</yellow>");
+                remaining %= den.value();
+            }
+        }
+        if (lines.isEmpty()) {
+            Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
+            lines.add((smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <yellow>x0</yellow>");
+        }
+        return lines;
+    }
+
+    /**
      * Форматирует сумму построчно в виде списка Component для lore предметов.
      */
     public static List<Component> formatGlyphLines(LoveEconomy eco, long amount) {
