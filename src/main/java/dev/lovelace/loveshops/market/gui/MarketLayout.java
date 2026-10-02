@@ -33,6 +33,16 @@ public final class MarketLayout {
         };
     }
 
+    /**
+     * Smallest standard menu that holds {@code contentCount} content slots (7 per work row): 27 for
+     * one row, 36 for two, 54 for up to three rows (the third row is where pagination lives).
+     */
+    public static int sizeForContent(int contentCount) {
+        if (contentCount <= 7) return 27;
+        if (contentCount <= 14) return 36;
+        return 54;
+    }
+
     /** First slot of the work zone: 9 up to 36 slots, 18 from 45 slots (Row1 belongs to the header). */
     public static int workStart(int size) {
         return size >= 45 ? 18 : 9;

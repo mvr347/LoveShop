@@ -61,6 +61,11 @@ public final class TradePointManager {
     /** Last NPC click per player: Citizens can report one click twice (both hands) and menus must not flicker open. */
     private final Map<UUID, Long> lastNpcClick = new HashMap<>();
 
+    /** Rent reminders: the threshold (hours) last reminded about, per point. In memory only. */
+    private final Map<UUID, Integer> remindedHours = new HashMap<>();
+    /** Overdue tenants: when the last "closed, will be confiscated" reminder went out. */
+    private final Map<UUID, Long> graceRemindedAt = new HashMap<>();
+
     public TradePointManager(LoveShops plugin, MarketRepository repo, StallNpcService npcs, ClaimsLink claims,
                              ReputationGate gate, TaxService tax, ReturnsService returns) {
         this.plugin = plugin;
@@ -227,7 +232,11 @@ public final class TradePointManager {
         p.tillCoins(0);
         p.guardState(GuardState.NONE);
         p.guardPaidUntil(0);
+        // A new tenant starts selling only; buy orders are switched on in the Management menu.
+        p.tradingMode(dev.lovelace.loveshops.market.model.TradingMode.SELL_ONLY);
         p.rentedAt(System.currentTimeMillis());
+        remindedHours.remove(p.claimId());
+        graceRemindedAt.remove(p.claimId());
         save(p);
     }
 
@@ -268,6 +277,8 @@ public final class TradePointManager {
     }
 
     public void onExpiryWarning(UUID player, UUID claimId, long millisLeft) {
+        // The reminder schedule (remindRent) covers the 24 h warning too; this stays the fallback.
+        if (plugin.getMarketConfig().rentRemindersEnabled()) return;
         TradePoint p = points.get(claimId);
         if (p == null || !p.isOwner(player)) return;
         String hours = String.valueOf(Math.max(1, millisLeft / 3_600_000L));
@@ -287,6 +298,8 @@ public final class TradePointManager {
         UUID owner = p.ownerUuid();
         if (owner == null) return;
         closeViewers(p.claimId());
+        remindedHours.remove(p.claimId());
+        graceRemindedAt.remove(p.claimId());
         Integer npc = p.npcCitizensId();
         Integer guard = p.guardCitizensId();
         long till = p.tillCoins();
@@ -347,9 +360,63 @@ public final class TradePointManager {
             } catch (SQLException e) {
                 plugin.getLogger().warning("Не удалось удалить строку точки " + claimId + ": " + e.getMessage());
             }
+            npcs.removeClosedSign(p);
             points.remove(claimId);
+            remindedHours.remove(claimId);
+            graceRemindedAt.remove(claimId);
         } else {
             npcs.destroyAllForPoint(claimId);
+        }
+    }
+
+    // ------------------------------------------------------------------ rent reminders
+
+    /**
+     * Tells the tenant the rent is about to end (once per configured threshold) or, when it is
+     * overdue, that the point is closed and will be confiscated if the till stays short. The
+     * tenant gets it in chat when online and as a stored notice (shown on join) when not.
+     */
+    private void remindRent(TradePoint p, boolean grace) {
+        if (!plugin.getMarketConfig().rentRemindersEnabled()) return;
+        long now = System.currentTimeMillis();
+        UUID id = p.claimId();
+        String cost = plugin.getMarketStyle().money(claims.renewCost(id));
+        String till = plugin.getMarketStyle().money(p.tillCoins());
+
+        if (grace) {
+            long every = plugin.getMarketConfig().rentGraceReminderMinutes() * 60_000L;
+            Long last = graceRemindedAt.get(id);
+            if (last == null) {
+                graceRemindedAt.put(id, now); // the "closed" message itself has just gone out
+                return;
+            }
+            if (now - last < every) return;
+            graceRemindedAt.put(id, now);
+            remindOwner(p, "rent-grace-reminder", "cost", cost, "till", till);
+            return;
+        }
+        graceRemindedAt.remove(id);
+
+        long end = rentEnd(p);
+        if (end <= 0) return;
+        RentReminderMath.Decision decision = RentReminderMath.decide(
+                plugin.getMarketConfig().rentReminderHours(), end - now, remindedHours.get(id));
+        if (decision.reset()) remindedHours.remove(id);
+        if (decision.send() != null) {
+            remindedHours.put(id, decision.send());
+            java.util.List<String> units = plugin.getMarketMessages().lines("time-units");
+            String left = DurationText.format(end - now, units.size() >= 4 ? units.toArray(new String[0])
+                    : new String[]{"d", "h", "min", "<1 min"});
+            remindOwner(p, "rent-reminder", "time", left, "cost", cost, "till", till);
+        }
+    }
+
+    private void remindOwner(TradePoint p, String key, String... kv) {
+        Player online = Bukkit.getPlayer(p.ownerUuid());
+        if (online != null) {
+            plugin.getMarketMessages().send(online, key, kv);
+        } else {
+            notice(p.ownerUuid(), plugin.getMarketMessages().raw(key, kv));
         }
     }
 
@@ -385,6 +452,7 @@ public final class TradePointManager {
             Boolean mayOperate = online == null ? null : gate.canOperate(p.ownerUuid());
             if (online != null) tax.rateForOwner(p); // remember the rate for the hours the owner is away
             CloseReason reason = p.closeReason();
+            remindRent(p, grace);
 
             if (grace) {
                 if (p.open()) {

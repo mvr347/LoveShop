@@ -53,6 +53,18 @@ public final class MarketMessages {
         return list;
     }
 
+    /** Like {@link #variants} but keeps empty strings: they are the blank lines of a lore. */
+    private List<String> loreSource(String key) {
+        String path = "market." + key;
+        for (FileConfiguration cfg : new FileConfiguration[]{server, bundled}) {
+            if (cfg == null) continue;
+            if (cfg.isList(path)) return new ArrayList<>(cfg.getStringList(path));
+            String single = cfg.getString(path);
+            if (single != null && !single.isEmpty()) return List.of(single);
+        }
+        return List.of();
+    }
+
     private static List<String> fromConfig(FileConfiguration cfg, String path) {
         if (cfg == null) return List.of();
         if (cfg.isList(path)) {
@@ -77,6 +89,26 @@ public final class MarketMessages {
             }
         }
         return apply(text, kv);
+    }
+
+    /**
+     * Every line of a list text (a GUI lore), placeholders and icons applied; a single string gives
+     * one line. Unlike {@link #raw} it never picks a random variant: a lore is read top to bottom.
+     */
+    public List<String> lines(String key, String... kv) {
+        List<String> variants = loreSource(key);
+        if (variants.isEmpty()) return List.of("<red>[" + key + "]</red>");
+        MarketStyle style = plugin.getMarketStyle();
+        List<String> out = new ArrayList<>(variants.size());
+        for (String text : variants) {
+            if (style != null && text.contains("{i_")) {
+                for (MarketStyle.Icon icon : MarketStyle.Icon.values()) {
+                    text = text.replace("{i_" + icon.name().toLowerCase(java.util.Locale.ROOT) + "}", style.icon(icon));
+                }
+            }
+            out.add(apply(text, kv));
+        }
+        return out;
     }
 
     public static String apply(String text, String... kv) {

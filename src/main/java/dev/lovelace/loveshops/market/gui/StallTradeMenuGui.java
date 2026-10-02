@@ -3,28 +3,27 @@ package dev.lovelace.loveshops.market.gui;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.market.model.TradePoint;
+import dev.lovelace.loveshops.market.model.TradingMode;
 import dev.lovelace.loveshops.textures.HeadTextures;
-import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.MessageUtils;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Подменю «Торговля»: продажа, скупка, касса.
+ * "Trade" section (27 slots, gui_gen v2.1): Sell, Buy and the till as header controls. Buying is
+ * switched on in Management (the default trading mode is sell-only), until then its button only
+ * explains how to turn it on.
  */
 public final class StallTradeMenuGui extends MarketGui {
 
     private static final int SIZE = 27;
+
     private final TradePoint point;
 
     public StallTradeMenuGui(LoveShops plugin, Player viewer, TradePoint point) {
@@ -33,8 +32,7 @@ public final class StallTradeMenuGui extends MarketGui {
     }
 
     public void open() {
-        Component title = MessageUtils.parse(viewer, "<gold>Торговля</gold>");
-        show(Bukkit.createInventory(this, SIZE, title));
+        show(Bukkit.createInventory(this, SIZE, MessageUtils.parse(viewer, t("gui-trade-title"))));
     }
 
     @Override
@@ -44,78 +42,40 @@ public final class StallTradeMenuGui extends MarketGui {
 
     @Override
     public void render() {
-        MarketLayout.frame(inventory);
-        inventory.setItem(11, sellItem());
-        inventory.setItem(13, buyItem());
-        inventory.setItem(15, tillItem());
-        inventory.setItem(MarketLayout.backSlot(SIZE), head(HeadTextures.BUTTON_BACK,
-                "<yellow>Назад</yellow>", List.of("<gray>В меню точки</gray>")));
-        inventory.setItem(MarketLayout.closeSlot(SIZE), head(HeadTextures.BUTTON_CLOSE,
-                "<red>Закрыть</red>", List.of()));
-    }
+        frame();
+        inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-trade-head", "gui-trade-head-lore",
+                "mode", t("gui-mode-" + point.tradingMode().name().toLowerCase(java.util.Locale.ROOT))));
 
-    private ItemStack sellItem() {
-        return icon(Material.GOLD_INGOT, "<gold>Продажа</gold>", List.of(
-                "<gray>Витрина товаров на продажу.</gray>",
-                "",
-                "<green>ЛКМ </green><gray>— открыть</gray>"
+        boolean sellOn = point.tradingMode() != TradingMode.BUY_ONLY;
+        boolean buyOn = point.tradingMode() != TradingMode.SELL_ONLY;
+        controls(List.of(
+                new Control(sellOn
+                        ? tile(HeadTextures.BANKER_DEPOSIT, "gui-trade-sell", "gui-trade-sell-lore")
+                        : tile(HeadTextures.MARKET_CLOSED, "gui-trade-sell-off", "gui-trade-sell-off-lore"),
+                        e -> {
+                            if (sellOn) new StallOwnerSellGui(plugin, viewer, point).open();
+                            else plugin.getMarketMessages().send(viewer, "trade-mode-sell-off");
+                        }),
+                new Control(buyOn
+                        ? tile(HeadTextures.BANKER_WITHDRAW, "gui-trade-buy", "gui-trade-buy-lore")
+                        : tile(HeadTextures.MARKET_CLOSED, "gui-trade-buy-off", "gui-trade-buy-off-lore"),
+                        e -> {
+                            if (buyOn) new StallOwnerBuyGui(plugin, viewer, point).open();
+                            else plugin.getMarketMessages().send(viewer, "trade-mode-buy-off");
+                        }),
+                new Control(tile(HeadTextures.BANKER_ACCOUNT, "gui-trade-till", "gui-trade-till-lore",
+                        "money", plugin.getMarketStyle().money(point.tillCoins())), this::clickTill)
         ));
+        footer(() -> new StallOwnerGui(plugin, viewer, point).open());
+        refreshClient();
     }
 
-    private ItemStack buyItem() {
-        return icon(Material.EMERALD, "<aqua>Скупка</aqua>", List.of(
-                "<gray>Заказы на покупку у игроков.</gray>",
-                "",
-                "<green>ЛКМ </green><gray>— открыть</gray>"
-        ));
-    }
-
-    private ItemStack tillItem() {
-        long till = point.tillCoins();
-        String money = CoinFormat.formatGlyphs(till);
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>Касса точки</gray>");
-        lore.add("<white>" + money + "</white>");
-        lore.add("");
-        lore.add("<green>ЛКМ </green><gray>— забрать</gray>");
-        lore.add("<yellow>Shift </yellow><gray>— внести с руки</gray>");
-        return icon(Material.CHEST, "<gold>Касса</gold>", lore);
-    }
-
-    private ItemStack icon(Material material, String name, List<String> lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(MessageUtils.parse(viewer, name));
-        List<Component> compLore = new ArrayList<>();
-        for (String line : lore) compLore.add(MessageUtils.parse(viewer, line));
-        meta.lore(compLore);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    @Override
-    public void handleClick(InventoryClickEvent event) {
-        int slot = event.getRawSlot();
-        if (slot < 0 || slot >= SIZE) return;
+    private void clickTill(InventoryClickEvent event) {
         ClickType click = event.getClick();
-        if (slot == MarketLayout.closeSlot(SIZE)) {
-            viewer.closeInventory();
-            return;
-        }
-        if (slot == MarketLayout.backSlot(SIZE)) {
-            new StallOwnerGui(plugin, viewer, point).open();
-            return;
-        }
-        switch (slot) {
-            case 11 -> new StallOwnerSellGui(plugin, viewer, point).open();
-            case 13 -> new StallOwnerBuyGui(plugin, viewer, point).open();
-            case 15 -> {
-                if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
-                    depositTill();
-                } else {
-                    withdrawTill();
-                }
-            }
+        if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
+            depositTill();
+        } else {
+            withdrawTill();
         }
     }
 
@@ -142,7 +102,7 @@ public final class StallTradeMenuGui extends MarketGui {
         }
         ItemStack hand = viewer.getInventory().getItemInMainHand();
         if (hand == null || !eco.isCoin(hand)) {
-            viewer.sendMessage(MessageUtils.parse(viewer, "<red>Возьмите монеты в руку для внесения в кассу!</red>"));
+            plugin.getMarketMessages().send(viewer, "till-need-coins");
             return;
         }
         long value = eco.valueOf(hand);
@@ -150,7 +110,7 @@ public final class StallTradeMenuGui extends MarketGui {
         if (eco.charge(viewer, value)) {
             point.tillCoins(point.tillCoins() + value);
             plugin.getTradePointManager().save(point);
-            viewer.sendMessage(MessageUtils.parse(viewer, "<green>В кассу внесено: " + CoinFormat.formatGlyphs(eco, value) + "</green>"));
+            plugin.getMarketMessages().send(viewer, "till-deposited", "money", plugin.getMarketStyle().money(value));
             render();
         }
     }

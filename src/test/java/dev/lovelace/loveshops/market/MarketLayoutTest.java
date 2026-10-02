@@ -80,4 +80,31 @@ class MarketLayoutTest {
         for (int row : new int[]{18, 27, 36}) for (int col = 1; col <= 7; col++) expected[i++] = row + col;
         assertArrayEquals(expected, MarketLayout.contentSlots(54), Arrays.toString(MarketLayout.contentSlots(54)));
     }
+
+    @Test
+    void sizeForContentPicksSmallestStandardMenu() {
+        assertEquals(27, MarketLayout.sizeForContent(1));
+        assertEquals(27, MarketLayout.sizeForContent(7));
+        assertEquals(36, MarketLayout.sizeForContent(8));
+        assertEquals(36, MarketLayout.sizeForContent(14));
+        assertEquals(54, MarketLayout.sizeForContent(15));
+        assertEquals(54, MarketLayout.sizeForContent(100));
+    }
+
+    @Test
+    void everyChosenSizeHoldsItsContent() {
+        for (int shelves = 1; shelves <= 14; shelves++) {
+            int size = MarketLayout.sizeForContent(shelves);
+            assertTrue(MarketLayout.contentSlots(size).length >= shelves, "shelves " + shelves + " size " + size);
+        }
+    }
+
+    @Test
+    void pagerSlotsAreSideWallsNotContent() {
+        // gui_gen rule 6: arrows live on slots 36 and 44 of a 54-slot menu, outside the content slots.
+        for (int slot : MarketLayout.contentSlots(54)) {
+            assertNotEquals(36, slot);
+            assertNotEquals(44, slot);
+        }
+    }
 }

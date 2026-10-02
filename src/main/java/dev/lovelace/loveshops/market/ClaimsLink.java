@@ -26,6 +26,9 @@ public interface ClaimsLink {
     /** The tenant's term is over and only the grace period keeps them on the point. */
     boolean inGrace(UUID claimId);
 
+    /** What the next rental period costs (0 when unknown). */
+    long renewCost(UUID claimId);
+
     /** Hooks LoveClaims' events and rent payer to {@code manager}. */
     void register(TradePointManager manager);
 

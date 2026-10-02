@@ -1,11 +1,11 @@
 package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.Inventory;
@@ -13,7 +13,9 @@ import org.bukkit.inventory.InventoryHolder;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -28,6 +30,14 @@ public abstract class MarketGui implements InventoryHolder {
     protected final LoveShops plugin;
     protected final Player viewer;
     protected Inventory inventory;
+    /** Click handlers by raw slot, filled while rendering; the default {@link #handleClick} runs them. */
+    protected final Map<Integer, Consumer<InventoryClickEvent>> actions = new HashMap<>();
+
+    /** Current page of a paged menu (0-based). */
+    protected int page = 0;
+
+    /** A header control button together with what it does. */
+    protected record Control(ItemStack item, Consumer<InventoryClickEvent> action) {}
 
     protected MarketGui(LoveShops plugin, Player viewer) {
         this.plugin = plugin;
@@ -42,22 +52,26 @@ public abstract class MarketGui implements InventoryHolder {
     /** (Re)draws the whole menu into {@link #inventory}. */
     public abstract void render();
 
-    /** A click inside the top inventory; the event is already cancelled. */
-    public abstract void handleClick(InventoryClickEvent event);
+    /** A click inside the top inventory; the event is already cancelled. Runs the slot's registered action. */
+    public void handleClick(InventoryClickEvent event) {
+        Consumer<InventoryClickEvent> action = actions.get(event.getRawSlot());
+        if (action != null) action.accept(event);
+    }
+
+    /**
+     * An item the viewer put on a top-inventory slot (a click with the cursor, or a drag that ended
+     * on exactly one slot). Return {@code true} when the menu took the whole stack: the listener then
+     * empties the cursor. The default takes nothing, so the item simply stays on the cursor.
+     */
+    public boolean acceptCursor(int topSlot, ItemStack cursor) {
+        return false;
+    }
 
     /**
      * A click in the viewer's own inventory while this menu is open; the event is already cancelled.
      * Menus that take items from the player's inventory override this; the default does nothing.
      */
     public void handleBottomClick(InventoryClickEvent event) {
-    }
-
-    /**
-     * A drag over this menu; the event is already cancelled. Return {@code true} if the menu handled
-     * it itself (nothing is ever moved by vanilla either way).
-     */
-    public boolean handleDrag(InventoryDragEvent event) {
-        return false;
     }
 
     /** Called when the viewer closes the menu. */
@@ -93,6 +107,95 @@ public abstract class MarketGui implements InventoryHolder {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    // ------------------------------------------------------------------ layout helpers
+
+    /** Clears the menu and redraws the glass frame; handlers registered earlier are dropped. */
+    protected void frame() {
+        MarketLayout.frame(inventory);
+        actions.clear();
+    }
+
+    /** Text from lang.yml ({@code market.<key>}) for the viewer, placeholders applied. */
+    protected String t(String key, String... kv) {
+        return plugin.getMarketMessages().raw(key, kv);
+    }
+
+    /** All lines of a lore text from lang.yml. */
+    protected List<String> lines(String key, String... kv) {
+        return plugin.getMarketMessages().lines(key, kv);
+    }
+
+    /** A duration written with the unit words of lang.yml ({@code market.time-units}). */
+    protected String duration(long millis) {
+        List<String> units = lines("time-units");
+        return dev.lovelace.loveshops.market.DurationText.format(millis,
+                units.size() >= 4 ? units.toArray(new String[0]) : new String[]{"d", "h", "min", "<1 min"});
+    }
+
+    /** A textured head whose name and lore both come from lang.yml. */
+    protected ItemStack tile(String base64, String nameKey, String loreKey, String... kv) {
+        return head(base64, t(nameKey, kv), loreKey == null ? List.of() : lines(loreKey, kv));
+    }
+
+    protected void button(int slot, ItemStack item, Consumer<InventoryClickEvent> action) {
+        inventory.setItem(slot, item);
+        if (action != null) actions.put(slot, action);
+    }
+
+    /** Puts the menu's control buttons into header slots 2-7, spread by their number (gui_gen rule 4). */
+    protected void controls(List<Control> controls) {
+        int[] slots = MarketLayout.controlSlots(controls.size());
+        for (int i = 0; i < slots.length; i++) {
+            button(slots[i], controls.get(i).item(), controls.get(i).action());
+        }
+    }
+
+    /** Footer: Back (only when {@code back} is given, else the glass stays) and Close, always. */
+    protected void footer(Runnable back) {
+        int size = inventory.getSize();
+        if (back != null) {
+            button(MarketLayout.backSlot(size), tile(HeadTextures.BUTTON_BACK, "gui-back", "gui-back-lore"), e -> back.run());
+        }
+        button(MarketLayout.closeSlot(size), tile(HeadTextures.BUTTON_CLOSE, "gui-close", "gui-close-lore"),
+                e -> viewer.closeInventory());
+    }
+
+    /**
+     * Pagination arrows of a 54-slot menu, on the side walls of the last work row (slots 36 and 44,
+     * gui_gen rule 6); a wall without an arrow stays empty. Returns the page, clamped to the range.
+     */
+    protected int pager(int totalPages) {
+        int pages = Math.max(1, totalPages);
+        if (page >= pages) page = pages - 1;
+        if (page < 0) page = 0;
+        if (page > 0) {
+            button(36, tile(HeadTextures.ARROW_LEFT, "gui-page-prev", "gui-page-lore",
+                    "page", String.valueOf(page), "pages", String.valueOf(pages)), e -> { page--; render(); });
+        }
+        if (page < pages - 1) {
+            button(44, tile(HeadTextures.ARROW_RIGHT, "gui-page-next", "gui-page-lore",
+                    "page", String.valueOf(page + 2), "pages", String.valueOf(pages)), e -> { page++; render(); });
+        }
+        return page;
+    }
+
+    /** Takes the clicked stack out of the clicked inventory and returns a copy; {@code null} for an empty slot. */
+    protected ItemStack takeClicked(InventoryClickEvent event) {
+        ItemStack current = event.getCurrentItem();
+        if (current == null || current.getType().isAir() || event.getClickedInventory() == null) return null;
+        ItemStack copy = current.clone();
+        event.getClickedInventory().setItem(event.getSlot(), null);
+        return copy;
+    }
+
+    /** Returns an item to the viewer; whatever does not fit is dropped at their feet. */
+    protected void giveBack(ItemStack item) {
+        if (item == null || item.getType().isAir()) return;
+        for (ItemStack rest : viewer.getInventory().addItem(item).values()) {
+            viewer.getWorld().dropItem(viewer.getLocation(), rest);
+        }
     }
 
     /**

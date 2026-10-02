@@ -51,9 +51,8 @@ public final class StallConfirmGui extends MarketGui {
         inventory.clear();
         ItemStack glass = GuiUtils.createFiller();
         for (int slot : new int[]{0, 2, 6, 8}) inventory.setItem(slot, glass);
-        inventory.setItem(CONFIRM_SLOT, head(HeadTextures.MARKET_OPEN, "<green>Подтвердить</green>", confirmLore()));
-        inventory.setItem(CANCEL_SLOT, head(HeadTextures.MARKET_CLOSED, "<red>Отмена</red>",
-                List.of("", "<gray>Ничего не изменится.</gray>", "<red>ЛКМ </red><gray>— отменить</gray>")));
+        inventory.setItem(CONFIRM_SLOT, head(HeadTextures.MARKET_OPEN, t("gui-confirm-ok"), confirmLore()));
+        inventory.setItem(CANCEL_SLOT, head(HeadTextures.MARKET_CLOSED, t("gui-confirm-cancel"), lines("gui-confirm-cancel-lore")));
     }
 
     private List<String> confirmLore() {
@@ -61,7 +60,7 @@ public final class StallConfirmGui extends MarketGui {
         lore.add("");
         lore.addAll(summary);
         lore.add("");
-        lore.add("<green>ЛКМ </green><gray>— подтвердить</gray>");
+        lore.addAll(lines("gui-confirm-ok-lore"));
         return lore;
     }
 

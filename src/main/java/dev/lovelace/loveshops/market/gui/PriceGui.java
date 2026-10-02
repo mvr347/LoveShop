@@ -3,325 +3,219 @@ package dev.lovelace.loveshops.market.gui;
 import dev.lovelace.lovecore.api.economy.Denomination;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.market.MarketStyle;
-import dev.lovelace.loveshops.market.model.ListingType;
-import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
-import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
- * 27-slot Price setting GUI (Section 5 of specification).
- * Allows setting price using LoveEconomy coin denominations:
- * - Shift-click denomination: select active coin
- * - LMB: -1 of that denomination
- * - RMB: +1 of that denomination
- * - Item amount controls (+/-)
- * - Presets: min price, last price
- * - Confirm / Cancel
+ * Lot price menu (27 slots, gui_gen v2.1), laid out like the LoveDuels stake picker.
+ * <ul>
+ *   <li>Slot 0: the lot itself.</li>
+ *   <li>Header controls: amount (only for a stack), the price button and Confirm, which stays
+ *       inactive until a valid price is set.</li>
+ *   <li>Price button: the price as a list of coin glyphs; <b>Shift</b> switches the active coin,
+ *       <b>left click</b> adds one of it, <b>right click</b> takes one away.</li>
+ *   <li>Footer: Close in the last slot. Leaving by any way except Confirm (Close, Esc) hands the
+ *       item back through {@code onCancel}.</li>
+ * </ul>
  */
 public final class PriceGui extends MarketGui {
 
     private static final int SIZE = 27;
+    private static final int INFO_SLOT = 13;
 
-    private final TradePoint point;
     private final ItemStack template;
-    private final int shelfIndex;
-    private final ListingType type;
-    private final int maxAvailableAmount;
-    private int currentAmount;
-    private long currentPrice;
-    private Denomination activeDenomination;
+    private final boolean editsOnlyPrice;
+    private final int maxAmount;
+    private final PriceInput input;
     private final BiConsumer<Integer, Long> onConfirm;
     private final Runnable onCancel;
-    private final List<Denomination> denominations = new ArrayList<>();
+    private final UUID pointId;
+    private int amount;
+    private boolean finished;
 
-    public PriceGui(LoveShops plugin, Player viewer, TradePoint point, ItemStack item,
-                    int shelfIndex, ListingType type, long initialPrice,
-                    BiConsumer<Integer, Long> onConfirm, Runnable onCancel) {
+    /**
+     * @param onConfirm receives (amount, unit price); runs after the menu is closed
+     * @param onCancel  gives the item back / restores the previous state; must not open another menu
+     *                  (the player may have pressed Esc), the caller decides what to show next
+     */
+    public PriceGui(LoveShops plugin, Player viewer, UUID pointId, ItemStack item, boolean editsOnlyPrice,
+                    long initialPrice, BiConsumer<Integer, Long> onConfirm, Runnable onCancel) {
         super(plugin, viewer);
-        this.point = point;
+        this.pointId = pointId;
         this.template = item.clone();
-        this.shelfIndex = shelfIndex;
-        this.type = type;
-        this.maxAvailableAmount = Math.max(1, item.getAmount());
-        this.currentAmount = this.maxAvailableAmount;
+        this.editsOnlyPrice = editsOnlyPrice;
+        this.maxAmount = editsOnlyPrice ? 1 : Math.max(1, item.getAmount());
+        this.amount = maxAmount;
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
 
-        LoveEconomy eco = plugin.getEconomy().orElse(null);
-        if (eco != null) {
-            denominations.addAll(eco.denominations());
-            denominations.sort(Comparator.comparingLong(Denomination::value));
-        }
-
-        long min = plugin.getMarketConfig().minPrice(template.getType().name());
-        long max = plugin.getMarketConfig().maxPrice(template.getType().name());
-        this.currentPrice = initialPrice > 0 ? Math.min(max, Math.max(min, initialPrice)) : Math.max(1L, min);
-
-        if (!denominations.isEmpty()) {
-            activeDenomination = denominations.get(0);
-        }
+        String key = template.getType().name();
+        List<Denomination> dens = new ArrayList<>(plugin.getEconomy().map(LoveEconomy::denominations).orElse(List.of()));
+        dens.removeIf(d -> d.value() <= 0);
+        dens.sort(Comparator.comparingLong(Denomination::value));
+        long[] units = dens.stream().mapToLong(Denomination::value).toArray();
+        this.input = new PriceInput(units, plugin.getMarketConfig().minPrice(key),
+                plugin.getMarketConfig().maxPrice(key), initialPrice);
     }
 
-    public PriceGui(LoveShops plugin, Player viewer, ItemStack item, boolean isEdit,
-                    java.util.function.Consumer<Long> onPrice, Runnable onCancel) {
-        this(plugin, viewer, null, item, -1, ListingType.SELL, 0L, (amt, price) -> {
-            if (onPrice != null) onPrice.accept(price);
-        }, onCancel);
+    /** Convenience: only the unit price matters (editing an existing lot, buy orders). */
+    public PriceGui(LoveShops plugin, Player viewer, ItemStack item, boolean editsOnlyPrice,
+                    Consumer<Long> onPrice, Runnable onCancel) {
+        this(plugin, viewer, null, item, editsOnlyPrice, 0L, (amt, price) -> onPrice.accept(price), onCancel);
     }
 
-    public PriceGui(LoveShops plugin, Player viewer, ItemStack item, boolean isEdit,
+    /** Convenience: amount and price (a new lot from a stack). */
+    public PriceGui(LoveShops plugin, Player viewer, ItemStack item, boolean editsOnlyPrice,
                     BiConsumer<Integer, Long> onConfirm, Runnable onCancel) {
-        this(plugin, viewer, null, item, -1, ListingType.SELL, 0L, onConfirm, onCancel);
+        this(plugin, viewer, null, item, editsOnlyPrice, 0L, onConfirm, onCancel);
     }
 
     public void open() {
-        Component title = MessageUtils.parse(viewer, "<dark_aqua>Установка цены лота</dark_aqua>");
-        show(org.bukkit.Bukkit.createInventory(this, SIZE, title));
+        show(Bukkit.createInventory(this, SIZE, MessageUtils.parse(viewer, t("gui-price-title"))));
     }
 
     @Override
-    public java.util.UUID pointId() {
-        return point != null ? point.claimId() : null;
+    public UUID pointId() {
+        return pointId;
     }
-
 
     @Override
     public void render() {
-        fillFrame();
+        frame();
+        inventory.setItem(0, lotItem());
 
-        String itemKey = template.getType().name();
-        long min = plugin.getMarketConfig().minPrice(itemKey);
-        long max = plugin.getMarketConfig().maxPrice(itemKey);
+        List<Control> controls = new ArrayList<>();
+        if (maxAmount > 1) controls.add(new Control(amountButton(), this::clickAmount));
+        controls.add(new Control(priceButton(), this::clickPrice));
+        controls.add(new Control(confirmButton(), this::clickConfirm));
+        controls(controls);
 
-        // Slot 2: Preset "Мин. цена"
-        ItemStack minBtn = GuiUtils.createItem(Material.IRON_NUGGET,
-                MessageUtils.parse("<yellow>Минимальная цена</yellow>"),
-                List.of(
-                        MessageUtils.parse("<gray>Установить цену антидампа:</gray>"),
-                        MessageUtils.parse("<white>" + CoinFormat.formatGlyphs(min) + "</white>"),
-                        Component.empty(),
-                        MessageUtils.parse("<yellow>Клик: применить</yellow>")
-                ));
-        inventory.setItem(2, minBtn);
+        inventory.setItem(INFO_SLOT, infoTile());
+        footer(null);
+        refreshClient();
+    }
 
-        // Slot 3: Decrease amount (if item amount > 1)
-        if (maxAvailableAmount > 1) {
-            ItemStack decBtn = GuiUtils.createItem(Material.RED_STAINED_GLASS_PANE,
-                    MessageUtils.parse("<red>−1 к количеству</red>"),
-                    List.of(MessageUtils.parse("<gray>Shift+клик: −8</gray>")));
-            inventory.setItem(3, decBtn);
-        }
+    // ------------------------------------------------------------------ items
 
-        // Slot 4: Item preview with amount
-        ItemStack preview = template.clone();
-        preview.setAmount(Math.max(1, Math.min(64, currentAmount)));
-        ItemMeta meta = preview.getItemMeta();
+    private ItemStack lotItem() {
+        ItemStack item = template.clone();
+        item.setAmount(Math.max(1, Math.min(item.getMaxStackSize(), amount)));
+        ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Выставляемое кол-во: <yellow>" + currentAmount + "</yellow> шт.</gray>"));
-            lore.add(MessageUtils.parse("<gray>Цена за шт.: <gold>" + CoinFormat.formatGlyphs(currentPrice) + "</gold></gray>"));
-            if (currentAmount > 1) {
-                long total = currentPrice * (long) currentAmount;
-                lore.add(MessageUtils.parse("<gray>Итого: <gold>" + CoinFormat.formatGlyphs(total) + "</gold></gray>"));
+            List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+            for (String line : lines("gui-price-lot-lore", "amount", String.valueOf(amount))) {
+                lore.add(MessageUtils.parse(viewer, line));
             }
             meta.lore(lore);
-            preview.setItemMeta(meta);
+            item.setItemMeta(meta);
         }
-        inventory.setItem(4, preview);
-
-        // Slot 5: Increase amount (if item amount > 1)
-        if (maxAvailableAmount > 1) {
-            ItemStack incBtn = GuiUtils.createItem(Material.GREEN_STAINED_GLASS_PANE,
-                    MessageUtils.parse("<green>+1 к количеству</green>"),
-                    List.of(MessageUtils.parse("<gray>Shift+клик: +8</gray>")));
-            inventory.setItem(5, incBtn);
-        }
-
-        // Slot 6: Preset "Сбросить на 1 монету"
-        ItemStack resetBtn = GuiUtils.createItem(Material.GOLD_NUGGET,
-                MessageUtils.parse("<yellow>Базовая цена</yellow>"),
-                List.of(
-                        MessageUtils.parse("<gray>Установить 1 монету:</gray>"),
-                        MessageUtils.parse("<white>" + CoinFormat.formatGlyphs(Math.max(1L, min)) + "</white>"),
-                        Component.empty(),
-                        MessageUtils.parse("<yellow>Клик: применить</yellow>")
-                ));
-        inventory.setItem(6, resetBtn);
-
-        // Slot 10: Price summary indicator
-        ItemStack summary = GuiUtils.createItem(Material.CHEST,
-                MessageUtils.parse("<gold>Итоговая цена лота</gold>"),
-                List.of(
-                        MessageUtils.parse("<gray>Цена за 1 шт.:</gray>"),
-                        MessageUtils.parse("<white>" + CoinFormat.formatGlyphs(currentPrice) + "</white>"),
-                        Component.empty(),
-                        MessageUtils.parse("<gray>Мин.: <yellow>" + CoinFormat.formatGlyphs(min) + "</yellow></gray>"),
-                        MessageUtils.parse("<gray>Макс.: <yellow>" + CoinFormat.formatGlyphs(max) + "</yellow></gray>")
-                ));
-        inventory.setItem(10, summary);
-
-        // Slots 12, 13, 14, 15, 16: Denominations row
-        int[] denSlots = {12, 13, 14, 15, 16};
-        for (int i = 0; i < denSlots.length && i < denominations.size(); i++) {
-            Denomination den = denominations.get(i);
-            int slot = denSlots[i];
-            boolean isActive = activeDenomination != null && activeDenomination.value() == den.value();
-
-            Material mat = switch (i) {
-                case 0 -> Material.COPPER_INGOT;
-                case 1 -> Material.IRON_INGOT;
-                case 2 -> Material.GOLD_INGOT;
-                case 3 -> Material.DIAMOND;
-                default -> Material.NETHERITE_INGOT;
-            };
-
-            String glyph = CoinFormat.getCoinGlyph(den);
-            String coinName = CoinFormat.getCoinName(den);
-
-            long denCount = (currentPrice / den.value());
-            List<Component> lore = new ArrayList<>();
-            lore.add(MessageUtils.parse("<gray>Номинал: " + glyph + " = <yellow>" + den.value() + "</yellow></gray>"));
-            lore.add(MessageUtils.parse("<gray>В цене содержится: <yellow>x" + denCount + "</yellow></gray>"));
-            lore.add(Component.empty());
-            if (isActive) {
-                lore.add(MessageUtils.parse("<green>✔ АКТИВНАЯ МОНЕТА</green>"));
-            } else {
-                lore.add(MessageUtils.parse("<yellow>Shift+Клик: выбрать активной</yellow>"));
-            }
-            lore.add(MessageUtils.parse("<aqua>ЛКМ: −1 к номиналу</aqua>"));
-            lore.add(MessageUtils.parse("<aqua>ПКМ: +1 к номиналу</aqua>"));
-
-            ItemStack denItem = GuiUtils.createItem(mat, MessageUtils.parse(coinName), lore);
-            if (isActive) {
-                ItemMeta dMeta = denItem.getItemMeta();
-                if (dMeta != null) {
-                    dMeta.addEnchant(Enchantment.UNBREAKING, 1, true);
-                    dMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                    denItem.setItemMeta(dMeta);
-                }
-            }
-            inventory.setItem(slot, denItem);
-        }
-
-        // Slot 20: Confirm
-        ItemStack confirm = GuiUtils.createHead(HeadTextures.HEAD_CONFIRM,
-                MessageUtils.parse("<green><bold>Подтвердить</bold></green>"),
-                List.of(
-                        MessageUtils.parse("<gray>Выставить лот по цене:</gray>"),
-                        MessageUtils.parse("<gold>" + CoinFormat.formatGlyphs(currentPrice) + "</gold>"),
-                        Component.empty(),
-                        MessageUtils.parse("<yellow>Клик: сохранить</yellow>")
-                ));
-        inventory.setItem(20, confirm);
-
-        // Slot 24: Cancel
-        ItemStack cancel = GuiUtils.createHead(HeadTextures.HEAD_DELETE_NO,
-                MessageUtils.parse("<red><bold>Отмена</bold></red>"),
-                List.of(MessageUtils.parse("<gray>Вернуться назад без сохранения</gray>")));
-        inventory.setItem(24, cancel);
+        return item;
     }
 
-    private void fillFrame() {
-        ItemStack filler = GuiUtils.createFiller();
-        for (int i = 0; i < SIZE; i++) {
-            if (inventory.getItem(i) == null) {
-                inventory.setItem(i, filler);
-            }
-        }
+    private ItemStack priceButton() {
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        List<String> lore = new ArrayList<>(lines("gui-price-btn-top"));
+        lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
+        String coin = coinGlyph(input.activeIndex());
+        lore.addAll(lines("gui-price-btn-bottom",
+                "coin", coin,
+                "min", plugin.getMarketStyle().money(input.min()),
+                "max", plugin.getMarketStyle().money(input.max())));
+        return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
     }
 
+    private ItemStack amountButton() {
+        return head(HeadTextures.BUTTON_PLUS, t("gui-price-amount"),
+                lines("gui-price-amount-lore", "amount", String.valueOf(amount), "max", String.valueOf(maxAmount)));
+    }
+
+    private ItemStack confirmButton() {
+        if (input.valid()) {
+            List<String> lore = new ArrayList<>(lines("gui-price-confirm-top"));
+            lore.addAll(CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), input.price()));
+            lore.addAll(lines("gui-price-confirm-bottom"));
+            return head(HeadTextures.HEAD_CONFIRM, t("gui-price-confirm"), lore);
+        }
+        String reason = input.price() <= 0 ? t("gui-price-reason-unset")
+                : t("gui-price-reason-low", "min", plugin.getMarketStyle().money(input.min()));
+        return head(HeadTextures.HEAD_DELETE_NO, t("gui-price-confirm-off"), lines("gui-price-confirm-off-lore", "reason", reason));
+    }
+
+    private ItemStack infoTile() {
+        List<String> lore = new ArrayList<>(lines("gui-price-info-top", "amount", String.valueOf(amount)));
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        lore.addAll(CoinFormat.glyphLineStrings(eco, input.price() * (long) amount));
+        return head(HeadTextures.BANKER_INFO, t("gui-price-info"), lore);
+    }
+
+    private String coinGlyph(int index) {
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        if (eco == null) return "";
+        List<Denomination> dens = new ArrayList<>(eco.denominations());
+        dens.removeIf(d -> d.value() <= 0);
+        dens.sort(Comparator.comparingLong(Denomination::value));
+        return index < dens.size() ? CoinFormat.getCoinGlyph(dens.get(index)) : "";
+    }
+
+    // ------------------------------------------------------------------ clicks
+
+    private void clickPrice(InventoryClickEvent event) {
+        ClickType click = event.getClick();
+        if (click.isShiftClick()) {
+            input.cycle();
+        } else if (click.isRightClick()) {
+            input.subtract();
+        } else if (click.isLeftClick()) {
+            input.add();
+        } else {
+            return;
+        }
+        viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.2f);
+        render();
+    }
+
+    private void clickAmount(InventoryClickEvent event) {
+        int step = event.getClick().isShiftClick() ? 8 : 1;
+        if (event.getClick().isRightClick()) {
+            amount = Math.max(1, amount - step);
+        } else {
+            amount = Math.min(maxAmount, amount + step);
+        }
+        render();
+    }
+
+    private void clickConfirm(InventoryClickEvent event) {
+        if (!input.valid()) {
+            viewer.playSound(viewer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
+            return;
+        }
+        finished = true;
+        viewer.closeInventory();
+        if (onConfirm != null) onConfirm.accept(editsOnlyPrice ? 1 : amount, input.price());
+    }
+
+    /** Close button, Esc, a kick: any exit that is not Confirm hands the item back. */
     @Override
-    public void handleClick(InventoryClickEvent event) {
-        event.setCancelled(true);
-        int slot = event.getRawSlot();
-        if (slot < 0 || slot >= SIZE) return;
-
-        String itemKey = template.getType().name();
-        long min = plugin.getMarketConfig().minPrice(itemKey);
-        long max = plugin.getMarketConfig().maxPrice(itemKey);
-
-        // Preset Min
-        if (slot == 2) {
-            currentPrice = Math.max(1L, min);
-            render();
-            return;
-        }
-
-        // Decrease amount
-        if (slot == 3 && maxAvailableAmount > 1) {
-            int step = event.isShiftClick() ? 8 : 1;
-            currentAmount = Math.max(1, currentAmount - step);
-            render();
-            return;
-        }
-
-        // Increase amount
-        if (slot == 5 && maxAvailableAmount > 1) {
-            int step = event.isShiftClick() ? 8 : 1;
-            currentAmount = Math.min(maxAvailableAmount, currentAmount + step);
-            render();
-            return;
-        }
-
-        // Preset Reset
-        if (slot == 6) {
-            currentPrice = Math.max(1L, min);
-            render();
-            return;
-        }
-
-        // Denomination slots
-        int[] denSlots = {12, 13, 14, 15, 16};
-        for (int i = 0; i < denSlots.length && i < denominations.size(); i++) {
-            if (slot == denSlots[i]) {
-                Denomination den = denominations.get(i);
-                if (event.isShiftClick()) {
-                    activeDenomination = den;
-                    render();
-                    return;
-                }
-                if (event.isLeftClick()) {
-                    currentPrice = Math.max(min > 0 ? min : 1L, currentPrice - den.value());
-                } else if (event.isRightClick()) {
-                    currentPrice = Math.min(max, currentPrice + den.value());
-                }
-                render();
-                return;
-            }
-        }
-
-        // Confirm
-        if (slot == 20) {
-            viewer.closeInventory();
-            if (onConfirm != null) {
-                onConfirm.accept(currentAmount, currentPrice);
-            }
-            return;
-        }
-
-        // Cancel
-        if (slot == 24) {
-            viewer.closeInventory();
-            if (onCancel != null) {
-                onCancel.run();
-            }
-        }
+    public void onClose() {
+        super.onClose();
+        if (finished) return;
+        finished = true;
+        if (onCancel != null) onCancel.run();
     }
 }

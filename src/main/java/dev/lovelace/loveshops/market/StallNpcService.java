@@ -160,6 +160,15 @@ public final class StallNpcService {
         }
     }
 
+    /** The point is gone for good: take its "closed" sign down too, so no orphan sign is left in the world. */
+    public void removeClosedSign(TradePoint point) {
+        if (point == null) return;
+        Location loc = point.closedSignLocation();
+        if (loc == null || loc.getWorld() == null) return;
+        org.bukkit.block.Block block = loc.getBlock();
+        if (block.getState() instanceof org.bukkit.block.Sign) block.setType(org.bukkit.Material.AIR);
+    }
+
     public Integer createGuardNpc(Location loc, UUID pointId) {
         if (!available() || loc == null || loc.getWorld() == null) return null;
         try {
