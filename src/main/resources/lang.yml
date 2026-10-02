@@ -988,3 +988,13 @@ market:
   feudal-bad-weeks: "<red>Столько недель оплатить нельзя.</red>"
   feudal-prepaid-max: "<yellow>Аренда уже оплачена на максимальный срок.</yellow>"
   feudal-returned: "{i_stall} <yellow>Вы вернули точку <white>{id}</white>.</yellow> <gray>Возврат за остаток аренды:</gray> {refund}"
+  # 2026-10-02. Барахольщик — заготовка (см. market.flea в config.yml).
+  cmd-flea-no-permission: "<red>Нет прав.</red>"
+  cmd-flea-usage: "<yellow>Использование:</yellow> <gold>/lsa flea <create|remove|tp|reload|info></gold>"
+  cmd-flea-market-off: "<red>Рынок игроков не запущен (нужны Citizens и LoveClaims).</red>"
+  cmd-flea-disabled: "<yellow>Барахольщик отключён</yellow> <gray>(market.flea.enabled: false).</gray>"
+  cmd-flea-not-implemented: "<yellow>Барахольщик включён в конфиге, но его логика ещё не написана — NPC не создаётся.</yellow>"
+  cmd-flea-info-off: "<gray>Барахольщик:</gray> <red>отключён</red> <gray>(заготовка). Налог {tax}%, позиций в день {items}.</gray>"
+  cmd-flea-info-on: "<gray>Барахольщик:</gray> <yellow>включён в конфиге, логика не написана.</yellow> <gray>Налог {tax}%, позиций в день {items}.</gray>"
+  cmd-flea-reloaded-off: "<green>Конфиг перечитан.</green> <gray>Барахольщик отключён.</gray>"
+  cmd-flea-reloaded-on: "<green>Конфиг перечитан.</green> <yellow>Барахольщик включён, но логика ещё не написана.</yellow>"
