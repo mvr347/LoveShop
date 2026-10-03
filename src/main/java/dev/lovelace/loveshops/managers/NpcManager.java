@@ -347,7 +347,8 @@ public class NpcManager {
         }
         NpcData known = loadedNpcs.get(npcUuid);
         if (known != null && isEphemeralType(known.type())) {
-            destroyEphemeral(known);
+            // Schedulers call this every 30 s for an inactive event: nothing tracked means nothing to scan for.
+            if (citizensNpcs.containsKey(npcUuid)) destroyEphemeral(known);
             return;
         }
         Entity entity = spawnedEntities.get(npcUuid);
