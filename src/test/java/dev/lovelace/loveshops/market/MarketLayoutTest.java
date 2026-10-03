@@ -107,4 +107,33 @@ class MarketLayoutTest {
             assertNotEquals(44, slot);
         }
     }
+
+    @Test
+    void rowSlotsCentreButtonsInColumnsOneToSeven() {
+        assertArrayEquals(new int[]{13}, MarketLayout.rowSlots(9, 1));
+        assertArrayEquals(new int[]{11, 13, 15}, MarketLayout.rowSlots(9, 3));
+        assertArrayEquals(new int[]{19, 21, 23, 25}, MarketLayout.rowSlots(18, 4));
+        for (int n = 1; n <= 7; n++) {
+            for (int slot : MarketLayout.rowSlots(9, n)) {
+                assertTrue(slot % 9 >= 1 && slot % 9 <= 7, "side wall used: count " + n + " slot " + slot);
+            }
+            assertEquals(n, MarketLayout.rowSlots(9, n).length);
+        }
+        assertThrows(IllegalArgumentException.class, () -> MarketLayout.rowSlots(9, 8));
+    }
+
+    @Test
+    void biggestMenuHasTwentyOneShelves() {
+        assertEquals(21, MarketLayout.maxShelves());
+    }
+
+    @Test
+    void ownerMenusFitTheirButtons() {
+        // main / trade menu: 3 buttons in the single work row of a 27-slot menu
+        assertEquals(3, MarketLayout.rowSlots(MarketLayout.workStart(27), 3).length);
+        // management: 4 + 3 buttons in the two work rows of a 36-slot menu
+        int row1 = MarketLayout.workStart(36);
+        for (int slot : MarketLayout.rowSlots(row1, 4)) assertTrue(slot < 27);
+        for (int slot : MarketLayout.rowSlots(row1 + 9, 3)) assertTrue(slot >= 18 && slot < 27);
+    }
 }

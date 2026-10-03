@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.market.MarketStyle;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
@@ -15,13 +14,12 @@ import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Main menu of the owner's trade point (27 slots, gui_gen v2.1): three sections as header
- * controls - Trade (sell, buy, till), Storage, Management - and the state of the point as
- * read-only cards in the work zone.
+ * Main menu of the owner's trade point (27 slots, gui_gen v2.1): three sections as buttons of the
+ * work zone - Trade (sell, buy, till), Storage, Management; the state of the point (till, rent,
+ * guard) is in the lore of the head in slot 0.
  */
 public final class StallOwnerGui extends MarketGui {
 
@@ -45,13 +43,18 @@ public final class StallOwnerGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         inventory.setItem(0, ownerHead());
 
         int cap = plugin.getTradePointManager().getStorageCapacity(point);
         int stored = plugin.getTradePointManager().getStorage(point).size();
-        controls(List.of(
+        // gui_gen exception requested by the owner: the three sections are buttons of the work zone,
+        // header and footer keep only the head, glass, Close.
+        rowButtons(MarketLayout.workStart(SIZE), List.of(
                 new Control(tile(HeadTextures.BANKER_DEPOSIT, "gui-main-trade", "gui-main-trade-lore"),
                         e -> new StallTradeMenuGui(plugin, viewer, point).open()),
                 new Control(tile(HeadTextures.BANKER_WITHDRAW, "gui-main-storage", "gui-main-storage-lore",
@@ -61,16 +64,11 @@ public final class StallOwnerGui extends MarketGui {
                         e -> new StallManageGui(plugin, viewer, point).open())
         ));
 
-        inventory.setItem(11, tile(HeadTextures.BANKER_ACCOUNT, "gui-main-card-till", "gui-main-card-till-lore",
-                "money", plugin.getMarketStyle().money(point.tillCoins())));
-        inventory.setItem(13, rentCard());
-        inventory.setItem(15, tile(HeadTextures.MARKET_OPEN, "gui-main-card-guard", "gui-main-card-guard-lore",
-                "status", guardStatus()));
-
         footer(null);
         refreshClient();
     }
 
+    /** Slot 0: the owner's head; till, rent term and guard live in its lore (no separate cards). */
     private ItemStack ownerHead() {
         ItemStack item = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
@@ -79,7 +77,10 @@ public final class StallOwnerGui extends MarketGui {
         List<Component> lore = new ArrayList<>();
         for (String line : lines("gui-main-head-lore",
                 "level", String.valueOf(point.level()),
-                "status", t(point.open() ? "gui-status-open" : "gui-status-closed"))) {
+                "status", t(point.open() ? "gui-status-open" : "gui-status-closed"),
+                "money", plugin.getMarketStyle().money(point.tillCoins()),
+                "when", rentLine(),
+                "guard", guardStatus())) {
             lore.add(MessageUtils.parse(viewer, line));
         }
         meta.lore(lore);
@@ -87,13 +88,12 @@ public final class StallOwnerGui extends MarketGui {
         return item;
     }
 
-    private ItemStack rentCard() {
+    private String rentLine() {
         long end = plugin.getTradePointManager().rentEnd(point);
         long left = end - System.currentTimeMillis();
-        String when = end <= 0 ? t("gui-main-rent-unknown")
+        return end <= 0 ? t("gui-main-rent-unknown")
                 : left > 0 ? t("gui-main-rent-left", "time", duration(left))
                 : t("gui-main-rent-grace");
-        return tile(HeadTextures.TAB_SELLER, "gui-main-card-rent", "gui-main-card-rent-lore", "when", when);
     }
 
     private String guardStatus() {

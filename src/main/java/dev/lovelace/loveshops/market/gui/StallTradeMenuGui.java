@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * "Trade" section (27 slots, gui_gen v2.1): Sell, Buy and the till as header controls. Buying is
+ * "Trade" section (27 slots, gui_gen v2.1): Sell, Buy and the till as buttons of the work zone. Buying is
  * switched on in Management (the default trading mode is sell-only), until then its button only
  * explains how to turn it on.
  */
@@ -41,6 +41,9 @@ public final class StallTradeMenuGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-trade-head", "gui-trade-head-lore",
@@ -48,7 +51,7 @@ public final class StallTradeMenuGui extends MarketGui {
 
         boolean sellOn = point.tradingMode() != TradingMode.BUY_ONLY;
         boolean buyOn = point.tradingMode() != TradingMode.SELL_ONLY;
-        controls(List.of(
+        rowButtons(MarketLayout.workStart(SIZE), List.of(
                 new Control(sellOn
                         ? tile(HeadTextures.BANKER_DEPOSIT, "gui-trade-sell", "gui-trade-sell-lore")
                         : tile(HeadTextures.MARKET_CLOSED, "gui-trade-sell-off", "gui-trade-sell-off-lore"),

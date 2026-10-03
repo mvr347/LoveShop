@@ -51,6 +51,9 @@ public final class StallStorageGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         itemAt.clear();
@@ -61,8 +64,9 @@ public final class StallStorageGui extends MarketGui {
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-storage-head", "gui-storage-head-lore",
                 "stored", String.valueOf(stored.size()), "capacity", String.valueOf(capacity),
                 "level", String.valueOf(point.level())));
-        controls(List.of(new Control(tile(HeadTextures.BANKER_WITHDRAW, "gui-storage-collect", "gui-storage-collect-lore"),
-                e -> collectAll())));
+        // "Collect all" is the footer's extra button (slot 51 of 54), not a header control.
+        button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BANKER_WITHDRAW, "gui-storage-collect", "gui-storage-collect-lore"),
+                e -> collectAll());
 
         int[] content = MarketLayout.contentSlots(SIZE);
         int perPage = content.length;

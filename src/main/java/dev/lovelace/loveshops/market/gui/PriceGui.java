@@ -94,6 +94,10 @@ public final class PriceGui extends MarketGui {
         return pointId;
     }
 
+    /** Owner flows pass their point; the stand-alone price picker (no point) is not an owner menu. */
+    @Override
+    public boolean ownerMenu() { return pointId != null; }
+
     @Override
     public void render() {
         frame();

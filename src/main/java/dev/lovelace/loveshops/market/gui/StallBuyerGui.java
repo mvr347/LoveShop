@@ -26,13 +26,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * 27-slot customer GUI at a trade point.
  * Respects tradingMode (BOTH, SELL_ONLY, BUY_ONLY), verifies blacklist,
- * and applies personal discounts.
+ * applies personal discounts. Tabs (sell | buy) appear only for a point that does both.
  */
 public final class StallBuyerGui extends MarketGui {
 
@@ -110,13 +109,11 @@ public final class StallBuyerGui extends MarketGui {
                 }
             }));
         }
-        controls(tabControls);
+        // Tabs only when the point both sells and buys; a single mode shows its lots straight away.
+        if (tabControls.size() > 1) controls(tabControls);
         footer(null);
 
-        switch (tab) {
-            case GOODS -> renderListings(ListingType.SELL);
-            case ORDERS -> renderListings(ListingType.BUY);
-        }
+        renderListings(tab == Tab.ORDERS ? ListingType.BUY : ListingType.SELL);
         refreshClient();
     }
 
@@ -127,7 +124,8 @@ public final class StallBuyerGui extends MarketGui {
             meta.setOwningPlayer(owner);
             meta.displayName(MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName())));
             List<Component> lore = new ArrayList<>();
-            for (String line : lines("gui-customer-head-lore", "level", String.valueOf(point.level()))) {
+            for (String line : lines("gui-customer-head-lore", "mode", t("gui-mode-" + point.tradingMode().name().toLowerCase(Locale.ROOT)),
+                    "level", String.valueOf(point.level()))) {
                 lore.add(MessageUtils.parse(viewer, line));
             }
             meta.lore(lore);
@@ -161,6 +159,11 @@ public final class StallBuyerGui extends MarketGui {
             all = List.of();
         }
 
+        if (all.isEmpty()) {
+            // Nothing to show in this mode: one explicit card instead of an empty menu.
+            inventory.setItem(content[content.length / 2], tile(HeadTextures.MARKET_CLOSED, "gui-customer-empty", "gui-customer-empty-lore"));
+            return;
+        }
         for (int i = 0; i < Math.min(content.length, all.size()); i++) {
             StallListing l = all.get(i);
             int slot = content[i];

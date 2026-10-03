@@ -125,6 +125,19 @@ public final class LoveShops extends JavaPlugin {
             }
         }
 
+        var tpCommand = getCommand("tp");
+        if (tpCommand != null) {
+            var tpCmd = new dev.lovelace.loveshops.commands.TradePointTeleportCommand(this);
+            tpCommand.setExecutor(tpCmd);
+            tpCommand.setTabCompleter(tpCmd);
+        }
+        var tpaCommand = getCommand("tradepointadmin");
+        if (tpaCommand != null) {
+            var tpaCmd = new dev.lovelace.loveshops.commands.TradePointAdminCommand(this);
+            tpaCommand.setExecutor(tpaCmd);
+            tpaCommand.setTabCompleter(tpaCmd);
+        }
+
         // 5. Register Listeners
         getServer().getPluginManager().registerEvents(new InventoryClickListener(this), this);
         getServer().getPluginManager().registerEvents(new ScheduleListener(this), this);
@@ -200,6 +213,8 @@ public final class LoveShops extends JavaPlugin {
     public StallUpgradeService getUpgradeService() { return marketModule == null ? null : marketModule.upgrades(); }
     public GuardService getGuardService() { return marketModule == null ? null : marketModule.guards(); }
     public ReputationGate getReputationGate() { return marketModule == null ? null : marketModule.gate(); }
+    public dev.lovelace.loveshops.market.feudal.FeudalService getFeudalService() { return marketModule == null ? null : marketModule.feudal(); }
+    public dev.lovelace.loveshops.market.wizard.WizardService getWizardService() { return marketModule == null ? null : marketModule.wizard(); }
     public dev.lovelace.loveshops.market.StallNpcService getStallNpcService() { return marketModule == null ? null : marketModule.npcs(); }
 
     /**

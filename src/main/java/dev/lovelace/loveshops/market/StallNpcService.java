@@ -51,10 +51,8 @@ public final class StallNpcService {
             // Убираем возможных дублей перед созданием
             destroyAllForPoint(pointId);
 
-            String rawFormat = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName == null ? "?" : ownerName);
-            String[] lines = rawFormat.split("\\r?\\n");
-            String entityName = lines[lines.length - 1];
-            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, ChatColor.translateAlternateColorCodes('&', entityName));
+            NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER,
+                    ChatColor.translateAlternateColorCodes('&', plugin.getMarketConfig().statusClosed()));
             npc.data().setPersistent(KEY_STALL, pointId.toString());
             if (ownerName != null && !ownerName.isBlank()) {
                 npc.getOrAddTrait(SkinTrait.class).setSkinName(ownerName);
@@ -64,17 +62,7 @@ public final class StallNpcService {
             }
             npc.spawn(loc);
             TradePoint p = plugin.getTradePointManager() == null ? null : plugin.getTradePointManager().getPoint(pointId);
-            if (p != null) {
-                applyNpcHologram(npc, p);
-            } else {
-                HologramTrait holo = npc.getOrAddTrait(HologramTrait.class);
-                holo.clear();
-                for (int i = 0; i < lines.length - 1; i++) {
-                    if (!lines[i].isBlank()) {
-                        holo.addLine(ChatColor.translateAlternateColorCodes('&', lines[i]));
-                    }
-                }
-            }
+            if (p != null) applyNpcHologram(npc, p);
             return npc.getId();
         } catch (Throwable t) {
             plugin.getLogger().warning("Не удалось создать NPC торговца для точки " + pointId + ": " + t.getMessage());
@@ -94,43 +82,45 @@ public final class StallNpcService {
         }
     }
 
+    /**
+     * Text above the trader, top to bottom: the format lines ("Trade point No. {id}", "Owner: {owner}")
+     * as hologram lines and the status ("No lots", "Open", ...) as the nameplate right above the head.
+     */
     public void applyNpcHologram(NPC npc, TradePoint point) {
         if (npc == null || point == null) return;
+        var manager = plugin.getTradePointManager();
         String ownerName = point.ownerName() == null ? "?" : point.ownerName();
-        String rawFormat = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName);
-        String[] lines = rawFormat.split("\\r?\\n");
-        String entityName = lines[lines.length - 1];
-        npc.setName(ChatColor.translateAlternateColorCodes('&', entityName));
+        String id = manager == null ? "?" : manager.nameOf(point);
+        npc.setName(ChatColor.translateAlternateColorCodes('&', statusText(point)));
 
         HologramTrait holo = npc.getOrAddTrait(HologramTrait.class);
         holo.clear();
-
-        String status = null;
-        if (!point.open()) {
-            if (point.closeReason() == CloseReason.ROBBERY) {
-                status = plugin.getMarketConfig().statusRobbed();
-            } else {
-                status = plugin.getMarketConfig().statusClosed();
-            }
-        } else {
-            if (point.tradingMode() == TradingMode.SELL_ONLY) {
-                status = plugin.getMarketConfig().statusSellOnly();
-            } else if (point.tradingMode() == TradingMode.BUY_ONLY) {
-                status = plugin.getMarketConfig().statusBuyOnly();
-            } else {
-                status = plugin.getMarketConfig().statusOpen();
-            }
+        String format = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName).replace("{id}", id);
+        for (String line : format.split("\\r?\\n")) {
+            if (!line.isBlank()) holo.addLine(ChatColor.translateAlternateColorCodes('&', line));
         }
+    }
 
-        if (status != null && !status.isBlank()) {
-            holo.addLine(ChatColor.translateAlternateColorCodes('&', status));
-        }
-
-        for (int i = 0; i < lines.length - 1; i++) {
-            if (!lines[i].isBlank()) {
-                holo.addLine(ChatColor.translateAlternateColorCodes('&', lines[i]));
+    /** The status line of a point, with its kind decided by {@link NpcStatus}. */
+    public String statusText(TradePoint point) {
+        var cfg = plugin.getMarketConfig();
+        boolean hasSell = false;
+        boolean hasBuy = false;
+        if (point.open() && plugin.getTradePointManager() != null) {
+            for (var l : plugin.getTradePointManager().listings(point)) {
+                if (l.type() == dev.lovelace.loveshops.market.model.ListingType.SELL) hasSell |= l.stock() > 0;
+                else hasBuy |= l.stock() < l.maxAmount();
             }
         }
+        return switch (NpcStatus.pick(point.open(), point.closeReason() == CloseReason.ROBBERY,
+                point.tradingMode(), hasSell, hasBuy)) {
+            case ROBBED -> cfg.statusRobbed();
+            case CLOSED -> cfg.statusClosed();
+            case EMPTY -> cfg.statusEmpty();
+            case SELL_ONLY -> cfg.statusSellOnly();
+            case BUY_ONLY -> cfg.statusBuyOnly();
+            case OPEN -> cfg.statusOpen();
+        };
     }
 
     public void updateClosedSign(TradePoint point) {
@@ -160,10 +150,33 @@ public final class StallNpcService {
         }
     }
 
+    /**
+     * The sign with the point's id (set by the creation wizard): id, and whether the point is free or
+     * who rents it. Rewritten on every reconcile, so it follows rents and releases by itself.
+     */
+    public void updateIdSign(TradePoint point, String id, String status) {
+        if (point == null) return;
+        Location loc = point.idSignLocation();
+        if (loc == null || loc.getWorld() == null) return;
+        org.bukkit.block.Block block = loc.getBlock();
+        if (!(block.getState() instanceof org.bukkit.block.Sign sign)) return;
+        List<String> lines = plugin.getMarketConfig().idSignLines();
+        for (int i = 0; i < 4; i++) {
+            String line = i < lines.size() ? lines.get(i).replace("{id}", id == null ? "?" : id)
+                    .replace("{status}", status == null ? "" : status) : "";
+            sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
+        }
+        sign.update(true);
+    }
+
     /** The point is gone for good: take its "closed" sign down too, so no orphan sign is left in the world. */
     public void removeClosedSign(TradePoint point) {
         if (point == null) return;
-        Location loc = point.closedSignLocation();
+        removeSignAt(point.closedSignLocation());
+        removeSignAt(point.idSignLocation());
+    }
+
+    private static void removeSignAt(Location loc) {
         if (loc == null || loc.getWorld() == null) return;
         org.bukkit.block.Block block = loc.getBlock();
         if (block.getState() instanceof org.bukkit.block.Sign) block.setType(org.bukkit.Material.AIR);

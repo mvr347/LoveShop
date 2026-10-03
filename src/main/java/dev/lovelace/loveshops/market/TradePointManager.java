@@ -154,9 +154,41 @@ public final class TradePointManager {
                 id -> claims.point(id).map(ClaimsLink.PointInfo::location).orElse(null),
                 p -> p.guardState() == GuardState.ACTIVE);
         for (TradePoint p : changed) save(p);
+        for (TradePoint p : points.values()) updateIdSign(p);
+    }
+
+    /** Rewrites the id sign of a point (id and "free" / tenant name). */
+    public void updateIdSign(TradePoint p) {
+        if (p.idSignLocation() == null) return;
+        String id = nameOf(p);
+        String status = p.hasOwner()
+                ? "&c" + (p.ownerName() == null ? "?" : p.ownerName())
+                : plugin.getMarketMessages().raw("id-sign-free");
+        npcs.updateIdSign(p, id, status);
     }
 
     // ------------------------------------------------------------------ queries
+
+    /** The id (plot name) of a point, as LoveClaims knows it. */
+    public String nameOf(TradePoint p) {
+        return claims.point(p.claimId()).map(ClaimsLink.PointInfo::name).orElse(p.claimId().toString().substring(0, 8));
+    }
+
+    /** A point by its id (the plot name, any case). */
+    public Optional<TradePoint> byName(String id) {
+        return claims.byName(id).map(info -> points.get(info.claimId()));
+    }
+
+    /** What the point is called in lists and messages, plus the weekly price from LoveClaims. */
+    public Optional<ClaimsLink.PointInfo> infoOf(TradePoint p) {
+        return claims.point(p.claimId());
+    }
+
+    /** Where {@code /tp <id>} takes a player: the teleport spot set by the wizard, else next to the trader. */
+    public Location teleportTarget(TradePoint p) {
+        if (p.teleportLocation() != null && p.teleportLocation().getWorld() != null) return p.teleportLocation();
+        return getNpcOrPointLocation(p);
+    }
 
     public Optional<TradePoint> byClaim(UUID claimId) {
         return Optional.ofNullable(points.get(claimId));
@@ -257,6 +289,8 @@ public final class TradePointManager {
         claims.transferTenant(p.claimId(), newOwner);
         save(p);
         reconcileNpcs();
+        // The former owner must not keep managing a point that is no longer theirs.
+        closeOwnerMenus(p.claimId());
         refreshViewers(p.claimId());
         return true;
     }
@@ -298,6 +332,7 @@ public final class TradePointManager {
         UUID owner = p.ownerUuid();
         if (owner == null) return;
         closeViewers(p.claimId());
+        npcStatusShown.remove(p.claimId());
         remindedHours.remove(p.claimId());
         graceRemindedAt.remove(p.claimId());
         Integer npc = p.npcCitizensId();
@@ -367,6 +402,75 @@ public final class TradePointManager {
         } else {
             npcs.destroyAllForPoint(claimId);
         }
+    }
+
+    // ------------------------------------------------------------------ admin operations (/tradepointadmin)
+
+    /** Sets the point's level (1..max) together with its shelf counts; the tenant's trader level follows. */
+    public boolean adminSetLevel(TradePoint p, int level) {
+        int clamped = Math.max(1, Math.min(plugin.getMarketConfig().maxLevel(), level));
+        int sell = UpgradeMath.slots(plugin.getMarketConfig().baseSellSlots(), clamped);
+        int buy = UpgradeMath.slots(plugin.getMarketConfig().baseBuySlots(), clamped);
+        try {
+            repo.inTransaction(conn -> {
+                repo.setPointLevel(conn, p.claimId(), clamped, sell, buy);
+                if (p.hasOwner()) repo.setTraderLevel(conn, p.ownerUuid(), clamped);
+                return null;
+            });
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Уровень точки " + p.claimId() + " не записан: " + e.getMessage());
+            return false;
+        }
+        p.level(clamped);
+        p.sellSlots(sell);
+        p.buySlots(buy);
+        refreshViewers(p.claimId());
+        return true;
+    }
+
+    /** Gives the point to {@code tenant} for one rental period without payment (admin). */
+    public void adminAssign(TradePoint p, UUID tenant) {
+        claims.assign(p.claimId(), tenant, System.currentTimeMillis() + claims.periodMillis());
+    }
+
+    /** Takes the point from its tenant (admin); goods and till go to their returns. */
+    public void adminRelease(TradePoint p) {
+        claims.release(p.claimId(), "ADMIN");
+    }
+
+    /** A trade point that was just created in LoveClaims: gets its (free) market row. */
+    public TradePoint registerNewPoint(UUID claimId) {
+        TradePoint p = points.computeIfAbsent(claimId, TradePoint::new);
+        save(p);
+        return p;
+    }
+
+    /** The ClaimsLink for the landlord and the wizard (one place that talks to LoveClaims). */
+    public ClaimsLink claimsLink() {
+        return claims;
+    }
+
+    /** Saves a spot set by the wizard/admin and refreshes what depends on it. */
+    public void saveSpots(TradePoint p) {
+        save(p);
+        updateIdSign(p);
+        if (!p.open()) npcs.updateClosedSign(p);
+    }
+
+    /** Pays {@code coins} to a former tenant through the returns (delivered at once when online). */
+    public void refundToReturns(UUID player, long coins, String reason) {
+        if (coins <= 0 || player == null) return;
+        try {
+            repo.inTransaction(conn -> {
+                repo.addReturnCoins(conn, player, coins, reason);
+                return null;
+            });
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Возврат " + coins + " монет игроку " + player + " не записан: " + e.getMessage());
+            return;
+        }
+        Player online = Bukkit.getPlayer(player);
+        if (online != null) claimReturns(online);
     }
 
     // ------------------------------------------------------------------ rent reminders
@@ -507,6 +611,7 @@ public final class TradePointManager {
 
     public void updateNpc(TradePoint p) {
         if (p == null) return;
+        npcStatusShown.remove(p.claimId());
         npcs.updateStallNpc(p);
     }
 
@@ -1112,6 +1217,25 @@ public final class TradePointManager {
     public void refreshViewers(UUID pointId) {
         for (MarketGui gui : new ArrayList<>(viewers.values())) {
             if (pointId.equals(gui.pointId())) gui.render();
+        }
+        refreshNpcStatus(pointId);
+    }
+
+    /** Status line shown per point on its trader; the hologram is rewritten only when this text changes. */
+    private final Map<UUID, String> npcStatusShown = new HashMap<>();
+
+    /** Lots were added, bought out or removed: the trader's status ("No lots" / "Open") may have changed. */
+    private void refreshNpcStatus(UUID pointId) {
+        TradePoint p = points.get(pointId);
+        if (p == null || p.npcCitizensId() == null) return;
+        String now = npcs.statusText(p);
+        if (!now.equals(npcStatusShown.put(pointId, now))) npcs.updateStallNpc(p);
+    }
+
+    /** Closes the management menus of a point (not the customers' windows): its owner changed. */
+    public void closeOwnerMenus(UUID pointId) {
+        for (MarketGui gui : new ArrayList<>(viewers.values())) {
+            if (gui.ownerMenu() && pointId.equals(gui.pointId())) gui.viewer().closeInventory();
         }
     }
 

@@ -22,13 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LangKeysTest {
 
-    private static final Pattern KEY = Pattern.compile("\"(gui-[a-z0-9_-]+)\"");
+    private static final Pattern KEY = Pattern.compile("\"((?:gui|cmd|tpa|wiz|feudal|tp)-[a-z0-9_-]+)\"");
 
     /** Keys assembled from a prefix in code; every variant must exist. */
     private static final List<String> DYNAMIC = List.of(
             "gui-mode-sell_only", "gui-mode-buy_only", "gui-mode-both",
             "gui-customer-tab-goods", "gui-customer-tab-goods-on", "gui-customer-tab-goods-lore",
-            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore");
+            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore",
+            "wiz-step-corner_1", "wiz-step-corner_2", "wiz-step-npc", "wiz-step-closed_sign", "wiz-step-id_sign", "wiz-step-teleport");
 
     @Test
     void everyGuiKeyIsInLangYml() throws IOException {
@@ -41,7 +42,7 @@ class LangKeysTest {
                 Matcher m = KEY.matcher(Files.readString(file, StandardCharsets.UTF_8));
                 while (m.find()) {
                     String key = m.group(1);
-                    // a prefix such as "gui-mode-" or "gui-customer-tab-" is built at run time
+                    // a prefix such as "gui-mode-", "gui-customer-tab-" or "wiz-step-" is built at run time
                     if (!key.endsWith("-")) used.add(key);
                 }
             }

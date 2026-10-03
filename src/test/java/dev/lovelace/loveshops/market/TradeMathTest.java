@@ -102,18 +102,25 @@ class TradeMathTest {
     // ---- upgrades
 
     @Test
-    void upgradeCostGrowsGeometrically() {
-        assertEquals(5000, UpgradeMath.cost(1, 5000, 1.5));
-        assertEquals(7500, UpgradeMath.cost(2, 5000, 1.5));
-        assertEquals(11250, UpgradeMath.cost(3, 5000, 1.5));
+    void upgradeCostGrowsLinearlyInBiggestCoins() {
+        assertEquals(1000, UpgradeMath.linearCost(1, 1000, 1, 1));
+        assertEquals(2000, UpgradeMath.linearCost(2, 1000, 1, 1));
+        assertEquals(16000, UpgradeMath.linearCost(16, 1000, 1, 1));
     }
 
     @Test
-    void upgradeCostNeverBelowBaseAndNeverOverflows() {
-        assertEquals(5000, UpgradeMath.cost(0, 5000, 1.5));
-        assertEquals(5000, UpgradeMath.cost(5, 5000, 0.5));
-        assertTrue(UpgradeMath.cost(10_000, 5000, 3.0) > 0);
-        assertEquals(0, UpgradeMath.cost(3, 0, 1.5));
+    void upgradeCostNeverOverflowsAndNeedsACoin() {
+        assertEquals(1000, UpgradeMath.linearCost(0, 1000, 1, 1));
+        assertEquals(0, UpgradeMath.linearCost(3, 0, 1, 1));
+        assertTrue(UpgradeMath.linearCost(Integer.MAX_VALUE, Long.MAX_VALUE / 4, 1, 1) > 0);
+    }
+
+    @Test
+    void maxLevelFillsTheBiggestMenu() {
+        // 21 shelves in a 54-slot menu, 5 at level 1 and one more per level: level 17.
+        assertEquals(17, UpgradeMath.maxLevel(21, 5));
+        assertEquals(21, UpgradeMath.slots(5, UpgradeMath.maxLevel(21, 5)));
+        assertEquals(1, UpgradeMath.maxLevel(21, 40));
     }
 
     @Test

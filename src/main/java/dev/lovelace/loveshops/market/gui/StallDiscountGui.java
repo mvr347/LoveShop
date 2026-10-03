@@ -43,6 +43,9 @@ public final class StallDiscountGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         List<DiscountEntry> list = new ArrayList<>();
@@ -54,7 +57,8 @@ public final class StallDiscountGui extends MarketGui {
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-discount-head", "gui-discount-head-lore",
                 "count", String.valueOf(list.size()), "max", String.valueOf(plugin.getMarketConfig().discountMaxPercent())));
-        controls(List.of(new Control(tile(HeadTextures.BUTTON_PLUS, "gui-discount-add", "gui-discount-add-lore"), e -> promptAdd())));
+        // "Add player" is the footer's extra button (slot 51 of 54), not a header control.
+        button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BUTTON_PLUS, "gui-discount-add", "gui-discount-add-lore"), e -> promptAdd());
 
         int[] content = MarketLayout.contentSlots(SIZE);
         int start = pager((int) Math.ceil((double) list.size() / content.length)) * content.length;

@@ -17,12 +17,13 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * "Management" section (27 slots, gui_gen v2.1): trading mode, point upgrade, transfer and
- * open/closed as header controls; discounts, the blacklist and the guard as cards in the work zone.
+ * "Management" section (36 slots, gui_gen v2.1): every button is in the work zone - first row
+ * trading mode, upgrade, transfer, open/closed; second row discounts, blacklist and the guard
+ * (read-only: shows whether it is hired, its texture is inactive when it is not).
  */
 public final class StallManageGui extends MarketGui {
 
-    private static final int SIZE = 27;
+    private static final int SIZE = 36;
 
     private final TradePoint point;
 
@@ -41,12 +42,16 @@ public final class StallManageGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-manage-head", "gui-manage-head-lore",
                 "level", String.valueOf(point.level())));
 
-        controls(List.of(
+        int row1 = MarketLayout.workStart(SIZE);
+        rowButtons(row1, List.of(
                 new Control(modeButton(), e -> cycleMode()),
                 new Control(upgradeButton(), e -> upgrade()),
                 new Control(tile(HeadTextures.BANKER_DEPOSIT, "gui-manage-transfer", "gui-manage-transfer-lore"), e -> promptTransfer()),
@@ -61,16 +66,32 @@ public final class StallManageGui extends MarketGui {
         } catch (Exception ignored) {
             // counters are cosmetic; the menus themselves report database trouble
         }
-        button(11, tile(HeadTextures.TAB_BUYER, "gui-manage-discounts", "gui-manage-discounts-lore",
-                "count", String.valueOf(discounts)), e -> new StallDiscountGui(plugin, viewer, point).open());
-        button(13, tile(HeadTextures.MARKET_CLOSED, "gui-manage-blacklist", "gui-manage-blacklist-lore",
-                "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries())),
-                e -> new StallBlacklistGui(plugin, viewer, point).open());
-        button(15, tile(HeadTextures.MARKET_OPEN, "gui-manage-guard", "gui-manage-guard-lore"),
-                e -> new StallGuardGui(plugin, viewer, point).open());
+        rowButtons(row1 + 9, List.of(
+                new Control(tile(HeadTextures.TAB_BUYER, "gui-manage-discounts", "gui-manage-discounts-lore",
+                        "count", String.valueOf(discounts)), e -> new StallDiscountGui(plugin, viewer, point).open()),
+                new Control(tile(HeadTextures.MARKET_CLOSED, "gui-manage-blacklist", "gui-manage-blacklist-lore",
+                        "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries())),
+                        e -> new StallBlacklistGui(plugin, viewer, point).open()),
+                // The guard is hired at the landlord; here only its state is shown (no click action).
+                new Control(guardTile(), e -> { })
+        ));
 
         footer(() -> new StallOwnerGui(plugin, viewer, point).open());
         refreshClient();
+    }
+
+    private ItemStack guardTile() {
+        boolean hired = point.guardState() == dev.lovelace.loveshops.market.model.GuardState.ACTIVE;
+        return tile(hired ? HeadTextures.MARKET_OPEN : HeadTextures.MARKET_CLOSED,
+                hired ? "gui-manage-guard" : "gui-manage-guard-off", "gui-manage-guard-lore", "status", guardStatus());
+    }
+
+    private String guardStatus() {
+        return switch (point.guardState()) {
+            case ACTIVE -> t("gui-guard-active", "time", duration(point.guardPaidUntil() - System.currentTimeMillis()));
+            case UNPAID -> t("gui-guard-unpaid");
+            case NONE -> t("gui-guard-none");
+        };
     }
 
     private ItemStack modeButton() {

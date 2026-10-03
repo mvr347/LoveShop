@@ -62,7 +62,7 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
         Location home = claim.getHomeLocation();
         Location loc = home == null || home.getWorld() == null ? null
                 : new Location(home.getWorld(), home.getBlockX() + 0.5, home.getY(), home.getBlockZ() + 0.5, home.getYaw(), home.getPitch());
-        return new PointInfo(claim.getId(), claim.getName(), tenant, loc, claim.getRentalEndTime());
+        return new PointInfo(claim.getId(), claim.getName(), tenant, loc, claim.getRentalEndTime(), claim.getRentalPrice());
     }
 
     @Override
@@ -114,6 +114,144 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
         LoveClaimsAPI api = api();
         if (api == null || loc == null) return Optional.empty();
         return api.getClaimAt(loc).filter(api::isTradePoint).map(Claim::getId);
+    }
+
+
+    @Override
+    public Optional<PointInfo> byName(String id) {
+        LoveClaimsAPI api = api();
+        if (api == null || id == null) return Optional.empty();
+        return api.getTradePointByName(id).map(c -> info(api, c));
+    }
+
+    @Override
+    public CreateResult create(String id, org.bukkit.World world, Location corner1, Location corner2, Location home, long price) {
+        LoveClaimsAPI api = api();
+        if (api == null) return new CreateResult(CreateStatus.FAILED, null);
+        LoveClaimsAPI.CreateResult res = api.createTradePoint(id, world, corner1, corner2, home, price);
+        CreateStatus status = switch (res.status()) {
+            case OK -> CreateStatus.OK;
+            case BAD_ID -> CreateStatus.BAD_ID;
+            case ID_TAKEN -> CreateStatus.ID_TAKEN;
+            case OVERLAP -> CreateStatus.OVERLAP;
+            case BAD_PRICE -> CreateStatus.BAD_PRICE;
+        };
+        return new CreateResult(status, res.point() == null ? null : res.point().getId());
+    }
+
+    @Override
+    public boolean delete(UUID claimId) {
+        LoveClaimsAPI api = api();
+        return api != null && api.deleteTradePoint(claimId);
+    }
+
+    @Override
+    public void assign(UUID claimId, UUID tenant, long endTime) {
+        LoveClaimsAPI api = api();
+        if (api == null) return;
+        api.getClaimById(claimId).ifPresent(c -> api.assignTradePointTenant(c, tenant, endTime));
+    }
+
+    @Override
+    public void release(UUID claimId, String reason) {
+        LoveClaimsAPI api = api();
+        if (api == null) return;
+        me.lovelace.loveclaims.api.ReleaseReason why;
+        try {
+            why = me.lovelace.loveclaims.api.ReleaseReason.valueOf(reason);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            why = me.lovelace.loveclaims.api.ReleaseReason.ADMIN;
+        }
+        me.lovelace.loveclaims.api.ReleaseReason finalWhy = why;
+        api.getClaimById(claimId).ifPresent(c -> api.releaseTradePointTenant(c, finalWhy));
+    }
+
+    @Override
+    public boolean setPrice(UUID claimId, long price) {
+        LoveClaimsAPI api = api();
+        if (api == null) return false;
+        var claim = api.getClaimById(claimId).filter(api::isTradePoint);
+        claim.ifPresent(c -> api.setTradePointPrice(c, price));
+        return claim.isPresent();
+    }
+
+    private static RentResult convert(me.lovelace.loveclaims.api.TradePointRentOutcome out) {
+        RentStatus status = switch (out.status()) {
+            case OK -> RentStatus.OK;
+            case NOT_TRADE_POINT -> RentStatus.NOT_FOUND;
+            case BAD_PERIODS -> RentStatus.BAD_PERIODS;
+            case DENIED -> RentStatus.DENIED;
+            case NO_ECONOMY -> RentStatus.NO_ECONOMY;
+            case NO_FUNDS -> RentStatus.NO_FUNDS;
+            case NOT_TENANT -> RentStatus.NOT_TENANT;
+        };
+        return new RentResult(status, out.message(), out.cost());
+    }
+
+    @Override
+    public RentResult rent(org.bukkit.entity.Player player, UUID claimId, int periods) {
+        LoveClaimsAPI api = api();
+        if (api == null) return new RentResult(RentStatus.NOT_FOUND, null, 0L);
+        return api.getClaimById(claimId).map(c -> convert(api.rentTradePoint(player, c, periods)))
+                .orElse(new RentResult(RentStatus.NOT_FOUND, null, 0L));
+    }
+
+    @Override
+    public RentResult extend(org.bukkit.entity.Player player, UUID claimId, int periods) {
+        LoveClaimsAPI api = api();
+        if (api == null) return new RentResult(RentStatus.NOT_FOUND, null, 0L);
+        return api.getClaimById(claimId).map(c -> convert(api.extendTradePoint(player, c, periods)))
+                .orElse(new RentResult(RentStatus.NOT_FOUND, null, 0L));
+    }
+
+    @Override
+    public long rentCost(UUID claimId, int periods) {
+        LoveClaimsAPI api = api();
+        if (api == null) return 0L;
+        return api.getClaimById(claimId).map(c -> api.getTradePointRentCost(c, periods)).orElse(0L);
+    }
+
+    @Override
+    public int maxRentPeriods() {
+        LoveClaimsAPI api = api();
+        return api == null ? 1 : api.getTradePointMaxRentPeriods();
+    }
+
+    @Override
+    public int maxExtendPeriods(UUID claimId) {
+        LoveClaimsAPI api = api();
+        if (api == null) return 0;
+        return api.getClaimById(claimId).map(api::getTradePointMaxExtendPeriods).orElse(0);
+    }
+
+    @Override
+    public long periodMillis() {
+        LoveClaimsAPI api = api();
+        return api == null ? 7L * 86_400_000L : api.getTradePointPeriodMillis();
+    }
+
+    @Override
+    public long graceMillis() {
+        LoveClaimsAPI api = api();
+        return api == null ? 0L : api.getTradePointGraceMillis();
+    }
+
+    @Override
+    public boolean spawnTaxer(Location location) {
+        LoveClaimsAPI api = api();
+        return api != null && api.spawnTaxer(location);
+    }
+
+    @Override
+    public int removeTaxers() {
+        LoveClaimsAPI api = api();
+        return api == null ? 0 : api.removeTaxers();
+    }
+
+    @Override
+    public Optional<Location> taxerLocation() {
+        LoveClaimsAPI api = api();
+        return api == null ? Optional.empty() : api.getTaxerLocation();
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

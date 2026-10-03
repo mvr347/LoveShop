@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The owner's buy orders (gui_gen v2.1). A free slot is a real empty slot: an item dropped on it, or
+ * The owner's buy orders (gui_gen v2.1). A free slot is a plus head and a drop target: an item dropped on it, or
  * shift-clicked in the inventory, is only a sample (it stays with the player) and opens the price
  * menu, then the chat asks how many pieces to buy in total.
  */
@@ -49,6 +49,9 @@ public final class StallOwnerBuyGui extends MarketGui {
     public UUID pointId() {
         return point.claimId();
     }
+
+    @Override
+    public boolean ownerMenu() { return true; }
 
     @Override
     public void render() {
