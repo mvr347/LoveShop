@@ -23,7 +23,6 @@ public final class MarketModule {
     private ReputationGate gate;
     private ChatPromptService prompts;
     private dev.lovelace.loveshops.market.feudal.FeudalService feudal;
-    private FleaTraderService flea;
     private dev.lovelace.loveshops.market.wizard.WizardService wizard;
     private org.bukkit.scheduler.BukkitTask reconcileTask;
     private MarketGuiListener guiListener;
@@ -37,7 +36,6 @@ public final class MarketModule {
     public StallNpcService npcs() { return npcs; }
     public ChatPromptService prompts() { return prompts; }
     public dev.lovelace.loveshops.market.feudal.FeudalService feudal() { return feudal; }
-    public FleaTraderService flea() { return flea; }
     public dev.lovelace.loveshops.market.wizard.WizardService wizard() { return wizard; }
     public StallTradeService trade() { return trade; }
     public RatingService ratings() { return ratings; }
@@ -77,8 +75,6 @@ public final class MarketModule {
             this.upgrades = new StallUpgradeService(plugin, repo);
             this.prompts = new ChatPromptService(plugin);
             this.feudal = new dev.lovelace.loveshops.market.feudal.FeudalService(plugin);
-            // Stub: registers nothing and spawns no NPC while market.flea.enabled is false.
-            this.flea = new FleaTraderService(plugin);
             this.wizard = new dev.lovelace.loveshops.market.wizard.WizardService(plugin);
             this.guiListener = new MarketGuiListener(plugin);
             Bukkit.getPluginManager().registerEvents(prompts, plugin);
@@ -109,7 +105,6 @@ public final class MarketModule {
             reconcileTask = null;
         }
         feudal = null;
-        flea = null;
         if (wizard != null) {
             wizard.shutdown();
             HandlerList.unregisterAll(wizard);

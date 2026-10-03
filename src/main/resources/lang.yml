@@ -13,12 +13,12 @@ commands:
   # Единый формат для всех help-выводов плагина: разделитель, список
   # "<aqua>/команда аргументы</aqua> <gray>- описание</gray>", разделитель.
   admin-moved: "<yellow>Эта команда переехала: используйте <aqua>{command}</aqua>.</yellow>"
-  help-header: "<dark_gray>========== <aqua>LoveShops Помощь</aqua> ==========</dark_gray>"
-  help-admin: "<aqua>/loveshopsadmin</aqua> <gray>- Административные команды LoveShops</gray>"
+  help-header: "<dark_gray>========== <aqua>Помощь</aqua> ==========</dark_gray>"
+  help-admin: "<aqua>/loveshopsadmin</aqua> <gray>- Административные команды</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"
 
 admin:
-  help-header: "<dark_gray>========== <aqua>LoveShops Admin</aqua> ==========</dark_gray>"
+  help-header: "<dark_gray>========== <aqua>Админ</aqua> ==========</dark_gray>"
   help-reload: "<aqua>/loveshopsadmin reload</aqua> <gray>- Перезагрузить конфигурацию и локализацию</gray>"
   help-npc: "<aqua>/loveshopsadmin npc <create|delete|list></aqua> <gray>- Управление NPC-торговцами</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"
@@ -408,7 +408,7 @@ market:
     - "<green>ЛКМ </green><gray>— открыть склад</gray>"
   gui-sell-shelf-lore:
     - ""
-    - "<gray>Полка: <white>#{shelf}</white></gray>"
+    - "<gray>Слот: <white>№{shelf}</white></gray>"
     - "<gray>В наличии: <white>{stock}</white> шт.</gray>"
     - "<gray>Цена за шт.:</gray>"
     - "{price}"
@@ -444,7 +444,7 @@ market:
     - "<green>ЛКМ </green><gray>— забрать монеты</gray>"
   gui-buy-order-lore:
     - ""
-    - "<gray>Заказ: <white>#{order}</white></gray>"
+    - "<gray>Слот: <white>№{order}</white></gray>"
     - "<gray>Скуплено: <green>{stock}</green> / <white>{max}</white> шт.</gray>"
     - "<gray>Цена за шт.:</gray>"
     - "{price}"
@@ -929,13 +929,3 @@ market:
   feudal-bad-weeks: "<red>Столько недель оплатить нельзя.</red>"
   feudal-prepaid-max: "<yellow>Аренда уже оплачена на максимальный срок.</yellow>"
   feudal-returned: "{i_stall} <yellow>Вы вернули точку <white>{id}</white>.</yellow> <gray>Возврат за остаток аренды:</gray> {refund}"
-  # 2026-10-02. Барахольщик — заготовка (см. market.flea в config.yml).
-  cmd-flea-no-permission: "<red>Нет прав.</red>"
-  cmd-flea-usage: "<yellow>Использование:</yellow> <gold>/lsa flea <create|remove|tp|reload|info></gold>"
-  cmd-flea-market-off: "<red>Рынок игроков не запущен (нужны Citizens и LoveClaims).</red>"
-  cmd-flea-disabled: "<yellow>Барахольщик отключён</yellow> <gray>(market.flea.enabled: false).</gray>"
-  cmd-flea-not-implemented: "<yellow>Барахольщик включён в конфиге, но его логика ещё не написана — NPC не создаётся.</yellow>"
-  cmd-flea-info-off: "<gray>Барахольщик:</gray> <red>отключён</red> <gray>(заготовка). Налог {tax}%, позиций в день {items}.</gray>"
-  cmd-flea-info-on: "<gray>Барахольщик:</gray> <yellow>включён в конфиге, логика не написана.</yellow> <gray>Налог {tax}%, позиций в день {items}.</gray>"
-  cmd-flea-reloaded-off: "<green>Конфиг перечитан.</green> <gray>Барахольщик отключён.</gray>"
-  cmd-flea-reloaded-on: "<green>Конфиг перечитан.</green> <yellow>Барахольщик включён, но логика ещё не написана.</yellow>"

@@ -116,7 +116,7 @@ public class CommissionManager {
 
         seller.playSound(seller.getLocation(), Sound.ENTITY_VILLAGER_YES, 1.0f, 1.1f);
         LoveEconomy eco = plugin.getEconomy().orElse(null);
-        MessageUtils.sendMessage(seller, "<green>[Комиссионер] Лот успешно выставлен за "
+        MessageUtils.sendMessage(seller, "<green>Лот успешно выставлен за "
                 + CoinFormat.formatGlyphs(eco, price) + "! Комиссия брокера при продаже составит " + feePercent + "%.</green>");
 
         return LotResult.SUCCESS;

@@ -135,15 +135,8 @@ public final class StallBuyerGui extends MarketGui {
     }
 
     private ItemStack tabItem(Tab each) {
-        String base64;
-        String key;
-        if (each == Tab.GOODS) {
-            base64 = HeadTextures.TAB_SELLER;
-            key = "goods";
-        } else {
-            base64 = HeadTextures.TAB_BUYER;
-            key = "orders";
-        }
+        String base64 = each == Tab.GOODS ? HeadTextures.TAB_SELLER : HeadTextures.TAB_BUYER;
+        String key = each == Tab.GOODS ? "goods" : "orders";
         boolean selected = each == tab;
         ItemStack item = head(base64, t("gui-customer-tab-" + key + (selected ? "-on" : "")),
                 lines("gui-customer-tab-" + key + "-lore", "state", t(selected ? "gui-customer-tab-open" : "gui-customer-tab-click")));
@@ -228,6 +221,7 @@ public final class StallBuyerGui extends MarketGui {
             super.handleClick(event);
             return;
         }
+
         ClickType click = event.getClick();
         StallListing l = listingAt.get(slot);
         if (l == null) return;

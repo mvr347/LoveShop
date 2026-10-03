@@ -20,6 +20,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * {@code /tradepoint} (торговая точка): managing your own shop.
@@ -35,7 +37,7 @@ import java.util.Locale;
  */
 public final class TradePointCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("menu", "returns", "transfer", "blacklist", "discount", "mode", "help");
+    private static final List<String> SUBS = List.of("tp", "menu", "returns", "transfer", "blacklist", "discount", "mode", "help");
     private static final List<String> BLACKLIST_SUBS = List.of("add", "remove", "list");
     private static final List<String> DISCOUNT_SUBS = List.of("set", "remove");
     private static final List<String> MODE_SUBS = List.of("BOTH", "SELL_ONLY", "BUY_ONLY");
@@ -73,6 +75,7 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "tp" -> handleTeleport(player, manager, args);
             case "returns" -> manager.claimReturns(player);
             case "transfer" -> handleTransfer(player, manager, args);
             case "blacklist" -> handleBlacklist(player, manager, args);
@@ -257,14 +260,58 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void sendHelp(Player player) {
-        for (String line : plugin.getMarketMessages().lines("cmd-help")) {
-            player.sendMessage(dev.lovelace.loveshops.utils.MessageUtils.parse(player, line));
+    private void handleTeleport(Player player, TradePointManager manager, String[] args) {
+        TradePoint point = null;
+        if (args.length >= 2) {
+            if (!player.hasPermission("loveshops.admin.market") && !player.hasPermission("loveshops.admin")) {
+                player.sendMessage(MessageUtils.parse(player, "<red>Нет прав телепортироваться к чужой точке.</red>"));
+                return;
+            }
+            try {
+                UUID id = UUID.fromString(args[1]);
+                point = manager.getPoint(id);
+            } catch (IllegalArgumentException e) {
+                player.sendMessage(MessageUtils.parse(player, "<red>Неверный UUID точки.</red>"));
+                return;
+            }
+        } else {
+            Optional<TradePoint> owned = manager.byOwner(player.getUniqueId());
+            if (owned.isEmpty()) {
+                player.sendMessage(MessageUtils.parse(player, "<yellow>У вас нет торговой точки.</yellow>"));
+                return;
+            }
+            point = owned.get();
         }
+
+        if (point == null) {
+            player.sendMessage(MessageUtils.parse(player, "<red>Точка не найдена.</red>"));
+            return;
+        }
+        org.bukkit.Location loc = manager.getNpcOrPointLocation(point);
+        if (loc == null || loc.getWorld() == null) {
+            player.sendMessage(MessageUtils.parse(player, "<red>Локация точки неизвестна.</red>"));
+            return;
+        }
+        player.teleport(loc);
+        player.sendMessage(MessageUtils.parse(player, "<green>Вы телепортированы к торговой точке.</green>"));
+    }
+
+    private void sendHelp(Player player) {
+        player.sendMessage(MessageUtils.parse(player, "<gold>=== Управление торговой точкой ===</gold>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint tp [uuid]</yellow> <gray>— телепортироваться к своей торговой точке</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint returns</yellow> <gray>— забрать возвраты товаров и монет</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint transfer <игрок></yellow> <gray>— передать точку другому игроку</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint blacklist <add|remove|list></yellow> <gray>— чёрный список точки</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint discount <set|remove></yellow> <gray>— персональные скидки</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint mode [режим]</yellow> <gray>— режим торговли (BOTH, SELL_ONLY, BUY_ONLY)</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<gold>====================================</gold>"));
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        TradePointManager manager = plugin.getTradePointManager();
+        if (manager == null) return List.of();
+
         List<String> online = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
         if (args.length == 1) {
             return StringUtil.copyPartialMatches(args[0], SUBS, new ArrayList<>());
@@ -272,6 +319,9 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
         if (args.length == 2) {
             return switch (sub) {
+                case "tp" -> (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin"))
+                        ? StringUtil.copyPartialMatches(args[1], manager.all().stream().map(p -> p.claimId().toString()).toList(), new ArrayList<>())
+                        : List.of();
                 case "transfer" -> StringUtil.copyPartialMatches(args[1], online, new ArrayList<>());
                 case "blacklist" -> StringUtil.copyPartialMatches(args[1], BLACKLIST_SUBS, new ArrayList<>());
                 case "discount" -> StringUtil.copyPartialMatches(args[1], DISCOUNT_SUBS, new ArrayList<>());

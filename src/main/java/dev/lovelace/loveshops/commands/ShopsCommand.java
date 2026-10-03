@@ -90,7 +90,30 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
                 switch (menuType) {
                     case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
-                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: wanderer</red>"));
+                    case "banker" -> new dev.lovelace.loveshops.gui.BankerGui(plugin, target).open();
+                    case "caravaner" -> {
+                        if (plugin.getDailyCaravanManager() != null) {
+                            plugin.getDailyCaravanManager().openGui(target);
+                        } else {
+                            sender.sendMessage(MessageUtils.parse("<red>DailyCaravanManager недоступен.</red>"));
+                        }
+                    }
+                    case "commissioner" -> {
+                        if (plugin.getCommissionManager() != null) {
+                            plugin.getCommissionManager().openGui(target);
+                        } else {
+                            sender.sendMessage(MessageUtils.parse("<red>CommissionManager недоступен.</red>"));
+                        }
+                    }
+                    case "lostcaravan" -> {
+                        if (plugin.getLostCaravanManager() != null) {
+                            plugin.getLostCaravanManager().handleNpcClick(target);
+                        } else {
+                            sender.sendMessage(MessageUtils.parse("<red>LostCaravanManager недоступен.</red>"));
+                        }
+                    }
+                    case "warmerchant" -> new dev.lovelace.loveshops.gui.WarMerchantGui(plugin, target).open();
+                    default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестное меню! Выберите: wanderer, banker, caravaner, commissioner, lostcaravan, warmerchant</red>"));
                 }
 
                 if (sender != target) {
@@ -99,6 +122,7 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
             }
             case "reload" -> redirectToAdmin(sender, "/loveshopsadmin reload", "loveshops.admin.reload");
             case "npc" -> redirectToAdmin(sender, "/loveshopsadmin npc", "loveshops.admin");
+            case "event" -> redirectToAdmin(sender, "/loveshopsadmin event", "loveshops.admin");
             case "wanderer" -> redirectToAdmin(sender, "/loveshopsadmin event wanderer", "loveshops.admin.wanderer");
             default -> sendHelp(sender);
         }
@@ -117,8 +141,8 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <wanderer> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/wanderer</gold> <gray>- Быстрый алиас для открытия меню</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <тип> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/wanderer</gold> <gray>- Быстрый алиас для открытия меню Странника</gray>"));
         if (sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"));
         }
@@ -145,10 +169,10 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             completions.addAll(List.of("gui", "open", "help"));
             if (sender.hasPermission("loveshops.admin")) {
-                completions.addAll(List.of("npc", "wanderer", "reload"));
+                completions.addAll(List.of("npc", "event", "wanderer", "reload"));
             }
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
-            completions.add("wanderer");
+            completions.addAll(List.of("wanderer", "banker", "caravaner", "commissioner", "lostcaravan", "warmerchant"));
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("openmenu"))) {
             completions.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
         }

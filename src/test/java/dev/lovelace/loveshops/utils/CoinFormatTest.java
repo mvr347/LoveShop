@@ -38,14 +38,14 @@ class CoinFormatTest {
 
     @Test
     void testZeroAndNegativeAmount() {
-        assertEquals("%img_copper_coin% x0", CoinFormat.formatGlyphs(MOCK_ECO, 0));
-        assertEquals("%img_copper_coin% x0", CoinFormat.formatGlyphs(MOCK_ECO, -10));
+        assertEquals("%img_copper_coin% &f x0", CoinFormat.formatGlyphs(MOCK_ECO, 0));
+        assertEquals("%img_copper_coin% &f x0", CoinFormat.formatGlyphs(MOCK_ECO, -10));
     }
 
     @Test
     void testFormatSplit() {
         // 1255 = 1x1000 (netherite) + 2x100 (diamond) + 1x50 (gold) + 5x1 (copper)
         String formatted = CoinFormat.formatGlyphs(MOCK_ECO, 1255);
-        assertEquals("%img_netherite_coin% x1  %img_diamond_coin% x2  %img_gold_coin% x1  %img_copper_coin% x5", formatted);
+        assertEquals("%img_netherite_coin% &f x1  %img_diamond_coin% &f x2  %img_gold_coin% &f x1  %img_copper_coin% &f x5", formatted);
     }
 }

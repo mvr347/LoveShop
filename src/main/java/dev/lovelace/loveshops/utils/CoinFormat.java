@@ -38,13 +38,13 @@ public final class CoinFormat {
     }
 
     public static String formatGlyphs(LoveEconomy eco, long amount) {
-        if (eco == null) return "%img_copper_coin% x0";
+        if (eco == null) return "%img_copper_coin% &f x0";
         List<Denomination> dens = new ArrayList<>(eco.denominations());
         dens.sort(Comparator.comparingLong(Denomination::value).reversed());
 
         if (amount <= 0) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " x0";
+            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " &f x0";
         }
 
         StringBuilder sb = new StringBuilder();
@@ -54,14 +54,14 @@ public final class CoinFormat {
             long count = remaining / den.value();
             if (count > 0) {
                 if (sb.length() > 0) sb.append("  ");
-                sb.append(getCoinGlyph(den)).append(" x").append(count);
+                sb.append(getCoinGlyph(den)).append(" &f x").append(count);
                 remaining %= den.value();
             }
         }
 
         if (sb.length() == 0) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " x0";
+            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " &f x0";
         }
 
         return sb.toString();
@@ -87,51 +87,22 @@ public final class CoinFormat {
             if (den.value() <= 0) continue;
             long count = remaining / den.value();
             if (count > 0) {
-                lines.add(getCoinGlyph(den) + " <white>x" + count + "</white>");
+                lines.add(getCoinGlyph(den) + " &f x" + count);
                 remaining %= den.value();
             }
         }
         if (lines.isEmpty()) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            lines.add((smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <white>x0</white>");
+            lines.add((smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " &f x0");
         }
         return lines;
     }
 
     public static List<Component> formatGlyphLines(LoveEconomy eco, long amount) {
         List<Component> lines = new ArrayList<>();
-        if (eco == null) {
-            lines.add(MessageUtils.parse("%img_copper_coin% <white>x0</white>"));
-            return lines;
+        for (String line : glyphLineStrings(eco, amount)) {
+            lines.add(MessageUtils.parse(line));
         }
-
-        List<Denomination> dens = new ArrayList<>(eco.denominations());
-        dens.sort(Comparator.comparingLong(Denomination::value).reversed());
-
-        if (amount <= 0) {
-            Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            String glyph = smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%";
-            lines.add(MessageUtils.parse(glyph + " <white>x0</white>"));
-            return lines;
-        }
-
-        long remaining = amount;
-        for (Denomination den : dens) {
-            if (den.value() <= 0) continue;
-            long count = remaining / den.value();
-            if (count > 0) {
-                String glyph = getCoinGlyph(den);
-                lines.add(MessageUtils.parse(glyph + " <white>x" + count + "</white>"));
-                remaining %= den.value();
-            }
-        }
-
-        if (lines.isEmpty()) {
-            Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            String glyph = smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%";
-            lines.add(MessageUtils.parse(glyph + " <white>x0</white>"));
-        }
-
         return lines;
     }
 }

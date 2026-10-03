@@ -37,7 +37,6 @@ import java.util.function.Consumer;
 public final class PriceGui extends MarketGui {
 
     private static final int SIZE = 27;
-    private static final int INFO_SLOT = 13;
 
     private final ItemStack template;
     private final boolean editsOnlyPrice;
@@ -102,16 +101,20 @@ public final class PriceGui extends MarketGui {
     @Override
     public void render() {
         frame();
-        inventory.setItem(0, lotItem());
 
-        List<Control> controls = new ArrayList<>();
-        if (maxAmount > 1) controls.add(new Control(amountButton(), this::clickAmount));
-        controls.add(new Control(priceButton(), this::clickPrice));
-        controls.add(new Control(confirmButton(), this::clickConfirm));
-        controls(controls);
+        button(11, lotItem(), this::clickAmount);
+        button(13, priceButton(), this::clickPrice);
+        button(15, confirmButton(), this::clickConfirm);
 
-        inventory.setItem(INFO_SLOT, infoTile());
-        footer(null);
+        if (onCancel != null) {
+            button(25, tile(HeadTextures.BUTTON_BACK, "gui-back", "gui-back-lore"), e -> {
+                finished = true;
+                viewer.closeInventory();
+                onCancel.run();
+            });
+        }
+        button(26, tile(HeadTextures.BUTTON_CLOSE, "gui-close", "gui-close-lore"), e -> viewer.closeInventory());
+
         refreshClient();
     }
 
@@ -123,8 +126,14 @@ public final class PriceGui extends MarketGui {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-            for (String line : lines("gui-price-lot-lore", "amount", String.valueOf(amount))) {
-                lore.add(MessageUtils.parse(viewer, line));
+            lore.add(Component.empty());
+            if (maxAmount > 1) {
+                lore.add(MessageUtils.parse(viewer, "<gray>Выставить: <white>" + amount + "</white> из <white>" + maxAmount + "</white></gray>"));
+                lore.add(Component.empty());
+                lore.add(MessageUtils.parse(viewer, "<green>ЛКМ </green><gray>— +1</gray> <dark_gray>(Shift: +8)</dark_gray>"));
+                lore.add(MessageUtils.parse(viewer, "<red>ПКМ </red><gray>— −1</gray> <dark_gray>(Shift: −8)</dark_gray>"));
+            } else {
+                lore.add(MessageUtils.parse(viewer, "<gray>Количество: <white>" + amount + "</white> шт.</gray>"));
             }
             meta.lore(lore);
             item.setItemMeta(meta);
@@ -141,31 +150,24 @@ public final class PriceGui extends MarketGui {
                 "coin", coin,
                 "min", plugin.getMarketStyle().money(input.min()),
                 "max", plugin.getMarketStyle().money(input.max())));
+        lore.add("&8Минимальная цена за лот %img_copper_coin% &f x1");
         return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
-    }
-
-    private ItemStack amountButton() {
-        return head(HeadTextures.BUTTON_PLUS, t("gui-price-amount"),
-                lines("gui-price-amount-lore", "amount", String.valueOf(amount), "max", String.valueOf(maxAmount)));
     }
 
     private ItemStack confirmButton() {
         if (input.valid()) {
             List<String> lore = new ArrayList<>(lines("gui-price-confirm-top"));
-            lore.addAll(CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), input.price()));
+            long total = input.price() * (long) (editsOnlyPrice ? 1 : amount);
+            lore.addAll(CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), total));
+            if (!editsOnlyPrice && amount > 1) {
+                lore.add("<dark_gray>(" + amount + " шт. × " + input.price() + ")</dark_gray>");
+            }
             lore.addAll(lines("gui-price-confirm-bottom"));
             return head(HeadTextures.HEAD_CONFIRM, t("gui-price-confirm"), lore);
         }
         String reason = input.price() <= 0 ? t("gui-price-reason-unset")
                 : t("gui-price-reason-low", "min", plugin.getMarketStyle().money(input.min()));
         return head(HeadTextures.HEAD_DELETE_NO, t("gui-price-confirm-off"), lines("gui-price-confirm-off-lore", "reason", reason));
-    }
-
-    private ItemStack infoTile() {
-        List<String> lore = new ArrayList<>(lines("gui-price-info-top", "amount", String.valueOf(amount)));
-        LoveEconomy eco = plugin.getEconomy().orElse(null);
-        lore.addAll(CoinFormat.glyphLineStrings(eco, input.price() * (long) amount));
-        return head(HeadTextures.BANKER_INFO, t("gui-price-info"), lore);
     }
 
     private String coinGlyph(int index) {

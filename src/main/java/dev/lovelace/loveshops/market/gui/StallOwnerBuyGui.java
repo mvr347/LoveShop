@@ -64,18 +64,27 @@ public final class StallOwnerBuyGui extends MarketGui {
         Map<Integer, StallListing> byIndex = new HashMap<>();
         for (StallListing l : orders) byIndex.put(l.slot(), l);
 
-        int[] content = MarketLayout.contentSlots(size);
-        int slots = Math.min(point.buySlots(), content.length);
+        int slots = point.buySlots();
+        int[] content = MarketLayout.centeredSlots(size, slots);
+        int totalSlots = Math.min(slots, content.length);
         int used = 0;
-        for (int i = 0; i < slots; i++) {
+        for (int i = 0; i < totalSlots; i++) {
+            int slot = content[i];
             StallListing listing = byIndex.get(i);
             if (listing != null) {
-                inventory.setItem(content[i], orderItem(listing));
-                listingAt.put(content[i], listing);
+                inventory.setItem(slot, orderItem(listing));
+                listingAt.put(slot, listing);
                 used++;
             } else {
-                inventory.setItem(content[i], freeShelfTile());
-                freeSlotAt.put(content[i], i);
+                boolean prevFilled = (i == 0) || (byIndex.containsKey(i - 1) && byIndex.get(i - 1) != null);
+                if (prevFilled) {
+                    freeSlotAt.put(slot, i);
+                } else {
+                    int prevSlotNum = i;
+                    ItemStack locked = head(HeadTextures.HEAD_DELETE_NO, "<red>Слот №" + (i + 1) + " заблокирован</red>",
+                            List.of("", "<gray>Сначала заполните предыдущий слот (Слот №" + prevSlotNum + ")</gray>"));
+                    button(slot, locked, e -> MessageUtils.sendMessage(viewer, "<red>Сначала заполните предыдущий слот (Слот №" + prevSlotNum + ")</red>"));
+                }
             }
         }
 
@@ -83,8 +92,6 @@ public final class StallOwnerBuyGui extends MarketGui {
                 "used", String.valueOf(used), "total", String.valueOf(point.buySlots()), "level", String.valueOf(point.level())));
         controls(List.of(new Control(tile(HeadTextures.BANKER_WITHDRAW, "gui-buy-collect", "gui-buy-collect-lore"),
                 e -> collectAll())));
-        button(MarketLayout.extraSlot(size), head(HeadTextures.BANKER_ACCOUNT, t("gui-buy-till"),
-                lines("gui-buy-till-lore", "money", plugin.getMarketStyle().money(point.tillCoins()))), e -> withdrawTill());
         footer(() -> new StallTradeMenuGui(plugin, viewer, point).open());
         refreshClient();
     }
@@ -119,7 +126,11 @@ public final class StallOwnerBuyGui extends MarketGui {
         ClickType click = event.getClick();
         if (click == ClickType.SHIFT_RIGHT) {
             TradePointManager.CollectResult res = plugin.getTradePointManager().collectListing(viewer, point, listing.id(), true);
-            plugin.getMarketMessages().send(viewer, res.ok() ? "listing-removed" : "listing-error");
+            if (res.ok()) {
+                plugin.getMarketMessages().send(viewer, "listing-removed", "count", String.valueOf(res.items()));
+            } else {
+                plugin.getMarketMessages().send(viewer, "listing-error");
+            }
             render();
         } else if (click == ClickType.RIGHT) {
             editPrice(listing);
@@ -224,15 +235,5 @@ public final class StallOwnerBuyGui extends MarketGui {
                 },
                 () -> { }
         ).open();
-    }
-
-    private void withdrawTill() {
-        TradePointManager.TillResult res = plugin.getTradePointManager().collectTill(viewer, point);
-        if (res.ok()) {
-            plugin.getMarketMessages().send(viewer, "till-collected", "money", plugin.getMarketStyle().money(res.amount()));
-        } else if ("till-empty".equals(res.reason())) {
-            plugin.getMarketMessages().send(viewer, "till-empty");
-        }
-        render();
     }
 }

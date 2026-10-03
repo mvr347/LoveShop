@@ -37,7 +37,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
     public static final String TITLE = "Аукцион Каравана";
 
-    public static final int SLOT_INFO = 4;
+    public static final int SLOT_INFO = 1;
     public static final int SLOT_LOT_PREVIEW = 22;
     public static final int SLOT_BID_10 = 29;
     public static final int SLOT_BID_50 = 30;
@@ -76,7 +76,6 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
-        inventory.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         LostCaravanSession session = manager.getCurrentSession();
         LostCaravanLot lot = manager.getCurrentAuctionLot();

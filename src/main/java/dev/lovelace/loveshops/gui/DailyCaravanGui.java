@@ -73,7 +73,6 @@ public class DailyCaravanGui implements InventoryHolder {
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
-        inventory.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         long remainingSec = Math.max(0, manager.getVisitDespawnAt() - (System.currentTimeMillis() / 1000));
         long hours = remainingSec / 3600;
@@ -90,7 +89,7 @@ public class DailyCaravanGui implements InventoryHolder {
                         "<gray>Бонус за сдачу полными стаками: <green>+8-10%</green></gray>"
                 )
         );
-        inventory.setItem(4, infoItem);
+        inventory.setItem(1, infoItem);
 
         // 2. Row 1 Header (слоты 9-17) - по стандарту gui-gen-5 всегда 100% стекло
         for (int i = 9; i <= 17; i++) {
@@ -120,37 +119,38 @@ public class DailyCaravanGui implements InventoryHolder {
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.empty());
 
+                // 1. Заполненность
+                lore.add(MessageUtils.parse(ProgressBarUtil.formatStackProgressBar(crate.currentAmount(), crate.maxAmount(), 64, 20)));
+                lore.add(Component.empty());
+
+                // 2. Предметы (принимаются) — список на русском
+                lore.add(MessageUtils.parse("<gray>Принимаются:</gray>"));
+                if (cfg != null) {
+                    for (DailyCrateAcceptedItem acc : cfg.acceptedItems()) {
+                        String rusName = ItemResolver.getFriendlyRussianName(acc.itemId());
+                        lore.add(MessageUtils.parse(" <dark_gray>•</dark_gray> <yellow>" + rusName + "</yellow>"));
+                    }
+                }
+                lore.add(Component.empty());
+
+                // 3. Цена
                 if (crate.isUrgent()) {
                     long urgentSec = Math.max(0, crate.urgentExpiresAt() - (System.currentTimeMillis() / 1000));
                     long uMin = urgentSec / 60;
                     long uSec = urgentSec % 60;
-                    lore.add(MessageUtils.parse("<red><bold>⚡ СРОЧНЫЙ ЗАКАЗ!</bold></red> <yellow>Осталось: " + uMin + ":" + (uSec < 10 ? "0" : "") + uSec + "</yellow>"));
-                    lore.add(Component.empty());
+                    lore.add(MessageUtils.parse("<red><bold>⚡ СРОЧНЫЙ ЗАКАЗ!</bold></red> <yellow>(" + uMin + ":" + (uSec < 10 ? "0" : "") + uSec + ")</yellow>"));
                 }
-
                 lore.add(MessageUtils.parse("<gray>Цена за шт: </gray>" + CoinFormat.formatGlyphs(eco, crate.pricePerUnit())));
                 if (cfg != null && cfg.stackBonusPercent() > 0) {
                     lore.add(MessageUtils.parse("<gray>Бонус за стак: <green>+" + cfg.stackBonusPercent() + "% монет</green></gray>"));
                 }
                 lore.add(Component.empty());
 
-                lore.add(MessageUtils.parse("<gray>Принимаются:</gray>"));
-                if (cfg != null) {
-                    for (DailyCrateAcceptedItem acc : cfg.acceptedItems()) {
-                        lore.add(MessageUtils.parse(" <dark_gray>•</dark_gray> <yellow>" + acc.itemId() + "</yellow>"));
-                    }
-                }
-                lore.add(Component.empty());
-
-                lore.add(MessageUtils.parse("<gray>Заполнение ящика:</gray>"));
-                int maxStacks = cfg != null ? cfg.maxStacks() : (crate.maxAmount() / 64);
-                lore.add(MessageUtils.parse(ProgressBarUtil.formatStackProgressBar(crate.currentAmount(), crate.maxAmount(), 64, 15)));
-                lore.add(Component.empty());
-
+                // 4. Действия/кнопки
                 if (crate.isClosed()) {
                     lore.add(MessageUtils.parse("<red><bold>[ ЯЩИК ЗАКРЫТ ]</bold></red>"));
                 } else {
-                    lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— сдать предмет из руки</gray>"));
+                    lore.add(MessageUtils.parse("<yellow>Перетащите предмет </yellow><gray>— сдать в ящик</gray>"));
                     lore.add(MessageUtils.parse("<yellow>ПКМ </yellow><gray>— сдать все подходящие из инвентаря</gray>"));
                 }
 
@@ -167,26 +167,46 @@ public class DailyCaravanGui implements InventoryHolder {
             inventory.setItem(i, filler);
         }
 
-        // Слот 40: Кнопка быстрой сдачи предмета в руке
-        ItemStack submitButton = new ItemStack(Material.HOPPER);
-        ItemMeta submitMeta = submitButton.getItemMeta();
-        if (submitMeta != null) {
-            submitMeta.displayName(MessageUtils.parse("<gold><bold>Сдать предмет из руки</bold></gold>"));
-            submitMeta.lore(List.of(
-                    Component.empty(),
-                    MessageUtils.parse("<gray>Держите в руке нужный ресурс и нажмите сюда,</gray>"),
-                    MessageUtils.parse("<gray>чтобы сдать его в подходящий ящик.</gray>")
-            ));
-            submitButton.setItemMeta(submitMeta);
-        }
-        inventory.setItem(SLOT_SUBMIT_HAND, submitButton);
-
         // Слот 44: Закрыть
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
                 List.of("", "<gray>Выход из меню караванщика</gray>")
         ));
+    }
+
+    public static boolean isCrateSlot(int rawSlot) {
+        return (rawSlot >= 20 && rawSlot <= 24) || (rawSlot >= 29 && rawSlot <= 33);
+    }
+
+    public static boolean handleCursorSubmit(LoveShops plugin, Player player, int rawSlot, ItemStack cursor) {
+        if (cursor == null || cursor.getType().isAir()) return false;
+        DailyCaravanManager manager = plugin.getDailyCaravanManager();
+        if (manager == null || !manager.isCaravanerActive()) return false;
+
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (rawSlot >= 0 && rawSlot < top.getSize()) {
+            ItemStack clicked = top.getItem(rawSlot);
+            if (clicked != null && clicked.hasItemMeta()) {
+                Integer crateId = clicked.getItemMeta().getPersistentDataContainer()
+                        .get(new NamespacedKey(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER);
+                if (crateId != null) {
+                    DailyCaravanManager.SubmitResult result = manager.submitCursorItem(player, crateId, cursor);
+                    if (result == DailyCaravanManager.SubmitResult.SUCCESS) {
+                        return true;
+                    }
+                    switch (result) {
+                        case NO_ITEMS -> MessageUtils.sendMessage(player, "<yellow>Этот предмет не подходит для данного ящика!</yellow>");
+                        case CRATE_CLOSED -> MessageUtils.sendMessage(player, "<red>Этот ящик уже заполнен или закрыт.</red>");
+                        case LIMIT_REACHED -> MessageUtils.sendMessage(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
+                        case NO_SPACE -> MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
+                        default -> {}
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {
@@ -199,37 +219,6 @@ public class DailyCaravanGui implements InventoryHolder {
         if (manager == null || !manager.isCaravanerActive()) {
             player.closeInventory();
             MessageUtils.sendMessage(player, "<red>Караванщик уже уехал!</red>");
-            return;
-        }
-
-        if (rawSlot == SLOT_SUBMIT_HAND) {
-            ItemStack held = player.getInventory().getItemInMainHand();
-            if (held.getType().isAir()) {
-                MessageUtils.sendMessage(player, "<red>Возьмите предмет для сдачи в руку!</red>");
-                return;
-            }
-
-            // Поиск первого подходящего открытого ящика
-            boolean submitted = false;
-            for (DailyCrateState crate : manager.getActiveCrates()) {
-                if (crate.isClosed()) continue;
-                DailyCrateConfig cfg = manager.getCrateConfig(crate.crateKey());
-                if (cfg == null) continue;
-                for (DailyCrateAcceptedItem acc : cfg.acceptedItems()) {
-                    if (ItemResolver.matches(held, acc.itemId())) {
-                        manager.submitItems(player, crate.id(), false);
-                        submitted = true;
-                        break;
-                    }
-                }
-                if (submitted) break;
-            }
-
-            if (!submitted) {
-                MessageUtils.sendMessage(player, "<yellow>Предмет в руке не подходит ни к одному открытому ящику.</yellow>");
-            }
-
-            refreshAll(plugin);
             return;
         }
 

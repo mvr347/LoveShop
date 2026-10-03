@@ -238,14 +238,4 @@ public final class MarketConfig {
         return new org.bukkit.Location(world, s.getDouble("exit.x"), s.getDouble("exit.y", 64), s.getDouble("exit.z"),
                 (float) s.getDouble("exit.yaw", 0), (float) s.getDouble("exit.pitch", 0));
     }
-
-    // ----- flea trader (Барахольщик) -----
-    // Stub: nothing spawns while this is false (the default); see FleaTraderService.
-    public boolean fleaEnabled() { return getBool("flea.enabled", false); }
-    /** Tax taken from the sale of a player's flea lot, percent (0-100). */
-    public int fleaTaxPercent() { return Math.max(0, Math.min(100, getInt("flea.tax-percent", 7))); }
-    public int fleaItemsPerDay() { return Math.max(0, getInt("flea.daily.items-per-day", 8)); }
-    public int fleaMaxListings() { return Math.max(1, getInt("flea.max-listings-per-player", 10)); }
-    /** {@code true} keeps the old Sunday-only opening of the flea trader; {@code false} = always open. */
-    public boolean fleaScheduleEnabled() { return getBool("flea.schedule-enabled", false); }
 }
