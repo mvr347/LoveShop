@@ -1,18 +1,34 @@
-# Patches for caravan-commission-rework
+# Caravan patches (bypass large-file API limits)
 
-Apply on branch after checkout:
+These are **valid `git apply` patches** against `feature/caravan-commission-rework` (or main after rebase).
+
+## One-shot (from repo root)
 
 ```bash
-git apply docs/patches/lost-caravan-deposit-force.patch
-git apply docs/patches/admin-caravan-force.patch
-git apply docs/patches/config-caravan-keys.patch
+git checkout feature/caravan-commission-rework
+git pull
+bash docs/patches/apply-all.sh
+git add -A
+git commit -m "feat(caravan): deposit gate, empty leave, force start, heads"
+git push
 ```
 
-Or use the full sources under `/home/workdir/artifacts/` from the agent session:
-- `LostCaravanManager.java`
-- `LoveShopsAdminCommand.java`
+## What they do
 
-Logic:
-1. No deposit → no lot GUI during OPEN
-2. 0 participants → leave (leave-if-empty)
-3. `forceStart(mode, force)` + admin `--force [base|auction|secret]`
+| Patch | Effect |
+|-------|--------|
+| `lost-caravan-manager.patch` | leave-if-empty, forceStart, deposit gate on lot GUI |
+| `admin-caravan-force.patch` | `caravan lost start [--force] [base\|auction\|secret]` |
+| `head-textures-caravan.patch` | CARAVAN_LOST_* / COMMISSION_* constants |
+
+Config keys optional (code defaults):
+`caravan.lost.leave-if-empty: true`
+
+## Verify after apply
+
+```bash
+grep -n forceStart\|leave-if-empty\|Меню лотов src/main/java/.../LostCaravanManager.java
+grep -n forceStart src/main/java/.../LoveShopsAdminCommand.java
+grep CARAVAN_LOST src/main/java/.../HeadTextures.java
+mvn -q -DskipTests package
+```
