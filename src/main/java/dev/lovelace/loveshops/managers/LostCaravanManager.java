@@ -78,6 +78,7 @@ public class LostCaravanManager {
 
     // Состояние текущего лота на аукционе
     private int currentAuctionLotIndex = -1;
+    private String pendingForceMode;
     private long currentLotEndTimestamp = 0;
     private io.papermc.paper.threadedregions.scheduler.ScheduledTask schedulerTask;
     private org.bukkit.scheduler.BukkitTask auctionTickTask;
@@ -282,9 +283,26 @@ public class LostCaravanManager {
     public synchronized void openSession() {
         if (currentSession == null) return;
         int participantCount = getParticipantCount(currentSession.id());
+        if (participantCount <= 0 && plugin.getConfig().getBoolean("caravan.lost.leave-if-empty", true)) {
+            CaravanEffects.broadcast("<gold>Потерянный караван</gold> <gray>— никто не внёс залог. Обоз уезжает.</gray>");
+            closeSession();
+            return;
+        }
         int minForAuction = plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6);
         boolean secretCrate = participantCount >= plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12);
         String mode = participantCount <= minForAuction ? "INSTANT" : "AUCTION";
+        if (pendingForceMode != null) {
+            String fm = pendingForceMode;
+            pendingForceMode = null;
+            if ("AUCTION".equals(fm)) {
+                mode = "AUCTION";
+            } else if ("SECRET".equals(fm)) {
+                mode = participantCount <= minForAuction ? "INSTANT" : "AUCTION";
+                secretCrate = true;
+            } else if ("BASE".equals(fm) || "INSTANT".equals(fm)) {
+                mode = "INSTANT";
+            }
+        }
 
         long now = System.currentTimeMillis() / 1000;
 
@@ -1065,6 +1083,21 @@ public class LostCaravanManager {
         return true;
     }
 
+
+    public synchronized boolean forceStart(String mode, boolean force) {
+        if (isEventActive() && !force) {
+            return false;
+        }
+        if (isEventActive()) {
+            closeSession();
+        }
+        announceSession(System.currentTimeMillis() / 1000);
+        if (currentSession != null) {
+            pendingForceMode = mode == null ? "AUTO" : mode.trim().toUpperCase();
+        }
+        return true;
+    }
+
     public void handleNpcClick(Player player) {
         if (currentSession == null) {
             MessageUtils.sendMessage(player, "<yellow>Потерянный караван ещё не прибыл.</yellow>");
@@ -1073,14 +1106,24 @@ public class LostCaravanManager {
 
         if ("ANNOUNCED".equalsIgnoreCase(currentSession.status())) {
             new LostCaravanEntryGui(plugin, player, this).open();
-        } else if ("OPEN".equalsIgnoreCase(currentSession.status())) {
+            return;
+        }
+
+        if ("OPEN".equalsIgnoreCase(currentSession.status())) {
+            if (!isParticipant(currentSession.id(), player.getUniqueId())) {
+                MessageUtils.sendMessage(player, "<gray>Вы не вносили залог. Меню лотов доступно только участникам.</gray>");
+                return;
+            }
             if ("AUCTION".equalsIgnoreCase(currentSession.mode())) {
                 new LostCaravanAuctionGui(plugin, player, this).open();
             } else {
                 new LostCaravanInstantGui(plugin, player, this).open();
             }
-        } else if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
-            MessageUtils.sendMessage(player, "<gray>[Потерянный Караван] Торги уже завершены, караван сворачивает лагерь.</gray>");
+            return;
+        }
+
+        if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
+            MessageUtils.sendMessage(player, "<gray>Торги завершены, караван сворачивает лагерь.</gray>");
         }
     }
 
