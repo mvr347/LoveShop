@@ -57,11 +57,11 @@
      public void handleNpcClick(Player player) {
          if (currentSession == null) {
              MessageUtils.sendMessage(player, "<yellow>Потерянный караван ещё не прибыл.</yellow>");
-             return;
-         }
+@@ -1073,14 +1106,24 @@
  
          if ("ANNOUNCED".equalsIgnoreCase(currentSession.status())) {
              new LostCaravanEntryGui(plugin, player, this).open();
+-        } else if ("OPEN".equalsIgnoreCase(currentSession.status())) {
 +            return;
 +        }
 +
@@ -75,22 +75,13 @@
              } else {
                  new LostCaravanInstantGui(plugin, player, this).open();
              }
+-        } else if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
+-            MessageUtils.sendMessage(player, "<gray>[Потерянный Караван] Торги уже завершены, караван сворачивает лагерь.</gray>");
 +            return;
 +        }
 +
 +        if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
 +            MessageUtils.sendMessage(player, "<gray>Торги завершены, караван сворачивает лагерь.</gray>");
-+        }
-+    }
-+
-+    private void giveOrDropItem_PLACEHOLDER_REMOVE() {
-         } else if ("OPEN".equalsIgnoreCase(currentSession.status())) {
-             if ("AUCTION".equalsIgnoreCase(currentSession.mode())) {
-                 new LostCaravanAuctionGui(plugin, player, this).open();
-             } else {
-                 new LostCaravanInstantGui(plugin, player, this).open();
-             }
-         } else if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
-             MessageUtils.sendMessage(player, "<gray>[Потерянный Караван] Торги уже завершены, караван сворачивает лагерь.</gray>");
          }
      }
+ 

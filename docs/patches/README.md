@@ -1,10 +1,9 @@
-# Caravan patches (bypass large-file API limits)
+# Caravan patches (обход лимита GitHub API на большие файлы)
 
-These are **valid `git apply` patches** against `feature/caravan-commission-rework` (or main after rebase).
-
-## One-shot (from repo root)
+Валидные `git apply` патчи. После apply исходники на ветке полные — можно билдить и открывать PR.
 
 ```bash
+git fetch origin
 git checkout feature/caravan-commission-rework
 git pull
 bash docs/patches/apply-all.sh
@@ -13,22 +12,10 @@ git commit -m "feat(caravan): deposit gate, empty leave, force start, heads"
 git push
 ```
 
-## What they do
-
-| Patch | Effect |
-|-------|--------|
-| `lost-caravan-manager.patch` | leave-if-empty, forceStart, deposit gate on lot GUI |
-| `admin-caravan-force.patch` | `caravan lost start [--force] [base\|auction\|secret]` |
-| `head-textures-caravan.patch` | CARAVAN_LOST_* / COMMISSION_* constants |
-
-Config keys optional (code defaults):
-`caravan.lost.leave-if-empty: true`
-
-## Verify after apply
-
+Проверка:
 ```bash
-grep -n forceStart\|leave-if-empty\|Меню лотов src/main/java/.../LostCaravanManager.java
-grep -n forceStart src/main/java/.../LoveShopsAdminCommand.java
-grep CARAVAN_LOST src/main/java/.../HeadTextures.java
+grep -n 'forceStart\|leave-if-empty\|Меню лотов' src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java
+grep -n forceStart src/main/java/dev/lovelace/loveshops/commands/LoveShopsAdminCommand.java
+grep CARAVAN_LOST src/main/java/dev/lovelace/loveshops/textures/HeadTextures.java
 mvn -q -DskipTests package
 ```
