@@ -7,6 +7,7 @@ import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -229,7 +230,7 @@ public class InventoryClickListener implements Listener {
             int topSize = topInv.getSize();
 
             if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui || titleText.contains(dev.lovelace.loveshops.gui.DailyCaravanGui.TITLE)) {
-                event.setCancelled(true);
+                event.setCancelled(raw < topSize || !isPlainBottomClick(event));
                 if (raw >= 0 && raw < topSize) {
                     ItemStack cursor = event.getCursor();
                     if (cursor != null && !cursor.getType().isAir() && dev.lovelace.loveshops.gui.DailyCaravanGui.isCrateSlot(raw)) {
@@ -246,7 +247,7 @@ public class InventoryClickListener implements Listener {
                     }
                 }
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionAgentGui.TITLE)) {
-                event.setCancelled(true);
+                event.setCancelled(raw < topSize || !isPlainBottomClick(event));
                 if (raw >= 0 && raw < topSize) {
                     // Drag / cursor onto «Выставить»: предмет с курсора уходит в меню цены
                     if (raw == dev.lovelace.loveshops.gui.CommissionAgentGui.SLOT_CREATE_LOT) {
@@ -294,6 +295,21 @@ public class InventoryClickListener implements Listener {
                 }
             }
         }
+    }
+
+    /**
+     * A click in the player's own inventory under an item menu. Picking an item up and putting it down there is
+     * allowed - that is how it gets onto the cursor to be dropped on the menu (drag and drop); blanket-cancelling
+     * every click made the drop impossible. Anything that moves items into or out of the menu stays cancelled
+     * (Shift-click is handled separately, double-click would gather the menu's own display items).
+     */
+    private static boolean isPlainBottomClick(InventoryClickEvent event) {
+        if (event.getRawSlot() < 0) return false;
+        return switch (event.getAction()) {
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME, PLACE_ALL, PLACE_ONE, PLACE_SOME,
+                 SWAP_WITH_CURSOR, HOTBAR_SWAP, NOTHING -> true;
+            default -> false;
+        };
     }
 
     private void handleBankerClick(Player player, InventoryClickEvent event) {
@@ -423,35 +439,36 @@ public class InventoryClickListener implements Listener {
         if (!targetsTop) return;
 
         var holder = top.getHolder();
+        // A drag over several slots is the usual way to drop a stack on a menu: the first menu slot it touched
+        // that can take the item decides. The event itself is cancelled; the real cursor (not the event's copy,
+        // whose amount a partial submit would leave untouched) is used on the next tick, after the client was
+        // resynced, so what is taken off it is really taken.
         if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui) {
             event.setCancelled(true);
-            if (event.getRawSlots().size() == 1) {
-                int slot = event.getRawSlots().iterator().next();
-                if (dev.lovelace.loveshops.gui.DailyCaravanGui.isCrateSlot(slot)) {
-                    ItemStack oldCursor = event.getOldCursor();
-                    if (oldCursor != null && !oldCursor.getType().isAir()) {
-                        dev.lovelace.loveshops.gui.DailyCaravanGui.handleCursorSubmit(plugin, (Player) event.getWhoClicked(), slot, oldCursor);
-                    }
-                }
-            }
+            Player p = (Player) event.getWhoClicked();
+            event.getRawSlots().stream().filter(sl -> sl < topSize)
+                    .filter(dev.lovelace.loveshops.gui.DailyCaravanGui::isCrateSlot).sorted().findFirst().ifPresent(slot ->
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                ItemStack real = p.getItemOnCursor();
+                                if (real != null && !real.getType().isAir()) {
+                                    dev.lovelace.loveshops.gui.DailyCaravanGui.handleCursorSubmit(plugin, p, slot, real);
+                                }
+                            }));
             return;
         }
         if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui) {
             event.setCancelled(true);
-            if (event.getRawSlots().size() == 1) {
-                int slot = event.getRawSlots().iterator().next();
-                if (slot == dev.lovelace.loveshops.gui.CommissionAgentGui.SLOT_CREATE_LOT) {
-                    ItemStack oldCursor = event.getOldCursor();
-                    if (oldCursor != null && !oldCursor.getType().isAir()) {
-                        Player p = (Player) event.getWhoClicked();
-                        ItemStack toList = oldCursor.clone();
+            Player p = (Player) event.getWhoClicked();
+            if (event.getRawSlots().contains(dev.lovelace.loveshops.gui.CommissionAgentGui.SLOT_CREATE_LOT)) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    ItemStack real = p.getItemOnCursor();
+                    var mgr = plugin.getCommissionManager();
+                    if (real != null && !real.getType().isAir() && mgr != null) {
+                        ItemStack toList = real.clone();
                         p.setItemOnCursor(null);
-                        var mgr = plugin.getCommissionManager();
-                        if (mgr != null) {
-                            dev.lovelace.loveshops.gui.CommissionAgentGui.startListing(plugin, p, mgr, toList, false);
-                        }
+                        dev.lovelace.loveshops.gui.CommissionAgentGui.startListing(plugin, p, mgr, toList, false);
                     }
-                }
+                });
             }
             return;
         }
