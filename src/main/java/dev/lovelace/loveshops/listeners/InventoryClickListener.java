@@ -224,6 +224,11 @@ public class InventoryClickListener implements Listener {
             if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui || titleText.contains(dev.lovelace.loveshops.gui.DailyCaravanGui.TITLE)) {
                 event.setCancelled(true);
                 if (raw >= 0 && raw < topSize) {
+                    ItemStack cursor = event.getCursor();
+                    if (cursor != null && !cursor.getType().isAir() && dev.lovelace.loveshops.gui.DailyCaravanGui.isCrateSlot(raw)) {
+                        dev.lovelace.loveshops.gui.DailyCaravanGui.handleCursorSubmit(plugin, player, raw, cursor);
+                        return;
+                    }
                     dev.lovelace.loveshops.gui.DailyCaravanGui.handleClick(plugin, player, raw, event.getClick(), topInv);
                 }
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionAgentGui.TITLE)) {
@@ -395,9 +400,39 @@ public class InventoryClickListener implements Listener {
         if (!targetsTop) return;
 
         var holder = top.getHolder();
-        if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui
-                || holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui
-                || holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui
+        if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui) {
+            event.setCancelled(true);
+            if (event.getRawSlots().size() == 1) {
+                int slot = event.getRawSlots().iterator().next();
+                if (dev.lovelace.loveshops.gui.DailyCaravanGui.isCrateSlot(slot)) {
+                    ItemStack oldCursor = event.getOldCursor();
+                    if (oldCursor != null && !oldCursor.getType().isAir()) {
+                        dev.lovelace.loveshops.gui.DailyCaravanGui.handleCursorSubmit(plugin, (Player) event.getWhoClicked(), slot, oldCursor);
+                    }
+                }
+            }
+            return;
+        }
+        if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui) {
+            event.setCancelled(true);
+            if (event.getRawSlots().size() == 1) {
+                int slot = event.getRawSlots().iterator().next();
+                if (slot == dev.lovelace.loveshops.gui.CommissionAgentGui.SLOT_CREATE_LOT) {
+                    ItemStack oldCursor = event.getOldCursor();
+                    if (oldCursor != null && !oldCursor.getType().isAir()) {
+                        Player p = (Player) event.getWhoClicked();
+                        ItemStack toList = oldCursor.clone();
+                        p.setItemOnCursor(null);
+                        var mgr = plugin.getCommissionManager();
+                        if (mgr != null) {
+                            dev.lovelace.loveshops.gui.CommissionAgentGui.startListing(plugin, p, mgr, toList, false);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if (holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanEntryGui
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanAuctionGui
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanInstantGui) {

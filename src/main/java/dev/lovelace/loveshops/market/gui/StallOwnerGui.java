@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.market.MarketRepository.RatingSummary;
 import dev.lovelace.loveshops.market.MarketStyle;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.TradePoint;
@@ -78,16 +77,9 @@ public final class StallOwnerGui extends MarketGui {
         meta.setOwningPlayer(viewer);
         meta.displayName(MessageUtils.parse(viewer, t("gui-main-head", "player", viewer.getName())));
         List<Component> lore = new ArrayList<>();
-        RatingSummary rating = plugin.getRatingService().summary(point);
-        String star = plugin.getMarketStyle().icon(MarketStyle.Icon.STAR);
-        String ratingLine = rating.count() > 0
-                ? t("gui-main-rating", "star", star, "avg", String.format(Locale.ROOT, "%.1f", rating.average()),
-                        "count", String.valueOf(rating.count()))
-                : t("gui-main-rating-none");
         for (String line : lines("gui-main-head-lore",
                 "level", String.valueOf(point.level()),
-                "status", t(point.open() ? "gui-status-open" : "gui-status-closed"),
-                "rating", ratingLine)) {
+                "status", t(point.open() ? "gui-status-open" : "gui-status-closed"))) {
             lore.add(MessageUtils.parse(viewer, line));
         }
         meta.lore(lore);

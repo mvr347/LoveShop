@@ -551,6 +551,100 @@ public class DailyCaravanManager {
         return SubmitResult.SUCCESS;
     }
 
+    public synchronized SubmitResult submitCursorItem(Player player, int crateId, ItemStack cursor) {
+        if (!active || cursor == null || cursor.getType().isAir()) return SubmitResult.NO_ITEMS;
+        DailyCrateState targetCrate = null;
+        for (DailyCrateState c : activeCrates) {
+            if (c.id() == crateId) {
+                targetCrate = c;
+                break;
+            }
+        }
+        if (targetCrate == null || targetCrate.isClosed()) return SubmitResult.CRATE_CLOSED;
+
+        DailyCrateConfig cfg = cratePool.get(targetCrate.crateKey());
+        if (cfg == null) return SubmitResult.ERROR;
+
+        if (!matchesAny(cursor, cfg.acceptedItems())) {
+            return SubmitResult.NO_ITEMS;
+        }
+
+        int remainingCap = targetCrate.remainingAmount();
+        if (remainingCap <= 0) {
+            targetCrate.setClosed(true);
+            updateCrateInDb(targetCrate);
+            return SubmitResult.CRATE_CLOSED;
+        }
+
+        int maxStacksPerVisit = Math.max(1, plugin.getConfig().getInt("caravan.daily.max-stacks-per-player-visit", 15));
+        int alreadySubmitted = getPlayerSubmittedUnits(player.getUniqueId(), currentVisitId);
+        int remainingPlayerAllowance = (maxStacksPerVisit * 64) - alreadySubmitted;
+        if (remainingPlayerAllowance <= 0) {
+            return SubmitResult.LIMIT_REACHED;
+        }
+
+        int maxToAccept = Math.min(remainingCap, remainingPlayerAllowance);
+        int take = Math.min(cursor.getAmount(), maxToAccept);
+        if (take <= 0) return SubmitResult.NO_ITEMS;
+
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        if (eco == null) return SubmitResult.ERROR;
+
+        int unitPrice = targetCrate.pricePerUnit();
+        long itemCoins;
+        if (take == cursor.getMaxStackSize() && cfg.stackBonusPercent() > 0) {
+            double bonus = 1.0 + (cfg.stackBonusPercent() / 100.0);
+            itemCoins = Math.round(take * unitPrice * bonus);
+        } else {
+            itemCoins = (long) take * unitPrice;
+        }
+
+        if (!eco.canFit(player, itemCoins)) {
+            return SubmitResult.NO_SPACE;
+        }
+
+        // Снимаем с курсора
+        int left = cursor.getAmount() - take;
+        if (left > 0) {
+            cursor.setAmount(left);
+        } else {
+            player.setItemOnCursor(null);
+        }
+
+        eco.give(player, itemCoins);
+
+        int newCurrentAmount = targetCrate.currentAmount() + take;
+        targetCrate.setCurrentAmount(newCurrentAmount);
+        if (newCurrentAmount >= targetCrate.maxAmount()) {
+            targetCrate.setClosed(true);
+        }
+        updateCrateInDb(targetCrate);
+        recordSubmission(targetCrate.id(), player.getUniqueId(), take, itemCoins);
+
+        DailyCaravanGui.refreshAll(plugin);
+        CaravanEffects.playSubmitEffects(player);
+
+        Component successMsg = plugin.getLangManager().getMessage("caravan.daily.submit-success",
+                "<green>Вы сдали <gold>{count} шт.</gold> в «{name}» и получили {money}!</green>",
+                Map.of("count", String.valueOf(take),
+                        "name", targetCrate.displayName(),
+                        "money", CoinFormat.formatGlyphs(eco, itemCoins)));
+        MessageUtils.sendMessage(player, successMsg);
+
+        boolean allClosed = true;
+        for (DailyCrateState c : activeCrates) {
+            if (!c.isClosed()) {
+                allClosed = false;
+                break;
+            }
+        }
+        if (allClosed) {
+            endVisit("FULL");
+        }
+
+        return SubmitResult.SUCCESS;
+    }
+
     private boolean matchesAny(ItemStack is, List<DailyCrateAcceptedItem> accepted) {
         if (is == null || is.getType().isAir()) return false;
         for (DailyCrateAcceptedItem acc : accepted) {

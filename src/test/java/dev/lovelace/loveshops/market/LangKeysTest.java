@@ -28,8 +28,7 @@ class LangKeysTest {
     private static final List<String> DYNAMIC = List.of(
             "gui-mode-sell_only", "gui-mode-buy_only", "gui-mode-both",
             "gui-customer-tab-goods", "gui-customer-tab-goods-on", "gui-customer-tab-goods-lore",
-            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore",
-            "gui-customer-tab-rating", "gui-customer-tab-rating-on", "gui-customer-tab-rating-lore");
+            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore");
 
     @Test
     void everyGuiKeyIsInLangYml() throws IOException {

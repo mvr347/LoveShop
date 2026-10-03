@@ -58,6 +58,28 @@ public final class MarketLayout {
         return slots.stream().mapToInt(Integer::intValue).toArray();
     }
 
+    /**
+     * Centered content slots for {@code count} items across the work area rows.
+     * When count <= 7 (e.g. 5 slots), centers them horizontally within columns 1..7.
+     */
+    public static int[] centeredSlots(int size, int count) {
+        int start = workStart(size);
+        int footerStart = size - 9;
+        int rows = Math.max(1, (footerStart - start) / 9);
+        List<Integer> slots = new ArrayList<>();
+        int remaining = count;
+        for (int r = 0; r < rows && remaining > 0; r++) {
+            int rowStart = start + r * 9;
+            int inThisRow = Math.min(remaining, 7);
+            int startCol = 1 + (7 - inThisRow) / 2;
+            for (int c = 0; c < inThisRow; c++) {
+                slots.add(rowStart + startCol + c);
+            }
+            remaining -= inThisRow;
+        }
+        return slots.stream().mapToInt(Integer::intValue).toArray();
+    }
+
     public static int extraSlot(int size) { return size - 3; }
     public static int backSlot(int size) { return size - 2; }
     public static int closeSlot(int size) { return size - 1; }

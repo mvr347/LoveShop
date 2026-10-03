@@ -29,6 +29,7 @@ public class DatabaseManager {
                 stmt.execute("PRAGMA foreign_keys=ON;");
                 stmt.execute("PRAGMA busy_timeout=5000;");
                 createTables(conn);
+                purgeLegacyAuctionAndFlea(conn);
             }
 
             plugin.getLogger().info("✓ База данных SQLite успешно подключена.");
@@ -504,6 +505,17 @@ public class DatabaseManager {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_active ON commission_lots(status, is_hot);");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_seller ON commission_lots(seller_uuid, status);");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_lost_lots_session ON lost_caravan_lots(session_id, status);");
+    }
+
+    private void purgeLegacyAuctionAndFlea(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS auction_bids;");
+            stmt.execute("DROP TABLE IF EXISTS auctions;");
+            stmt.execute("DROP TABLE IF EXISTS flea_market;");
+            stmt.execute("DELETE FROM shops_npcs WHERE LOWER(type) IN ('seller', 'flea', 'auctioneer');");
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Предупреждение при очистке устаревших таблиц аукциона/барахольщика: " + e.getMessage());
+        }
     }
 
     private void addColumnIfMissing(Statement stmt, String table, String column, String definition) {

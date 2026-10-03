@@ -61,10 +61,11 @@ public final class StallOwnerSellGui extends MarketGui {
         Map<Integer, StallListing> byShelf = new HashMap<>();
         for (StallListing l : sells) byShelf.put(l.slot(), l);
 
-        int[] content = MarketLayout.contentSlots(size);
-        int shelves = Math.min(point.sellSlots(), content.length);
+        int shelves = point.sellSlots();
+        int[] content = MarketLayout.centeredSlots(size, shelves);
+        int totalSlots = Math.min(shelves, content.length);
         int used = 0;
-        for (int shelf = 0; shelf < shelves; shelf++) {
+        for (int shelf = 0; shelf < totalSlots; shelf++) {
             int slot = content[shelf];
             StallListing listing = byShelf.get(shelf);
             if (listing != null && listing.stock() > 0) {
@@ -72,14 +73,20 @@ public final class StallOwnerSellGui extends MarketGui {
                 listingAt.put(slot, listing);
                 used++;
             } else {
-                freeShelfAt.put(slot, shelf);
+                boolean prevFilled = (shelf == 0) || (byShelf.containsKey(shelf - 1) && byShelf.get(shelf - 1).stock() > 0);
+                if (prevFilled) {
+                    freeShelfAt.put(slot, shelf);
+                } else {
+                    int prevShelfNum = shelf;
+                    ItemStack locked = head(HeadTextures.HEAD_DELETE_NO, "<red>Слот №" + (shelf + 1) + " заблокирован</red>",
+                            List.of("", "<gray>Сначала заполните предыдущий слот (Слот №" + prevShelfNum + ")</gray>"));
+                    button(slot, locked, e -> MessageUtils.sendMessage(viewer, "<red>Сначала заполните предыдущий слот (Слот №" + prevShelfNum + ")</red>"));
+                }
             }
         }
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-sell-head", "gui-sell-head-lore",
                 "used", String.valueOf(used), "total", String.valueOf(point.sellSlots()), "level", String.valueOf(point.level())));
-        button(MarketLayout.extraSlot(size), tile(HeadTextures.BANKER_DEPOSIT, "gui-sell-storage", "gui-sell-storage-lore"),
-                e -> new StallStorageGui(plugin, viewer, point).open());
         footer(() -> new StallTradeMenuGui(plugin, viewer, point).open());
         refreshClient();
     }
@@ -181,7 +188,11 @@ public final class StallOwnerSellGui extends MarketGui {
 
     private void takeDown(StallListing listing) {
         TradePointManager.CollectResult res = plugin.getTradePointManager().collectListing(viewer, point, listing.id(), true);
-        plugin.getMarketMessages().send(viewer, res.ok() ? "listing-removed" : "listing-error");
+        if (res.ok()) {
+            plugin.getMarketMessages().send(viewer, "listing-removed", "count", String.valueOf(res.items()));
+        } else {
+            plugin.getMarketMessages().send(viewer, "listing-error");
+        }
         render();
     }
 

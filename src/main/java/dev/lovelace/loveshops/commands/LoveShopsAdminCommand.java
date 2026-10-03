@@ -32,15 +32,15 @@ import java.util.UUID;
  */
 public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "item", "price", "event", "banker", "point", "caravan", "help");
+    private static final List<String> SUBCOMMANDS = List.of("reload", "npc", "item", "price", "event", "banker", "point", "caravan", "open", "help");
     private static final List<String> PRICE_TARGETS = List.of("buyer", "war_merchant", "wanderer", "all");
     // Extra spellings PricesManager#setNpcPrice already understands.
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
-    private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "list");
+    private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "tp", "list");
     private static final List<String> NPC_TYPES = List.of("warmerchant", "wanderer", "banker", "caravaner", "commissioner", "lostcaravan");
     private static final List<String> ITEM_ACTIONS = List.of("allow", "deny", "price");
-    private static final List<String> EVENT_TYPES = List.of("wanderer");
+    private static final List<String> EVENT_TYPES = List.of("daily", "lost", "wanderer");
     private static final List<String> WANDERER_ACTIONS = List.of("start", "stop", "reset", "status");
 
     private final LoveShops plugin;
@@ -78,6 +78,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             case "banker" -> handleBanker(sender, args);
             case "point" -> market.handlePoint(sender, args);
             case "caravan" -> handleCaravan(sender, args);
+            case "open", "gui" -> handleOpen(sender, args);
             default -> sendHelp(sender);
         }
         return true;
@@ -91,7 +92,8 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                 || sender.hasPermission("loveshops.admin.wanderer")
                 || sender.hasPermission("loveshops.admin.price")
                 || sender.hasPermission("loveshops.admin.forbidden")
-                || sender.hasPermission("loveshops.admin.market");
+                || sender.hasPermission("loveshops.admin.market")
+                || sender.hasPermission("loveshops.admin.open");
     }
 
     private void handleReload(CommandSender sender) {
@@ -109,15 +111,16 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpc(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|list> ...</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|tp|list> ...</yellow>"));
             return;
         }
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "create" -> handleNpcCreate(sender, args);
             case "bind" -> handleNpcBind(sender, args);
             case "delete" -> handleNpcDelete(sender, args);
+            case "tp" -> handleNpcTp(sender, args);
             case "list" -> handleNpcList(sender);
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|list> ...</yellow>"));
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|tp|list> ...</yellow>"));
         }
     }
 
@@ -135,6 +138,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         String type = args[2].toLowerCase(Locale.ROOT);
+        if (type.equals("seller") || type.equals("flea") || type.equals("auctioneer")) {
+            player.sendMessage(MessageUtils.parse("<red>Этот тип NPC (" + type + ") упразднён и больше не поддерживается!</red>"));
+            return;
+        }
         if (!NPC_TYPES.contains(type)) {
             player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: " + String.join(", ", NPC_TYPES) + "</red>"));
             return;
@@ -176,6 +183,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         String type = args[2].toLowerCase(Locale.ROOT);
+        if (type.equals("seller") || type.equals("flea") || type.equals("auctioneer")) {
+            player.sendMessage(MessageUtils.parse("<red>Этот тип NPC (" + type + ") упразднён и больше не поддерживается!</red>"));
+            return;
+        }
         if (!NPC_TYPES.contains(type)) {
             player.sendMessage(MessageUtils.parse("<red>Неверный тип NPC! Выберите: " + String.join(", ", NPC_TYPES) + "</red>"));
             return;
@@ -283,6 +294,35 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             }
         }
         return plugin.getNpcManager().getNpcNear(player.getLocation(), 4.0);
+    }
+
+    private void handleNpcTp(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            return;
+        }
+        if (args.length < 3) {
+            player.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc tp <id></yellow>"));
+            return;
+        }
+        try {
+            int id = Integer.parseInt(args[2]);
+            NpcData data = plugin.getNpcManager().getNpcById(id);
+            if (data == null) {
+                player.sendMessage(MessageUtils.parse("<red>NPC с ID #" + id + " не найден!</red>"));
+                return;
+            }
+            org.bukkit.World world = Bukkit.getWorld(data.world());
+            if (world == null) {
+                player.sendMessage(MessageUtils.parse("<red>Мир " + data.world() + " не загружен!</red>"));
+                return;
+            }
+            org.bukkit.Location loc = new org.bukkit.Location(world, data.x(), data.y(), data.z(), data.yaw(), data.pitch());
+            player.teleport(loc);
+            player.sendMessage(MessageUtils.parse("<green>Вы телепортированы к NPC <gold>" + data.name() + "</gold> (#" + data.id() + ").</green>"));
+        } catch (NumberFormatException e) {
+            player.sendMessage(MessageUtils.parse("<red>ID должен быть числом: /loveshopsadmin npc tp <id></red>"));
+        }
     }
 
     private void handleNpcList(CommandSender sender) {
@@ -531,12 +571,15 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleEvent(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event wanderer ...</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <daily|lost|wanderer> <start|stop|status> ...</yellow>"));
             return;
         }
-        switch (args[1].toLowerCase(Locale.ROOT)) {
+        String type = args[1].toLowerCase(Locale.ROOT);
+        switch (type) {
             case "wanderer" -> handleEventWanderer(sender, args);
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event wanderer ...</yellow>"));
+            case "daily" -> handleCaravanDaily(sender, args);
+            case "lost" -> handleCaravanLost(sender, args);
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <daily|lost|wanderer> <start|stop|status> ...</yellow>"));
         }
     }
 
@@ -573,107 +616,193 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void sendHelp(CommandSender sender) {
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-header", "<dark_gray>========== <gold>LoveShops Admin</gold> ==========</dark_gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-reload", "<gold>/loveshopsadmin reload</gold> <gray>- Перезагрузить конфигурацию</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-npc", "<gold>/loveshopsadmin npc <create|bind|delete|list></gold> <gray>- Управление NPC (create создаёт на вашей позиции, bind привязывает)</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-item", "<gold>/loveshopsadmin item <allow|deny|price></gold> <gray>- Правила по предмету в руке</gray>"));
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <торговец|all> <цена> [материал/id]</gold> <gray>- Настройка цены конкретному торговцу или всем</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-event-wanderer", "<gold>/loveshopsadmin event wanderer <start|stop|reset|status></gold> <gray>- Управление Странником</gray>"));
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin banker fee <игрок> [0-100|reset]</gold> <gray>- Комиссия банкира игроку</gray>"));
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin price <get|list|reset|mult|bounds|history> ...</gold> <gray>- Просмотр, сброс, множитель, границы и журнал цен</gray>"));
-        if (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin point <list|close|open|seize|restore|robberies> ...</gold> <gray>- Торговые точки и ограбления</gray>"));
-        }
-        sender.sendMessage(MessageUtils.parse("<gold>/loveshopsadmin caravan <daily|lost> <start|stop|status></gold> <gray>- Управление караванами</gray>"));
-        sender.sendMessage(plugin.getLangManager().getMessage("admin.help-footer", "<dark_gray>=========================================</dark_gray>"));
-    }
-
     private void handleCaravan(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
-        if (args.length < 3) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan <daily|lost> <start|stop|status></yellow>"));
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <daily|lost> <start|stop|status></yellow>"));
             return;
         }
         String sub = args[1].toLowerCase(Locale.ROOT);
-        String action = args[2].toLowerCase(Locale.ROOT);
-
         if (sub.equals("daily")) {
-            dev.lovelace.loveshops.managers.DailyCaravanManager manager = plugin.getDailyCaravanManager();
-            if (manager == null) {
-                sender.sendMessage(MessageUtils.parse("<red>DailyCaravanManager недоступен.</red>"));
-                return;
-            }
-            switch (action) {
-                case "start" -> {
-                    boolean ok = manager.startVisit(true);
-                    sender.sendMessage(MessageUtils.parse(ok ? "<green>Визит Караванщика успешно начат!</green>"
-                            : "<yellow>Караванщик уже активен в городе.</yellow>"));
-                }
-                case "stop" -> {
-                    if (manager.isCaravanerActive()) {
-                        manager.endVisit("STOPPED");
-                        sender.sendMessage(MessageUtils.parse("<green>Визит Караванщика принудительно завершён.</green>"));
-                    } else {
-                        sender.sendMessage(MessageUtils.parse("<yellow>Караванщик сейчас не активен.</yellow>"));
-                    }
-                }
-                case "status" -> {
-                    boolean act = manager.isCaravanerActive();
-                    long remaining = Math.max(0, manager.getVisitDespawnAt() - (System.currentTimeMillis() / 1000));
-                    sender.sendMessage(MessageUtils.parse("<gold>Караванщик: " + (act ? "<green>АКТИВЕН</green>" : "<red>НЕ АКТИВЕН</red>")
-                            + (act ? " <gray>(осталось: " + (remaining / 60) + " мин, открытых ящиков: " + manager.getActiveCrates().size() + ")</gray>" : "") + "</gold>"));
-                }
-                default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan daily <start|stop|status></yellow>"));
-            }
+            handleCaravanDaily(sender, args);
         } else if (sub.equals("lost")) {
-            dev.lovelace.loveshops.managers.LostCaravanManager manager = plugin.getLostCaravanManager();
-            if (manager == null) {
-                sender.sendMessage(MessageUtils.parse("<red>LostCaravanManager недоступен.</red>"));
+            handleCaravanLost(sender, args);
+        } else {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event <daily|lost> <start|stop|status></yellow>"));
+        }
+    }
+
+    private void handleCaravanDaily(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event daily <start|stop|status></yellow>"));
+            return;
+        }
+        String action = args[2].toLowerCase(Locale.ROOT);
+        dev.lovelace.loveshops.managers.DailyCaravanManager manager = plugin.getDailyCaravanManager();
+        if (manager == null) {
+            sender.sendMessage(MessageUtils.parse("<red>DailyCaravanManager недоступен.</red>"));
+            return;
+        }
+        switch (action) {
+            case "start" -> {
+                boolean ok = manager.startVisit(true);
+                sender.sendMessage(MessageUtils.parse(ok ? "<green>Визит Караванщика успешно начат!</green>"
+                        : "<yellow>Караванщик уже активен в городе.</yellow>"));
+            }
+            case "stop" -> {
+                if (manager.isCaravanerActive()) {
+                    manager.endVisit("STOPPED");
+                    sender.sendMessage(MessageUtils.parse("<green>Визит Караванщика принудительно завершён.</green>"));
+                } else {
+                    sender.sendMessage(MessageUtils.parse("<yellow>Караванщик сейчас не активен.</yellow>"));
+                }
+            }
+            case "status" -> {
+                boolean act = manager.isCaravanerActive();
+                long remaining = Math.max(0, manager.getVisitDespawnAt() - (System.currentTimeMillis() / 1000));
+                sender.sendMessage(MessageUtils.parse("<gold>Караванщик: " + (act ? "<green>АКТИВЕН</green>" : "<red>НЕ АКТИВЕН</red>")
+                        + (act ? " <gray>(осталось: " + (remaining / 60) + " мин, открытых ящиков: " + manager.getActiveCrates().size() + ")</gray>" : "") + "</gold>"));
+            }
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event daily <start|stop|status></yellow>"));
+        }
+    }
+
+    private void handleCaravanLost(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
+            return;
+        }
+        String action = args[2].toLowerCase(Locale.ROOT);
+        dev.lovelace.loveshops.managers.LostCaravanManager manager = plugin.getLostCaravanManager();
+        if (manager == null) {
+            sender.sendMessage(MessageUtils.parse("<red>LostCaravanManager недоступен.</red>"));
+            return;
+        }
+        switch (action) {
+            case "start" -> {
+                boolean force = false;
+                String mode = "AUTO";
+                for (int i = 3; i < args.length; i++) {
+                    String a = args[i];
+                    if (a.equalsIgnoreCase("--force") || a.equalsIgnoreCase("-f")) force = true;
+                    else if (a.equalsIgnoreCase("base") || a.equalsIgnoreCase("instant")) mode = "BASE";
+                    else if (a.equalsIgnoreCase("auction")) mode = "AUCTION";
+                    else if (a.equalsIgnoreCase("secret")) mode = "SECRET";
+                }
+                if (manager.isEventActive() && !force) {
+                    sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван уже активен. Используйте --force для перезапуска.</yellow>"));
+                } else {
+                    boolean ok = manager.forceStart(mode, force || !manager.isEventActive());
+                    sender.sendMessage(MessageUtils.parse(ok
+                            ? "<green>Потерянный караван: регистрация запущена (режим " + mode + (force ? ", force" : "") + ").</green>"
+                            : "<red>Не удалось запустить потерянный караван.</red>"));
+                }
+            }
+            case "stop" -> {
+                if (manager.isEventActive()) {
+                    manager.closeSession();
+                    sender.sendMessage(MessageUtils.parse("<green>Потерянный караван остановлен.</green>"));
+                } else {
+                    sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван сейчас не активен.</yellow>"));
+                }
+            }
+            case "status" -> {
+                boolean act = manager.isEventActive();
+                var session = manager.getCurrentSession();
+                sender.sendMessage(MessageUtils.parse("<gold>Потерянный караван: " + (act ? "<green>активен</green>" : "<red>не активен</red>")
+                        + (session != null ? " <gray>(статус: " + session.status() + ", режим: " + session.mode() + ", участников: " + session.participantCount() + ")</gray>" : "") + "</gold>"));
+            }
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
+        }
+    }
+
+    private void handleOpen(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            return;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin open <" + String.join("|", NPC_TYPES) + "> [игрок]</yellow>"));
+            return;
+        }
+        String type = args[1].toLowerCase(Locale.ROOT);
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayer(args[2]);
+            if (target == null || !target.isOnline()) {
+                sender.sendMessage(MessageUtils.parse("<red>Игрок " + MessageUtils.escapeTags(args[2]) + " не найден!</red>"));
                 return;
             }
-            switch (action) {
-                case "start" -> {
-                    boolean force = false;
-                    String mode = "AUTO";
-                    for (int i = 3; i < args.length; i++) {
-                        String a = args[i];
-                        if (a.equalsIgnoreCase("--force") || a.equalsIgnoreCase("-f")) force = true;
-                        else if (a.equalsIgnoreCase("base") || a.equalsIgnoreCase("instant")) mode = "BASE";
-                        else if (a.equalsIgnoreCase("auction")) mode = "AUCTION";
-                        else if (a.equalsIgnoreCase("secret")) mode = "SECRET";
-                    }
-                    if (manager.isEventActive() && !force) {
-                        sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван уже активен. Используйте --force для перезапуска.</yellow>"));
-                    } else {
-                        boolean ok = manager.forceStart(mode, force || !manager.isEventActive());
-                        sender.sendMessage(MessageUtils.parse(ok
-                                ? "<green>Потерянный караван: регистрация запущена (модед " + mode + (force ? ", force" : "") + ").</green>"
-                                : "<red>Не удалось запустить потерянный караван.</red>"));
-                    }
-                }
-                case "stop" -> {
-                    if (manager.isEventActive()) {
-                        manager.closeSession();
-                        sender.sendMessage(MessageUtils.parse("<green>Потерянный караван остановлен.</green>"));
-                    } else {
-                        sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван сейчас не активен.</yellow>"));
-                    }
-                }
-                case "status" -> {
-                    boolean act = manager.isEventActive();
-                    var session = manager.getCurrentSession();
-                    sender.sendMessage(MessageUtils.parse("<gold>Потерянный караван: " + (act ? "<green>активен</green>" : "<red>не активен</red>")
-                            + (session != null ? " <gray>(статус: " + session.status() + ", режим: " + session.mode() + ", участников: " + session.participantCount() + ")</gray>" : "") + "</gold>"));
-                }
-                default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
-            }
+        } else if (sender instanceof Player p) {
+            target = p;
         } else {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan <daily|lost> <start|stop|status></yellow>"));
+            sender.sendMessage(MessageUtils.parse("<red>Укажите игрока: /loveshopsadmin open <тип> <игрок></red>"));
+            return;
         }
+
+        switch (type) {
+            case "banker" -> new dev.lovelace.loveshops.gui.BankerGui(plugin, target).open();
+            case "caravaner" -> {
+                if (plugin.getDailyCaravanManager() != null) {
+                    plugin.getDailyCaravanManager().openGui(target);
+                } else {
+                    sender.sendMessage(MessageUtils.parse("<red>DailyCaravanManager недоступен.</red>"));
+                }
+            }
+            case "commissioner" -> {
+                if (plugin.getCommissionManager() != null) {
+                    plugin.getCommissionManager().openGui(target);
+                } else {
+                    sender.sendMessage(MessageUtils.parse("<red>CommissionManager недоступен.</red>"));
+                }
+            }
+            case "lostcaravan" -> {
+                if (plugin.getLostCaravanManager() != null) {
+                    plugin.getLostCaravanManager().handleNpcClick(target);
+                } else {
+                    sender.sendMessage(MessageUtils.parse("<red>LostCaravanManager недоступен.</red>"));
+                }
+            }
+            case "wanderer" -> plugin.getWandererManager().handleWandererInteraction(target);
+            case "warmerchant" -> new dev.lovelace.loveshops.gui.WarMerchantGui(plugin, target).open();
+            default -> sender.sendMessage(MessageUtils.parse("<red>Неизвестный тип магазина! Доступно: " + String.join(", ", NPC_TYPES) + "</red>"));
+        }
+        if (sender != target) {
+            sender.sendMessage(MessageUtils.parse("<green>Меню <gold>" + type + "</gold> успешно открыто для <yellow>" + target.getName() + "</yellow>!</green>"));
+        }
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(MessageUtils.parse("<dark_gray>▬▬▬▬▬▬▬▬▬▬▬▬ </dark_gray><gold><bold>LoveShops Admin</bold></gold><dark_gray> ▬▬▬▬▬▬▬▬▬▬▬▬</dark_gray>"));
+        sender.sendMessage(MessageUtils.parse("<yellow>• События и караваны:</yellow>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin event <daily|lost|wanderer> <start|stop|status></gold>"));
+        sender.sendMessage(MessageUtils.parse("<yellow>• Управление NPC:</yellow>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <create|bind> <тип> [имя]</gold> <gray>— создать или привязать NPC</gray>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <delete|tp|list> [id]</gold> <gray>— удалить, тп к NPC или список</gray>"));
+        sender.sendMessage(MessageUtils.parse("  <gray>Доступные типы: <aqua>" + String.join(", ", NPC_TYPES) + "</aqua></gray>"));
+        sender.sendMessage(MessageUtils.parse("<yellow>• Меню и банкир:</yellow>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin open <тип> [игрок]</gold> <gray>— открыть меню магазина</gray>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin banker fee <игрок> [0-100|reset]</gold> <gray>— комиссия банкира</gray>"));
+        sender.sendMessage(MessageUtils.parse("<yellow>• Торговые точки и цены:</yellow>"));
+        if (sender.hasPermission("loveshops.admin.market") || sender.hasPermission("loveshops.admin")) {
+            sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin point <list|close|open|seize|restore|robberies> ...</gold>"));
+        }
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin price <get|list|reset|mult|bounds|history> ...</gold>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin item <allow|deny|price></gold>"));
+        sender.sendMessage(MessageUtils.parse("<yellow>• Система:</yellow>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin reload</gold> <gray>— перезагрузка конфигураций</gray>"));
+        sender.sendMessage(MessageUtils.parse("<dark_gray>▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</dark_gray>"));
     }
 
     @Nullable
@@ -699,6 +828,12 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && args[0].equalsIgnoreCase("npc") && (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("bind"))) {
             return StringUtil.copyPartialMatches(args[2], NPC_TYPES, new ArrayList<>());
         }
+        if (args.length == 2 && (args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("gui"))) {
+            return StringUtil.copyPartialMatches(args[1], NPC_TYPES, new ArrayList<>());
+        }
+        if (args.length == 3 && (args[0].equalsIgnoreCase("open") || args[0].equalsIgnoreCase("gui"))) {
+            return StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), new ArrayList<>());
+        }
         if (args.length == 2 && args[0].equalsIgnoreCase("item")) {
             return StringUtil.copyPartialMatches(args[1], ITEM_ACTIONS, new ArrayList<>());
         }
@@ -720,8 +855,16 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && args[0].equalsIgnoreCase("event")) {
             return StringUtil.copyPartialMatches(args[1], EVENT_TYPES, new ArrayList<>());
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("event") && args[1].equalsIgnoreCase("wanderer")) {
-            return StringUtil.copyPartialMatches(args[2], WANDERER_ACTIONS, new ArrayList<>());
+        if (args.length == 3 && args[0].equalsIgnoreCase("event")) {
+            if (args[1].equalsIgnoreCase("wanderer")) {
+                return StringUtil.copyPartialMatches(args[2], WANDERER_ACTIONS, new ArrayList<>());
+            }
+            if (args[1].equalsIgnoreCase("daily") || args[1].equalsIgnoreCase("lost")) {
+                return StringUtil.copyPartialMatches(args[2], List.of("start", "stop", "status"), new ArrayList<>());
+            }
+        }
+        if (args.length == 4 && args[0].equalsIgnoreCase("event") && args[1].equalsIgnoreCase("lost") && args[2].equalsIgnoreCase("start")) {
+            return StringUtil.copyPartialMatches(args[3], List.of("--force", "base", "auction", "secret"), new ArrayList<>());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("banker")) {
             return StringUtil.copyPartialMatches(args[1], BANKER_ACTIONS, new ArrayList<>());

@@ -72,7 +72,6 @@ public class LostCaravanEntryGui implements InventoryHolder {
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
-        inventory.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         int fee = plugin.getConfig().getInt("caravan.lost.entry-fee.amount", 1);
         LoveEconomy eco = plugin.getEconomy().orElse(null);
@@ -92,7 +91,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
                         "<gray>До торгов: </gray>" + remainingLabel()
                 )
         );
-        inventory.setItem(4, infoItem);
+        inventory.setItem(1, infoItem);
 
         for (int i = 9; i <= 17; i++) {
             inventory.setItem(i, null);

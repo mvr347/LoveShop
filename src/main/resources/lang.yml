@@ -236,7 +236,6 @@ market:
     - ""
     - "<gray>Уровень: <white>{level}</white></gray>"
     - "<gray>Статус: {status}</gray>"
-    - "{rating}"
   gui-main-rating: "<gold>{star} {avg}</gold> <gray>({count})</gray>"
   gui-main-rating-none: "<gray>Оценок пока нет</gray>"
   gui-main-trade: "<gold>Торговля</gold>"
@@ -409,7 +408,7 @@ market:
     - "<green>ЛКМ </green><gray>— открыть склад</gray>"
   gui-sell-shelf-lore:
     - ""
-    - "<gray>Полка: <white>#{shelf}</white></gray>"
+    - "<gray>Слот: <white>№{shelf}</white></gray>"
     - "<gray>В наличии: <white>{stock}</white> шт.</gray>"
     - "<gray>Цена за шт.:</gray> {price}"
     - ""
@@ -444,7 +443,7 @@ market:
     - "<green>ЛКМ </green><gray>— забрать монеты</gray>"
   gui-buy-order-lore:
     - ""
-    - "<gray>Заказ: <white>#{order}</white></gray>"
+    - "<gray>Слот: <white>№{order}</white></gray>"
     - "<gray>Скуплено: <green>{stock}</green> / <white>{max}</white> шт.</gray>"
     - "<gray>Цена за шт.:</gray> {price}"
     - ""
@@ -635,7 +634,6 @@ market:
   # --- Покупатель ---
   gui-customer-head-lore:
     - ""
-    - "{rating}"
     - "<gray>Уровень торговца: <white>{level}</white></gray>"
   gui-customer-tab-goods: "<white>Товары</white>"
   gui-customer-tab-goods-on: "<gold>Товары</gold>"

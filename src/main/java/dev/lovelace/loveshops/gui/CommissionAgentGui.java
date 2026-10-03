@@ -42,11 +42,11 @@ public class CommissionAgentGui implements InventoryHolder {
     public static final String TITLE = "Комиссионер";
     public static final String LOT_ID_KEY = "commission_lot_id";
 
-    public static final int SLOT_INFO = 4;
+    public static final int SLOT_INFO = 1;
     public static final int SLOT_MY_LOT = 6;
     public static final int SLOT_PREV_PAGE = 36;
     public static final int SLOT_NEXT_PAGE = 44;
-    public static final int SLOT_CREATE_LOT = 49;
+    public static final int SLOT_CREATE_LOT = 52;
     public static final int SLOT_CLOSE = 53;
 
     public static final int[] CONTENT_SLOTS = new int[]{
@@ -87,7 +87,6 @@ public class CommissionAgentGui implements InventoryHolder {
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
-        inventory.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         LoveEconomy eco = plugin.getEconomy().orElse(null);
         int feePercent = manager.getFeePercent();

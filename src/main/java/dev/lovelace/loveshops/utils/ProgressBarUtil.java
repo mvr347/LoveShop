@@ -9,24 +9,26 @@ public final class ProgressBarUtil {
 
     /**
      * Стандартный прогресс-бар:
-     * {@code §8▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ §7(12/30 стаков)}
+     * {@code &f■■■■■■■■■■&8■■■■■■■■■■ &fЗаполненность &e15 &f/ 30 стаков &7(50%)}
      */
     public static String formatProgressBar(long current, long max, int bars, String unitLabel) {
         if (max <= 0) max = 1;
         double ratio = Math.max(0.0, Math.min(1.0, (double) current / max));
-        int filled = (int) Math.round(ratio * bars);
+        int b = bars > 0 ? bars : 20;
+        int filled = (int) Math.round(ratio * b);
+        int percent = (int) Math.round(ratio * 100);
 
-        StringBuilder sb = new StringBuilder("<dark_gray>");
-        for (int i = 0; i < bars; i++) {
-            if (i < filled) {
-                sb.append("<green>▰</green>");
-            } else {
-                sb.append("<gray>▱</gray>");
-            }
+        StringBuilder sb = new StringBuilder("&f");
+        for (int i = 0; i < filled; i++) {
+            sb.append("■");
         }
-        sb.append("</dark_gray> <gray>(").append(current).append("/").append(max)
+        sb.append("&8");
+        for (int i = filled; i < b; i++) {
+            sb.append("■");
+        }
+        sb.append(" &f Заполненность &e").append(current).append(" &f / ").append(max)
                 .append(unitLabel != null && !unitLabel.isBlank() ? " " + unitLabel : "")
-                .append(")</gray>");
+                .append(" &7(").append(percent).append("%)");
         return sb.toString();
     }
 

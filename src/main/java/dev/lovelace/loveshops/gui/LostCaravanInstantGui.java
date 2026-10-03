@@ -69,7 +69,6 @@ public class LostCaravanInstantGui implements InventoryHolder {
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
-        inventory.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
@@ -81,7 +80,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
                         "<gray>Первый купивший забирает ящик!</gray>"
                 )
         );
-        inventory.setItem(4, infoItem);
+        inventory.setItem(1, infoItem);
 
         // 2. Рабочая зона (слоты 9-26) - без стекла
         List<LostCaravanLot> lots = manager.getActiveLots();

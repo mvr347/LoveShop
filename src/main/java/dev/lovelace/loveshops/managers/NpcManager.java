@@ -200,7 +200,7 @@ public class NpcManager {
     public boolean isTypeAllowedToSpawn(String type) {
         if (type == null) return false;
         String t = type.toLowerCase(Locale.ROOT);
-        if (t.equals("seller") || t.equals("buyer") || t.equals("auctioneer")) {
+        if (t.equals("seller") || t.equals("buyer") || t.equals("auctioneer") || t.equals("flea")) {
             return false;
         }
         if (t.equals("wanderer")) {
