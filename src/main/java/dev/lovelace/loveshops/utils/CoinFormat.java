@@ -10,9 +10,8 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Единый стандарт форматирования денег в виде глифов монет ItemsAdder.
- * Соответствует эталону BankerGui: разбиение суммы long по LoveEconomy.denominations()
- * от старшего к младшему с отображением %img_<tag>% и белым счётчиком (эквивалент &f xN).
+ * Единый стиль отображения монет LoveEconomy в GUI/сообщениях:
+ * глиф %img_&lt;tag&gt;% и белый счётчик &lt;white&gt;xN&lt;/white&gt;.
  */
 public final class CoinFormat {
 
@@ -38,13 +37,13 @@ public final class CoinFormat {
     }
 
     public static String formatGlyphs(LoveEconomy eco, long amount) {
-        if (eco == null) return "%img_copper_coin% x0";
+        if (eco == null) return "%img_copper_coin% <white>x0</white>";
         List<Denomination> dens = new ArrayList<>(eco.denominations());
         dens.sort(Comparator.comparingLong(Denomination::value).reversed());
 
         if (amount <= 0) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " x0";
+            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <white>x0</white>";
         }
 
         StringBuilder sb = new StringBuilder();
@@ -54,27 +53,20 @@ public final class CoinFormat {
             long count = remaining / den.value();
             if (count > 0) {
                 if (sb.length() > 0) sb.append("  ");
-                sb.append(getCoinGlyph(den)).append(" x").append(count);
+                sb.append(getCoinGlyph(den)).append(" <white>x").append(count).append("</white>");
                 remaining %= den.value();
             }
         }
 
         if (sb.length() == 0) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " x0";
+            return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <white>x0</white>";
         }
-
         return sb.toString();
     }
 
-    public static String formatGlyphs(long amount) {
-        LoveShops plugin = LoveShops.getInstance();
+    public static String formatGlyphs(LoveShops plugin, long amount) {
         return formatGlyphs(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
-    }
-
-    public static List<Component> formatGlyphLines(long amount) {
-        LoveShops plugin = LoveShops.getInstance();
-        return formatGlyphLines(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
     }
 
     public static List<String> glyphLineStrings(LoveEconomy eco, long amount) {
