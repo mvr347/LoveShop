@@ -10,36 +10,7 @@ public final class TimeUtils {
 
     private TimeUtils() {}
 
-    public static boolean isSellerTimeWindow(String arrivalDay, String arrivalTime, String departureTime) {
-        LocalDateTime now = LocalDateTime.now();
-        DayOfWeek targetDay = DayOfWeek.valueOf(arrivalDay.toUpperCase());
-        
-        if (now.getDayOfWeek() != targetDay) {
-            return false;
-        }
 
-        LocalTime start = LocalTime.parse(arrivalTime, DateTimeFormatter.ofPattern("HH:mm"));
-        LocalTime end = LocalTime.parse(departureTime, DateTimeFormatter.ofPattern("HH:mm"));
-
-        LocalTime currentTime = now.toLocalTime();
-        return !currentTime.isBefore(start) && !currentTime.isAfter(end);
-    }
-
-    public static String getNextArrivalText(String arrivalDay, String arrivalTime) {
-        LocalDateTime now = LocalDateTime.now();
-        DayOfWeek targetDay = DayOfWeek.valueOf(arrivalDay.toUpperCase());
-        LocalTime start = LocalTime.parse(arrivalTime, DateTimeFormatter.ofPattern("HH:mm"));
-
-        if (now.getDayOfWeek() == targetDay && now.toLocalTime().isBefore(start)) {
-            return "Сегодня в " + arrivalTime;
-        }
-
-        LocalDateTime nextArrival = now.with(TemporalAdjusters.next(targetDay)).with(start);
-        if (now.plusDays(1).getDayOfWeek() == targetDay) {
-            return "Завтра в " + arrivalTime;
-        }
-        return nextArrival.format(DateTimeFormatter.ofPattern("dd.MM в HH:mm"));
-    }
 
     public static String formatRemainingTime(long secondsRemaining) {
         if (secondsRemaining <= 0) return "Завершено";

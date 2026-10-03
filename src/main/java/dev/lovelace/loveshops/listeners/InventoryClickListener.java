@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.listeners;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
@@ -59,9 +58,23 @@ public class InventoryClickListener implements Listener {
                 return;
             }
             switch (npc.type().toLowerCase()) {
-                case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "warmerchant" -> new WarMerchantGui(plugin, player).open();
                 case "banker" -> new BankerGui(plugin, player).open();
+                case "caravaner" -> {
+                    if (plugin.getDailyCaravanManager() != null) {
+                        plugin.getDailyCaravanManager().openGui(player);
+                    }
+                }
+                case "commissioner" -> {
+                    if (plugin.getCommissionManager() != null) {
+                        plugin.getCommissionManager().openGui(player);
+                    }
+                }
+                case "lostcaravan" -> {
+                    if (plugin.getLostCaravanManager() != null) {
+                        plugin.getLostCaravanManager().handleNpcClick(player);
+                    }
+                }
             }
         }
     }
@@ -202,32 +215,41 @@ public class InventoryClickListener implements Listener {
         } else if (titleText.contains(BankerGui.TITLE)) {
             event.setCancelled(true);
             handleBankerClick(player, event);
-        } else if (titleText.contains(AuctionGui.TITLE)) {
-            event.setCancelled(true);
-            int slot = event.getRawSlot();
-            if (slot < 0 || slot >= 27) return;
+        } else {
+            var topInv = event.getView().getTopInventory();
+            var holder = topInv.getHolder();
+            int raw = event.getRawSlot();
+            int topSize = topInv.getSize();
 
-            if (slot == 26) {
-                player.closeInventory();
-                return;
-            }
-
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().lore() != null) {
-                int auctionId = extractIdFromLore(clicked);
-                if (auctionId > 0) {
-                    boolean buyout = event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_LEFT
-                        || event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT;
-                    if (buyout) {
-                        plugin.getAuctionManager().buyoutAuction(player, auctionId);
-                    } else {
-                        plugin.getAuctionManager().getActiveAuctions().thenAccept(auctions -> {
-                            auctions.stream().filter(a -> a.id() == auctionId).findFirst().ifPresent(auc -> {
-                                int minBid = plugin.getAuctionManager().getMinimumNextBid(auc);
-                                plugin.getAuctionManager().placeBid(player, auctionId, minBid);
-                            });
-                        });
-                    }
+            if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui || titleText.contains(dev.lovelace.loveshops.gui.DailyCaravanGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.DailyCaravanGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                }
+            } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionAgentGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.CommissionAgentGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                }
+            } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionConfirmGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.CommissionConfirmGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                }
+            } else if (holder instanceof dev.lovelace.loveshops.gui.LostCaravanEntryGui || titleText.contains(dev.lovelace.loveshops.gui.LostCaravanEntryGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.LostCaravanEntryGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                }
+            } else if (holder instanceof dev.lovelace.loveshops.gui.LostCaravanAuctionGui || titleText.contains(dev.lovelace.loveshops.gui.LostCaravanAuctionGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.LostCaravanAuctionGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                }
+            } else if (holder instanceof dev.lovelace.loveshops.gui.LostCaravanInstantGui || titleText.contains(dev.lovelace.loveshops.gui.LostCaravanInstantGui.TITLE)) {
+                event.setCancelled(true);
+                if (raw >= 0 && raw < topSize) {
+                    dev.lovelace.loveshops.gui.LostCaravanInstantGui.handleClick(plugin, player, raw, event.getClick(), topInv);
                 }
             }
         }
@@ -352,12 +374,34 @@ public class InventoryClickListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onBankerDrag(InventoryDragEvent event) {
+    public void onCustomGuiDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
-        if (event.getView().title() == null) return;
-        String titleText = serializer.serialize(event.getView().title());
-        if (!titleText.contains(BankerGui.TITLE)) return;
-        event.setCancelled(true);
+        var top = event.getView().getTopInventory();
+        int topSize = top.getSize();
+        boolean targetsTop = event.getRawSlots().stream().anyMatch(slot -> slot < topSize);
+        if (!targetsTop) return;
+
+        var holder = top.getHolder();
+        if (holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui
+                || holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui
+                || holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui
+                || holder instanceof dev.lovelace.loveshops.gui.LostCaravanEntryGui
+                || holder instanceof dev.lovelace.loveshops.gui.LostCaravanAuctionGui
+                || holder instanceof dev.lovelace.loveshops.gui.LostCaravanInstantGui) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (event.getView().title() != null) {
+            String titleText = serializer.serialize(event.getView().title());
+            if (titleText.contains(BankerGui.TITLE)
+                    || titleText.contains(WarMerchantGui.TITLE)
+                    || titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)
+                    || titleText.contains(dev.lovelace.loveshops.gui.WandererDealGui.TITLE)
+                    || titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)) {
+                event.setCancelled(true);
+            }
+        }
     }
 
     @EventHandler
@@ -397,19 +441,5 @@ public class InventoryClickListener implements Listener {
                 });
             }
         });
-    }
-
-    private int extractIdFromLore(ItemStack item) {
-        if (item == null || !item.hasItemMeta() || item.getItemMeta().lore() == null) return -1;
-        for (var lineComponent : item.getItemMeta().lore()) {
-            String text = serializer.serialize(lineComponent);
-            if (text.contains("ID Лота:")) {
-                String idStr = text.substring(text.indexOf("#") + 1).trim();
-                try {
-                    return Integer.parseInt(idStr);
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-        return -1;
     }
 }

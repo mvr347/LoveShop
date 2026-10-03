@@ -64,11 +64,6 @@ public final class TaxService {
         return TaxMath.split(total, plugin.getMarketConfig().taxEnabled() ? rateForOwner(point) : 0.0);
     }
 
-    /** Split for a flea seller who may be offline. */
-    public TaxMath.Split splitForSeller(long total, UUID seller) {
-        return TaxMath.split(total, plugin.getMarketConfig().taxEnabled() ? rateForPlayer(seller) : 0.0);
-    }
-
     /** For a player who is online right now (a customer selling to a stall). */
     public TaxMath.Split split(long total, UUID seller) {
         return TaxMath.split(total, liveRate(seller));

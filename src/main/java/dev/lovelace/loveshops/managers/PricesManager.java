@@ -15,18 +15,14 @@ import java.util.Optional;
  *
  * <ul>
  *     <li>{@code buyer:} — цены скупки у игроков Скупщиком (плюс fallback на {@code common:}).</li>
- *     <li>{@code seller:} — цены/наценки Барахолки.</li>
  *     <li>{@code war_merchant:} — цены Военного торговца.</li>
  *     <li>{@code wanderer:} — базовые цены предметов Странника.</li>
- *     <li>{@code auctioneer:} / {@code rare:} — аукционные цены и метки редкости.</li>
  * </ul>
  *
- * Поддерживает тонкую настройку цен каждому торговцу отдельно или всем сразу:
- * {@code /loveshopsadmin price <buyer|seller|war_merchant|wanderer|auctioneer|all> <цена>}
+ * Поддерживает настройку цен каждому торговцу отдельно или всем сразу:
+ * {@code /loveshopsadmin price <buyer|war_merchant|wanderer|all> <цена>}
  */
 public final class PricesManager {
-
-    public record RareOverride(boolean rare, Integer price) {}
 
     private final LoveShops plugin;
     private File file;
@@ -65,20 +61,6 @@ public final class PricesManager {
 
     public void setCommonPrice(String material, int price) {
         setBuyerPrice(material, price);
-    }
-
-    public int getSellerPrice(String material, int def) {
-        String upper = material.toUpperCase(Locale.ROOT);
-        if (yaml.contains("seller." + upper)) {
-            return yaml.getInt("seller." + upper, def);
-        }
-        return def;
-    }
-
-    public void setSellerPrice(String material, int price) {
-        String upper = material.toUpperCase(Locale.ROOT);
-        yaml.set("seller." + upper, price);
-        save();
     }
 
     public int getWarMerchantPrice(String material, int def) {
@@ -121,42 +103,15 @@ public final class PricesManager {
         save();
     }
 
-    public Optional<RareOverride> getRareOverride(String material) {
-        String upper = material.toUpperCase(Locale.ROOT);
-        String path = "auctioneer." + upper;
-        if (!yaml.isConfigurationSection(path)) {
-            path = "rare." + upper;
-        }
-        if (!yaml.isConfigurationSection(path)) {
-            return Optional.empty();
-        }
-        boolean rare = yaml.getBoolean(path + ".rare", true);
-        Integer price = yaml.contains(path + ".price") ? yaml.getInt(path + ".price") : null;
-        return Optional.of(new RareOverride(rare, price));
-    }
-
-    public void setRareFlag(String material, boolean rare) {
-        String upper = material.toUpperCase(Locale.ROOT);
-        yaml.set("auctioneer." + upper + ".rare", rare);
-        yaml.set("rare." + upper + ".rare", rare);
-        save();
-    }
-
     public void setItemPrice(String material, int price) {
         String upper = material.toUpperCase(Locale.ROOT);
-        if (getRareOverride(upper).isPresent()) {
-            yaml.set("auctioneer." + upper + ".price", price);
-            yaml.set("rare." + upper + ".price", price);
-            save();
-        } else {
-            setBuyerPrice(upper, price);
-        }
+        setBuyerPrice(upper, price);
     }
 
     /**
      * Универсальная установка цены для конкретного NPC или для всех сразу.
      *
-     * @param targetNpc "buyer", "seller", "war_merchant", "wanderer", "auctioneer" или "all"
+     * @param targetNpc "buyer", "war_merchant", "wanderer" или "all"
      * @param itemKey   материал или id предмета
      * @param price     новая цена
      * @return список секций, в которых цена была обновлена
@@ -173,10 +128,6 @@ public final class PricesManager {
             yaml.set("common." + upper, price);
             affected.add("Скупщик (buyer)");
         }
-        if (isAll || normalizedTarget.equals("seller")) {
-            yaml.set("seller." + upper, price);
-            affected.add("Барахолка (seller)");
-        }
         if (isAll || normalizedTarget.equals("war_merchant") || normalizedTarget.equals("war")) {
             yaml.set("war_merchant." + upper, price);
             affected.add("Военный торговец (war_merchant)");
@@ -186,13 +137,6 @@ public final class PricesManager {
             yaml.set("wanderer." + upper, price);
             affected.add("Странник (wanderer)");
         }
-        if (isAll || normalizedTarget.equals("auctioneer") || normalizedTarget.equals("rare") || normalizedTarget.equals("auction")) {
-            yaml.set("auctioneer." + upper + ".price", price);
-            yaml.set("auctioneer." + upper + ".rare", true);
-            yaml.set("rare." + upper + ".price", price);
-            yaml.set("rare." + upper + ".rare", true);
-            affected.add("Аукцион (auctioneer)");
-        }
 
         save();
         return affected;
@@ -201,7 +145,7 @@ public final class PricesManager {
     // ===== Generic access for the admin price commands =====
 
     /** Merchants whose prices live in prices.yml. */
-    public static final List<String> TARGETS = List.of("buyer", "seller", "war_merchant", "wanderer", "auctioneer");
+    public static final List<String> TARGETS = List.of("buyer", "war_merchant", "wanderer");
 
     public static String normalizeTarget(String raw) {
         if (raw == null) return null;
@@ -209,7 +153,6 @@ public final class PricesManager {
         return switch (t) {
             case "common" -> "buyer";
             case "war" -> "war_merchant";
-            case "rare", "auction" -> "auctioneer";
             default -> TARGETS.contains(t) ? t : null;
         };
     }
@@ -224,12 +167,9 @@ public final class PricesManager {
         String path;
         switch (target) {
             case "buyer" -> path = yaml.contains("buyer." + key) ? "buyer." + key : (yaml.contains("common." + key) ? "common." + key : null);
-            case "seller" -> path = yaml.contains("seller." + key) ? "seller." + key : null;
             case "war_merchant" -> path = yaml.contains("war_merchant." + key) ? "war_merchant." + key
                     : (yaml.contains("war-merchant." + key) ? "war-merchant." + key : null);
             case "wanderer" -> path = yaml.contains("wanderer." + key) ? "wanderer." + key : null;
-            case "auctioneer" -> path = yaml.contains("auctioneer." + key + ".price") ? "auctioneer." + key + ".price"
-                    : (yaml.contains("rare." + key + ".price") ? "rare." + key + ".price" : null);
             default -> path = null;
         }
         return path == null ? Optional.empty() : Optional.of(yaml.getInt(path));
@@ -241,10 +181,8 @@ public final class PricesManager {
         boolean removed = false;
         List<String> paths = switch (target) {
             case "buyer" -> List.of("buyer." + key, "common." + key);
-            case "seller" -> List.of("seller." + key);
             case "war_merchant" -> List.of("war_merchant." + key, "war-merchant." + key);
             case "wanderer" -> List.of("wanderer." + key);
-            case "auctioneer" -> List.of("auctioneer." + key + ".price", "rare." + key + ".price");
             default -> List.of();
         };
         for (String path : paths) {
@@ -265,16 +203,11 @@ public final class PricesManager {
                 collectFlat(out, "common");
                 collectFlat(out, "buyer");
             }
-            case "seller" -> collectFlat(out, "seller");
             case "war_merchant" -> {
                 collectFlat(out, "war-merchant");
                 collectFlat(out, "war_merchant");
             }
             case "wanderer" -> collectFlat(out, "wanderer");
-            case "auctioneer" -> {
-                collectNested(out, "rare");
-                collectNested(out, "auctioneer");
-            }
             default -> { }
         }
         return new ArrayList<>(out.entrySet());
@@ -285,14 +218,6 @@ public final class PricesManager {
         if (sec == null) return;
         for (String key : sec.getKeys(false)) {
             if (sec.isInt(key)) out.put(key, sec.getInt(key));
-        }
-    }
-
-    private void collectNested(java.util.Map<String, Integer> out, String section) {
-        var sec = yaml.getConfigurationSection(section);
-        if (sec == null) return;
-        for (String key : sec.getKeys(false)) {
-            if (sec.contains(key + ".price")) out.put(key, sec.getInt(key + ".price"));
         }
     }
 
@@ -342,27 +267,6 @@ public final class PricesManager {
         if (sec == null) return out;
         for (String key : sec.getKeys(false)) out.put(key, new Bounds(sec.getLong(key + ".min", 0L), sec.getLong(key + ".max", 0L)));
         return out;
-    }
-
-    // ===== Auction bid step override =====
-
-    /** {@code type} is "percentage" or "fixed"; empty means "use config.yml". */
-    public record BidStep(String type, int value) {}
-
-    public Optional<BidStep> getBidStep() {
-        if (!yaml.contains("auction.bid-step.type")) return Optional.empty();
-        return Optional.of(new BidStep(yaml.getString("auction.bid-step.type", "percentage"), yaml.getInt("auction.bid-step.value", 5)));
-    }
-
-    public void setBidStep(String type, int value) {
-        yaml.set("auction.bid-step.type", type);
-        yaml.set("auction.bid-step.value", value);
-        save();
-    }
-
-    public void clearBidStep() {
-        yaml.set("auction.bid-step", null);
-        save();
     }
 
     private void save() {

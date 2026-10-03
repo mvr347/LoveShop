@@ -67,21 +67,8 @@ class AdminParseTest {
     }
 
     @Test
-    void stepDistinguishesPercentageFromFixed() {
-        assertEquals(new AdminParse.Step("percentage", 5), AdminParse.step("5%", 1000));
-        assertEquals(new AdminParse.Step("fixed", 50), AdminParse.step("50", 1000));
-        assertNull(AdminParse.step("0%", 1000));
-        assertNull(AdminParse.step("101%", 1000));
-        assertNull(AdminParse.step("1001", 1000));
-        assertNull(AdminParse.step("x", 1000));
-        assertNull(AdminParse.step("", 1000));
-    }
-
-    @Test
     void russianAliasesMapToTheEnglishWords() {
         assertEquals("price", AdminParse.canonical("цена"));
-        assertEquals("auction", AdminParse.canonical("Аукцион"));
-        assertEquals("flea", AdminParse.canonical("барахолка"));
         assertEquals("seize", AdminParse.canonical("изъять"));
         assertEquals("restore", AdminParse.canonical("восстановить"));
         assertEquals("reload", AdminParse.canonical("RELOAD"));

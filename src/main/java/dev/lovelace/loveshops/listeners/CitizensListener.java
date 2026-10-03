@@ -1,7 +1,6 @@
 package dev.lovelace.loveshops.listeners;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.gui.AuctionGui;
 import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
@@ -95,10 +94,24 @@ public class CitizensListener implements Listener {
             }
 
             switch (npcData.type().toLowerCase()) {
-                case "auctioneer" -> new AuctionGui(plugin, player).open();
                 case "banker" -> {
                     dialogue.sayBankerGreeting(player);
                     new BankerGui(plugin, player).open();
+                }
+                case "caravaner" -> {
+                    if (plugin.getDailyCaravanManager() != null) {
+                        plugin.getDailyCaravanManager().openGui(player);
+                    }
+                }
+                case "commissioner" -> {
+                    if (plugin.getCommissionManager() != null) {
+                        plugin.getCommissionManager().openGui(player);
+                    }
+                }
+                case "lostcaravan" -> {
+                    if (plugin.getLostCaravanManager() != null) {
+                        plugin.getLostCaravanManager().handleNpcClick(player);
+                    }
                 }
             }
             dialogue.maybeSayAmbient(player, mood);
