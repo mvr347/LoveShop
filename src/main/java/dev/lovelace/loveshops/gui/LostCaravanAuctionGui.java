@@ -213,19 +213,19 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         int base = Math.max(lot.startingPrice(), lot.currentBid());
 
         if (rawSlot == SLOT_BID_10) {
-            manager.placeBid(player, base + 10);
+            report(player, manager.placeBid(player, base + 10));
             refreshAll(plugin);
             return;
         }
 
         if (rawSlot == SLOT_BID_50) {
-            manager.placeBid(player, base + 50);
+            report(player, manager.placeBid(player, base + 50));
             refreshAll(plugin);
             return;
         }
 
         if (rawSlot == SLOT_BID_100) {
-            manager.placeBid(player, base + 100);
+            report(player, manager.placeBid(player, base + 100));
             refreshAll(plugin);
             return;
         }
@@ -271,6 +271,19 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                     }, 2L);
                 });
             }
+        }
+    }
+
+    /** Tells the player why a quick bid did not go through (it used to fail silently). */
+    private static void report(Player player, LostCaravanManager.BidResult result) {
+        switch (result) {
+            case TOO_LOW -> MessageUtils.sendMessage(player, "<red>Ставка слишком мала: нужно хотя бы на 5% выше текущей.</red>");
+            case NO_MONEY -> MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для такой ставки!</red>");
+            case ALREADY_HIGHEST -> MessageUtils.sendMessage(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
+            case NOT_REGISTERED -> MessageUtils.sendMessage(player, "<red>Вы не вносили залог для участия!</red>");
+            case AUCTION_NOT_ACTIVE -> MessageUtils.sendMessage(player, "<red>Торги за этот лот уже закончились.</red>");
+            case DB_ERROR -> MessageUtils.sendMessage(player, "<red>Не удалось сохранить ставку, монеты возвращены.</red>");
+            default -> { }
         }
     }
 

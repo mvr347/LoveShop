@@ -153,7 +153,9 @@ public class DailyCaravanGui implements InventoryHolder {
                     lore.add(MessageUtils.parse("<red>[ ЯЩИК ЗАКРЫТ ]</red>"));
                 } else {
                     lore.add(MessageUtils.parse("<yellow>Перетащите предмет </yellow><gray>— сдать в ящик</gray>"));
+                    lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— сдать предмет из руки</gray>"));
                     lore.add(MessageUtils.parse("<yellow>ПКМ </yellow><gray>— сдать все подходящие из инвентаря</gray>"));
+                    lore.add(MessageUtils.parse("<yellow>Shift </yellow><gray>на предмете в инвентаре — сдать его</gray>"));
                 }
 
                 meta.lore(lore);

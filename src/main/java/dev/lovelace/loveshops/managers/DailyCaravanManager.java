@@ -447,40 +447,40 @@ public class DailyCaravanManager {
             return SubmitResult.ERROR;
         }
 
-        // Поиск подходящих предметов в инвентаре игрока
-        ItemStack held = player.getInventory().getItemInMainHand();
-        List<ItemStack> candidates = new ArrayList<>();
-
+        // Поиск подходящих предметов в инвентаре игрока. Слоты запоминаем по индексу и меняем через
+        // setItem: не полагаемся на то, что getStorageContents() отдаёт «живые» стеки.
+        var inv = player.getInventory();
+        List<Integer> candidateSlots = new ArrayList<>();
         if (!allMatching) {
             // Только предмет в руке
-            if (matchesAny(held, cfg.acceptedItems())) {
-                candidates.add(held);
-            }
+            int handSlot = inv.getHeldItemSlot();
+            if (matchesAny(inv.getItem(handSlot), cfg.acceptedItems())) candidateSlots.add(handSlot);
         } else {
-            // Все подходящие предметы из основного хранилища инвентаря (без брони)
-            for (ItemStack item : player.getInventory().getStorageContents()) {
-                if (item != null && !item.getType().isAir() && matchesAny(item, cfg.acceptedItems())) {
-                    candidates.add(item);
-                }
+            // Все подходящие предметы из основного хранилища инвентаря и хотбара (без брони); рука первой
+            int handSlot = inv.getHeldItemSlot();
+            if (matchesAny(inv.getItem(handSlot), cfg.acceptedItems())) candidateSlots.add(handSlot);
+            for (int slot = 0; slot < 36; slot++) {
+                if (slot != handSlot && matchesAny(inv.getItem(slot), cfg.acceptedItems())) candidateSlots.add(slot);
             }
         }
 
-        if (candidates.isEmpty()) {
+        if (candidateSlots.isEmpty()) {
             return SubmitResult.NO_ITEMS;
         }
 
         // ПАСС 1: Расчёт количества и выплаты БЕЗ изменения предметов
         int totalUnitsCollected = 0;
         long totalCoinsEarned = 0;
-        record Deduction(ItemStack item, int take) {}
+        record Deduction(int slot, int take) {}
         List<Deduction> deductions = new ArrayList<>();
 
-        for (ItemStack is : candidates) {
+        for (int slot : candidateSlots) {
             if (totalUnitsCollected >= maxToAccept) break;
+            ItemStack is = inv.getItem(slot);
+            if (is == null) continue;
             int take = Math.min(is.getAmount(), maxToAccept - totalUnitsCollected);
             if (take <= 0) continue;
 
-            DailyCrateAcceptedItem acceptedItem = getMatchedAcceptedItem(is, cfg.acceptedItems());
             int unitPrice = targetCrate.pricePerUnit();
 
             // Расчёт бонуса за полные стаки
@@ -492,7 +492,7 @@ public class DailyCaravanManager {
                 itemCoins = (long) take * unitPrice;
             }
 
-            deductions.add(new Deduction(is, take));
+            deductions.add(new Deduction(slot, take));
             totalUnitsCollected += take;
             totalCoinsEarned += itemCoins;
         }
@@ -508,7 +508,16 @@ public class DailyCaravanManager {
 
         // ПАСС 2: Списание предметов только после успешной проверки
         for (Deduction d : deductions) {
-            d.item().setAmount(d.item().getAmount() - d.take());
+            ItemStack stack = inv.getItem(d.slot());
+            if (stack == null) continue;
+            int left = stack.getAmount() - d.take();
+            if (left > 0) {
+                ItemStack rest = stack.clone();
+                rest.setAmount(left);
+                inv.setItem(d.slot(), rest);
+            } else {
+                inv.setItem(d.slot(), null);
+            }
         }
 
         // Выплата монет LoveEconomy
