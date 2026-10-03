@@ -54,11 +54,21 @@ public class LostCaravanEntryGui implements InventoryHolder {
         player.openInventory(inventory);
     }
 
+    private String remainingLabel() {
+        var session = manager.getCurrentSession();
+        if (session == null || !"ANNOUNCED".equalsIgnoreCase(session.status())) {
+            return "<gray>Регистрация закрыта</gray>";
+        }
+        long left = Math.max(0, session.openedAt() - System.currentTimeMillis() / 1000);
+        long m = left / 60;
+        long s = left % 60;
+        return "<white>" + m + ":" + (s < 10 ? "0" : "") + s + "</white>";
+    }
+
     public void render() {
         inventory.clear();
         ItemStack filler = GuiUtils.createFiller();
 
-        // 1. Header (слоты 0-8)
         for (int i = 0; i <= 8; i++) {
             inventory.setItem(i, filler);
         }
@@ -77,32 +87,30 @@ public class LostCaravanEntryGui implements InventoryHolder {
                         "<gray>Кулдаун участия: <yellow>1 раз в 7 дней</yellow></gray>",
                         "<gray>Если вы ничего не выиграете — вернётся <green>50% залога</green>.</gray>",
                         "<gray>При >6 участниках — открывается аукцион.</gray>",
-                        "<gray>При ≥12 участниках — появляется <red>6-й Секретный Ящик</red>!</gray>"
+                        "<gray>При ≥12 участниках — появляется <red>6-й Секретный Ящик</red>!</gray>",
+                        "",
+                        "<gray>До торгов: </gray>" + remainingLabel()
                 )
         );
         inventory.setItem(4, infoItem);
 
-        // 2. Рабочая зона (слоты 9-17)
-        // В 27-слотовом меню по gui-gen-5: в рабочей зоне стекла НЕТ.
-        boolean registered = manager.getCurrentSession() != null && manager.isParticipant(manager.getCurrentSession().id(), player.getUniqueId());
-        long lastPart = manager.getPlayerLastParticipated(player.getUniqueId());
-        long now = System.currentTimeMillis() / 1000;
-        long cdRemain = (7L * 86400L) - (now - lastPart);
+        for (int i = 9; i <= 17; i++) {
+            inventory.setItem(i, null);
+        }
+
+        boolean already = manager.getCurrentSession() != null
+                && manager.isParticipant(manager.getCurrentSession().id(), player.getUniqueId());
 
         ItemStack registerBtn;
-        if (registered) {
+        if (already) {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.HEAD_CONFIRM,
-                    "<green><bold>✓ Вы уже зарегистрированы!</bold></green>",
-                    List.of("", "<gray>Ожидайте окончания фазы регистрации и начала торгов.</gray>")
-            );
-        } else if (lastPart > 0 && cdRemain > 0) {
-            long days = cdRemain / 86400;
-            long hours = (cdRemain % 86400) / 3600;
-            registerBtn = GuiUtils.createCustomHead(
-                    HeadTextures.HEAD_DELETE_NO,
-                    "<red><bold>Кулдаун участия</bold></red>",
-                    List.of("", "<gray>Вы сможете участвовать снова через: <yellow>" + days + " д. " + hours + " ч.</yellow></gray>")
+                    "<green><bold>Вы зарегистрированы</bold></green>",
+                    List.of(
+                            "",
+                            "<green>Вы уже зарегистрированы!</green>",
+                            "<gray>До торгов: </gray>" + remainingLabel()
+                    )
             );
         } else {
             registerBtn = GuiUtils.createCustomHead(
@@ -113,13 +121,14 @@ public class LostCaravanEntryGui implements InventoryHolder {
                             "<gray>Стоимость залога: </gray>" + CoinFormat.formatGlyphs(eco, fee),
                             "<gray>Неуспешным участникам возвращается <green>50%</green>.</gray>",
                             "",
+                            "<gray>До торгов: </gray>" + remainingLabel(),
+                            "",
                             "<yellow>Нажмите, чтобы зарегистрироваться!</yellow>"
                     )
             );
         }
         inventory.setItem(SLOT_REGISTER, registerBtn);
 
-        // 3. Footer (слоты 18-26)
         for (int i = 18; i <= 26; i++) {
             inventory.setItem(i, filler);
         }
