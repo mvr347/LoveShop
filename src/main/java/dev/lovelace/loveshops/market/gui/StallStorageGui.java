@@ -68,6 +68,7 @@ public final class StallStorageGui extends MarketGui {
         button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BANKER_WITHDRAW, "gui-storage-collect", "gui-storage-collect-lore"),
                 e -> collectAll());
 
+        if (stored.isEmpty()) emptyCard("gui-storage-empty-lore");
         int[] content = MarketLayout.contentSlots(SIZE);
         int perPage = content.length;
         int totalPages = Math.max(1, (int) Math.ceil((double) stored.size() / perPage));

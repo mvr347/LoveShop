@@ -74,7 +74,7 @@ public class WandererDealGui {
         String timeStr = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
 
         // Slot 13: Standard (unfiltered) deal button
-        ItemStack dealBtn = GuiUtils.createCustomHead(CONTRACT_HEAD_BASE64, "<gold><bold>Заключить сделку со Странником</bold></gold>",
+        ItemStack dealBtn = GuiUtils.createCustomHead(CONTRACT_HEAD_BASE64, "<gold>Заключить сделку со Странником</gold>",
             List.of(
                 "",
                 "<gray>Странник отправится в запретные земли и</gray>",
@@ -83,7 +83,7 @@ public class WandererDealGui {
                 "<gray>Стоимость аванса: <gold>" + icon + cost + " " + currencyName + "</gold></gray>",
                 "<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>",
                 "",
-                "<green><bold>ЛКМ</bold> </green><gray>— договориться и отправить Странника</gray>"
+                "<green>ЛКМ </green><gray>— договориться и отправить Странника</gray>"
             ));
         inv.setItem(SLOT_STANDARD_DEAL, dealBtn);
 
@@ -116,18 +116,18 @@ public class WandererDealGui {
         ItemStack item = new ItemStack(materialFor(category));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<light_purple><bold>Заказ: " + category.displayName() + "</bold></light_purple>"));
+            meta.displayName(MessageUtils.parse("<light_purple>Заказ: " + category.displayName() + "</light_purple>"));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
             lore.add(MessageUtils.parse("<gray>Странник принесёт партию ТОЛЬКО из</gray>"));
             lore.add(MessageUtils.parse("<gray>выбранной категории — с доплатой.</gray>"));
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Текущий выбор: <light_purple><bold>" + category.displayName() + "</bold></light_purple></gray>"));
+            lore.add(MessageUtils.parse("<gray>Текущий выбор: <light_purple>" + category.displayName() + "</light_purple></gray>"));
             lore.add(MessageUtils.parse("<gray>Стоимость заказа: <gold>" + icon + personalCost + " " + currencyName + "</gold></gray>"));
             lore.add(MessageUtils.parse("<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>"));
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<yellow><bold>ЛКМ</bold> </yellow><gray>— сменить категорию</gray>"));
-            lore.add(MessageUtils.parse("<green><bold>ПКМ</bold> </green><gray>— заказать текущую категорию</gray>"));
+            lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— сменить категорию</gray>"));
+            lore.add(MessageUtils.parse("<green>ПКМ </green><gray>— заказать текущую категорию</gray>"));
             meta.lore(lore);
             meta.getPersistentDataContainer().set(
                 new NamespacedKey(plugin, CATEGORY_INDEX_KEY), PersistentDataType.INTEGER, category.ordinal());

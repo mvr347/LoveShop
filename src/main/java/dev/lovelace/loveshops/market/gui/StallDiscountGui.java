@@ -60,6 +60,7 @@ public final class StallDiscountGui extends MarketGui {
         // "Add player" is the footer's extra button (slot 51 of 54), not a header control.
         button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BUTTON_PLUS, "gui-discount-add", "gui-discount-add-lore"), e -> promptAdd());
 
+        if (list.isEmpty()) emptyCard("gui-discount-empty-lore");
         int[] content = MarketLayout.contentSlots(SIZE);
         int start = pager((int) Math.ceil((double) list.size() / content.length)) * content.length;
         for (int i = 0; i < content.length && start + i < list.size(); i++) {

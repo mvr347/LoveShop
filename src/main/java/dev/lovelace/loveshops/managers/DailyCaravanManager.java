@@ -295,7 +295,7 @@ public class DailyCaravanManager {
             int urgentPrice = Math.max(1, (int) Math.round(basePrice * multiplier));
             int maxAmount = Math.max(10, (urgentCfg.maxStacks() / 2)) * 64;
             String urgentName = plugin.getConfig().getString("caravan.daily.urgent-order.display-name",
-                    "<red><bold>⚡ СРОЧНЫЙ ЗАКАЗ: </bold></red>") + " " + urgentCfg.displayName();
+                    "<red>⚡ СРОЧНЫЙ ЗАКАЗ: </red>") + " " + urgentCfg.displayName();
             long urgentExpires = nowSec + (urgentDurationMin * 60L);
 
             insertCrate(conn, visitId, urgentCfg.key(), urgentName, maxAmount, urgentPrice, true, urgentExpires);

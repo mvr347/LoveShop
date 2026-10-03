@@ -49,7 +49,7 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
     }
 
     private void msg(CommandSender to, String key, String... kv) {
-        plugin.getMarketMessages().send(to, key, kv);
+        plugin.getMarketMessages().sendAdmin(to, key, kv);
     }
 
     @Override

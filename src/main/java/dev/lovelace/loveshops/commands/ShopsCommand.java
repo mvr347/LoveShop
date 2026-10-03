@@ -140,11 +140,11 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>LoveShops Помощь</gold> ==========</dark_gray>"));
+        sender.sendMessage(plugin.getLangManager().getMessage("commands.help-header", "<dark_gray>========== <gold>Магазины</gold> ==========</dark_gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-open", "<gold>/loveshops open <тип> [игрок]</gold> <gray>- Открыть меню магазина</gray>"));
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-aliases", "<gold>/wanderer</gold> <gray>- Быстрый алиас для открытия меню Странника</gray>"));
         if (sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды LoveShops</gray>"));
+            sender.sendMessage(plugin.getLangManager().getMessage("commands.help-admin", "<gold>/loveshopsadmin</gold> <gray>- Административные команды</gray>"));
         }
         sender.sendMessage(plugin.getLangManager().getMessage("commands.help-footer", "<dark_gray>=========================================</dark_gray>"));
     }

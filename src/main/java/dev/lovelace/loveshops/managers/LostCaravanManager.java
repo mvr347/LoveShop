@@ -53,7 +53,6 @@ public class LostCaravanManager {
     public enum RegisterResult {
         SUCCESS,
         ALREADY_REGISTERED,
-        COOLDOWN,
         NO_FEE,
         EVENT_NOT_REGISTRATION,
         DB_ERROR
@@ -416,7 +415,7 @@ public class LostCaravanManager {
                 lot.startingPrice(), lot.currentBid(), lot.highestBidder(), "ACTIVE", now, 0
         ));
 
-        String crateName = lot.secret() ? "<red><bold>⚡ СЕКРЕТНЫЙ ЯЩИК</bold></red>" : "<gold>Ящик #" + (lotIndex + 1) + "</gold>";
+        String crateName = lot.secret() ? "<red>⚡ СЕКРЕТНЫЙ ЯЩИК</red>" : "<gold>Ящик #" + (lotIndex + 1) + "</gold>";
         CaravanEffects.broadcast("<gold><bold>⚔ [Потерянный Караван]</bold></gold> <yellow>Открыты торги за "
                 + crateName + "! Начальная ставка: " + lot.startingPrice() + " монет. Время: " + durationSec + " сек.</yellow>");
     }
@@ -466,7 +465,7 @@ public class LostCaravanManager {
             if (winner != null && winner.isOnline()) {
                 giveOrDropItem(winner, lot.crateItem().clone());
                 CaravanEffects.playSubmitEffects(winner);
-                MessageUtils.sendMessage(winner, "<green><bold>Поздравляем!</bold> Вы выиграли "
+                MessageUtils.sendMessage(winner, "<green>Поздравляем! Вы выиграли "
                         + (lot.secret() ? "Секретный Ящик" : "Ящик каравана") + " со ставкой " + lot.currentBid() + " монет!</green>");
             } else {
                 // Если победитель офлайн, сохраняем в pending_returns
@@ -757,14 +756,6 @@ public class LostCaravanManager {
             return RegisterResult.ALREADY_REGISTERED;
         }
 
-        // Проверка кулдауна (7 дней)
-        long cooldownSec = 7L * 86400L;
-        long last = getPlayerLastParticipated(uuid);
-        long now = System.currentTimeMillis() / 1000;
-        if (last > 0 && (now - last) < cooldownSec) {
-            return RegisterResult.COOLDOWN;
-        }
-
         LoveEconomy eco = plugin.getEconomy().orElse(null);
         int entryFee = plugin.getConfig().getInt("caravan.lost.entry-fee.amount", 1);
         if (eco == null || !eco.has(player, entryFee)) {
@@ -786,14 +777,6 @@ public class LostCaravanManager {
             ps.setInt(3, entryFee);
             ps.executeUpdate();
 
-            PreparedStatement psCd = conn.prepareStatement("""
-                INSERT INTO caravan_cooldowns (player_uuid, last_participated) VALUES (?, ?)
-                ON CONFLICT(player_uuid) DO UPDATE SET last_participated = excluded.last_participated
-            """);
-            psCd.setString(1, uuid.toString());
-            psCd.setLong(2, now);
-            psCd.executeUpdate();
-
             PreparedStatement psCount = conn.prepareStatement("""
                 UPDATE lost_caravan_sessions SET participant_count = participant_count + 1 WHERE id = ?
             """);
@@ -806,7 +789,7 @@ public class LostCaravanManager {
 
         attachParticipantBossBar(player);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-        MessageUtils.sendMessage(player, "<green><bold>Вы успешно зарегистрировались в Потерянном Караване!</bold></green>");
+        MessageUtils.sendMessage(player, "<green>Вы успешно зарегистрировались в Потерянном Караване!</green>");
         MessageUtils.sendMessage(player, "<gray>Залог в размере " + CoinFormat.formatGlyphs(eco, entryFee) + " внесён. Ожидайте начала торгов!</gray>");
         return RegisterResult.SUCCESS;
     }
@@ -894,18 +877,6 @@ public class LostCaravanManager {
             plugin.getLogger().warning("Ошибка проверки участника: " + e.getMessage());
         }
         return false;
-    }
-
-    public long getPlayerLastParticipated(UUID uuid) {
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("SELECT last_participated FROM caravan_cooldowns WHERE player_uuid = ?");
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getLong("last_participated");
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Ошибка получения кулдауна: " + e.getMessage());
-        }
-        return 0;
     }
 
     public int getParticipantCount(int sessionId) {
@@ -1202,6 +1173,33 @@ public class LostCaravanManager {
             pendingForceMode = mode == null ? "AUTO" : mode.trim().toUpperCase();
         }
         return true;
+    }
+
+    /**
+     * Admin shortcut: ends the timer of the current phase right now. Registration closes and the trading
+     * opens, a running lot round is settled, the settling phase closes the session.
+     *
+     * @return the phase that was skipped ("REGISTRATION", "LOT", "SETTLING") or {@code null} when no event runs
+     */
+    public synchronized @Nullable String skipTimer() {
+        if (currentSession == null) return null;
+        String status = currentSession.status();
+        if ("ANNOUNCED".equalsIgnoreCase(status)) {
+            openSession();
+            return "REGISTRATION";
+        }
+        if ("OPEN".equalsIgnoreCase(status)) {
+            if ("AUCTION".equalsIgnoreCase(currentSession.mode()) && currentAuctionLotIndex >= 0) {
+                endCurrentLotRound();
+                return "LOT";
+            }
+            return "INSTANT";
+        }
+        if ("SETTLING".equalsIgnoreCase(status)) {
+            closeSession();
+            return "SETTLING";
+        }
+        return null;
     }
 
     public void handleNpcClick(Player player) {

@@ -45,6 +45,9 @@ public class InventoryClickListener implements Listener {
         if (npcOpt.isEmpty()) {
             npcOpt = plugin.getNpcManager().getNpcNear(event.getRightClicked().getLocation(), 2.0);
         }
+        // Event NPCs are plugin-created Citizens NPCs: CitizensListener handles their clicks, and an
+        // empty spawn point must never open a menu for whatever stands next to it.
+        npcOpt = npcOpt.filter(n -> !dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(n.type()));
 
         if (npcOpt.isPresent()) {
             event.setCancelled(true);
@@ -230,6 +233,13 @@ public class InventoryClickListener implements Listener {
                         return;
                     }
                     dev.lovelace.loveshops.gui.DailyCaravanGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                } else if (event.getClick().isShiftClick()) {
+                    // Shift-click an item of the own inventory: hand it to the first crate that accepts it
+                    ItemStack moved = event.getCurrentItem();
+                    if (moved != null && !moved.getType().isAir()) {
+                        event.setCurrentItem(null);
+                        dev.lovelace.loveshops.gui.DailyCaravanGui.handleShiftSubmit(plugin, player, moved.clone());
+                    }
                 }
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionAgentGui.TITLE)) {
                 event.setCancelled(true);
@@ -248,6 +258,15 @@ public class InventoryClickListener implements Listener {
                         }
                     }
                     dev.lovelace.loveshops.gui.CommissionAgentGui.handleClick(plugin, player, raw, event.getClick(), topInv);
+                } else if (event.getClick().isShiftClick()) {
+                    // Shift-click an item of the own inventory: straight into the price menu
+                    ItemStack moved = event.getCurrentItem();
+                    var mgr = plugin.getCommissionManager();
+                    if (moved != null && !moved.getType().isAir() && mgr != null && mgr.isEnabled()) {
+                        ItemStack toList = moved.clone();
+                        event.setCurrentItem(null);
+                        dev.lovelace.loveshops.gui.CommissionAgentGui.startListing(plugin, player, mgr, toList, false);
+                    }
                 }
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionConfirmGui.TITLE)) {
                 event.setCancelled(true);

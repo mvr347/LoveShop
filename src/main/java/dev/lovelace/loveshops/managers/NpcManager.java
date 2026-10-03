@@ -18,6 +18,7 @@ import java.sql.Types;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 public class NpcManager {
 
@@ -26,6 +27,33 @@ public class NpcManager {
     private final Map<UUID, NpcData> loadedNpcs = new ConcurrentHashMap<>();
     private final Map<UUID, Entity> spawnedEntities = new ConcurrentHashMap<>();
     private final Map<UUID, net.citizensnpcs.api.npc.NPC> citizensNpcs = new ConcurrentHashMap<>();
+
+    /**
+     * Event NPCs: the plugin creates the Citizens NPC itself when the event starts and destroys it when it
+     * ends. The {@code shops_npcs} row of such a type is only a spawn point (place, name, skin).
+     */
+    public static final Set<String> EPHEMERAL_TYPES = Set.of("caravaner", "lostcaravan", "wanderer");
+    private static final String TAG_EPHEMERAL = "loveshops_ephemeral";
+
+    public static boolean isEphemeralType(String type) {
+        return type != null && EPHEMERAL_TYPES.contains(type.toLowerCase(Locale.ROOT));
+    }
+
+    public enum EphemeralAction { CREATE, DESTROY, NONE }
+
+    /** What to do with the event NPC of a spawn point: create it, destroy it, or leave it alone. */
+    public static EphemeralAction decide(boolean eventActive, boolean npcExists) {
+        if (eventActive && !npcExists) return EphemeralAction.CREATE;
+        if (!eventActive && npcExists) return EphemeralAction.DESTROY;
+        return EphemeralAction.NONE;
+    }
+
+    /** Tagged NPCs nobody tracks any more (left behind by a crash or a restart in the middle of an event). */
+    public static <T> List<T> orphans(Collection<T> tagged, Predicate<T> tracked) {
+        List<T> out = new ArrayList<>();
+        for (T t : tagged) if (!tracked.test(t)) out.add(t);
+        return out;
+    }
 
     public NpcManager(LoveShops plugin) {
         this.plugin = plugin;
@@ -61,6 +89,10 @@ public class NpcManager {
         if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
             future.completeExceptionally(new IllegalStateException("Citizens обязателен для создания NPC"));
             return future;
+        }
+        if (isEphemeralType(type)) {
+            // Only the spawn point is stored; the NPC itself appears with the event.
+            return insertNpc(type, name, loc, skinOwner, null);
         }
         Runnable work = () -> {
             try {
@@ -107,6 +139,18 @@ public class NpcManager {
         Location loc = cNpc.isSpawned() && cNpc.getEntity() != null ? cNpc.getEntity().getLocation() : cNpc.getStoredLocation();
         if (loc == null || loc.getWorld() == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("У Citizens NPC #" + citizensId + " нет известного местоположения"));
+        }
+        if (isEphemeralType(type)) {
+            // Take place, name and skin of the NPC as a spawn point, then remove it: the plugin creates its own.
+            String skin = skinNameOf(cNpc);
+            Location point = loc.clone();
+            try {
+                if (cNpc.isSpawned()) cNpc.despawn();
+                net.citizensnpcs.api.CitizensAPI.getNPCRegistry().deregister(cNpc);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Не удалось убрать привязанный Citizens NPC #" + citizensId + ": " + e.getMessage());
+            }
+            return insertNpc(type, name, point, skin != null ? skin : boundBy, null);
         }
         return insertNpc(type, name, loc, boundBy, citizensId).whenComplete((npc, err) -> {
             if (err == null && npc != null) {
@@ -225,6 +269,11 @@ public class NpcManager {
             return;
         }
 
+        if (isEphemeralType(npc.type())) {
+            syncEphemeral(npc);
+            return;
+        }
+
         if (!isNpcAllowedToSpawn(npc)) {
             ensureNpcDespawned(npc.uuid());
             return;
@@ -294,6 +343,11 @@ public class NpcManager {
     public void ensureNpcDespawned(UUID npcUuid) {
         if (!Bukkit.isPrimaryThread()) {
             Bukkit.getScheduler().runTask(plugin, () -> ensureNpcDespawned(npcUuid));
+            return;
+        }
+        NpcData known = loadedNpcs.get(npcUuid);
+        if (known != null && isEphemeralType(known.type())) {
+            destroyEphemeral(known);
             return;
         }
         Entity entity = spawnedEntities.get(npcUuid);
@@ -379,8 +433,164 @@ public class NpcManager {
             Bukkit.getScheduler().runTask(plugin, this::spawnAllNpcs);
             return;
         }
+        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            migrateBoundEventNpcs();
+            purgeOrphanEventNpcs();
+        }
         for (NpcData npc : loadedNpcs.values()) {
             spawnNpcEntity(npc);
+        }
+    }
+
+    // ------------------------------------------------------------------ event NPCs
+
+    private net.citizensnpcs.api.npc.NPC liveEventNpc(NpcData npc) {
+        net.citizensnpcs.api.npc.NPC c = citizensNpcs.get(npc.uuid());
+        return c != null && c.isSpawned() ? c : null;
+    }
+
+    /** Creates or destroys the event NPC of a spawn point according to whether its event runs. */
+    private void syncEphemeral(NpcData npc) {
+        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) return;
+        boolean exists = liveEventNpc(npc) != null;
+        switch (decide(isNpcAllowedToSpawn(npc), exists)) {
+            case CREATE -> createEventNpc(npc);
+            case DESTROY -> destroyEphemeral(npc);
+            case NONE -> { }
+        }
+    }
+
+    private void createEventNpc(NpcData npc) {
+        World world = Bukkit.getWorld(npc.world());
+        if (world == null) return;
+        try {
+            Location loc = new Location(world, npc.x(), npc.y(), npc.z(), npc.yaw(), npc.pitch());
+            if (!loc.getChunk().isLoaded()) loc.getChunk().load();
+            net.citizensnpcs.api.npc.NPC cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry()
+                    .createNPC(org.bukkit.entity.EntityType.PLAYER, npc.name());
+            if (npc.skinOwner() != null && !npc.skinOwner().isEmpty()) {
+                cNpc.getOrAddTrait(net.citizensnpcs.trait.SkinTrait.class).setSkinName(npc.skinOwner());
+            }
+            cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());
+            cNpc.data().setPersistent("loveshops_type", npc.type().toLowerCase(Locale.ROOT));
+            cNpc.data().setPersistent(TAG_EPHEMERAL, true);
+            citizensNpcs.put(npc.uuid(), cNpc);
+            cNpc.spawn(loc);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Не удалось создать NPC события " + npc.type() + ": " + e.getMessage());
+        }
+    }
+
+    /** Removes the event NPC for good (not hidden): open menus are closed first. */
+    private void destroyEphemeral(NpcData npc) {
+        closeMenus(npc.type());
+        net.citizensnpcs.api.npc.NPC cNpc = citizensNpcs.remove(npc.uuid());
+        if (cNpc == null && Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            for (net.citizensnpcs.api.npc.NPC existing : net.citizensnpcs.api.CitizensAPI.getNPCRegistry()) {
+                if (npc.uuid().toString().equals(existing.data().get("loveshops_uuid", null))) {
+                    cNpc = existing;
+                    break;
+                }
+            }
+        }
+        if (cNpc == null) return;
+        try {
+            if (cNpc.isSpawned()) cNpc.despawn();
+            net.citizensnpcs.api.CitizensAPI.getNPCRegistry().deregister(cNpc);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Не удалось убрать NPC события " + npc.type() + ": " + e.getMessage());
+        }
+    }
+
+    /** Closes the menus of an event NPC for everybody who still has one open. */
+    public void closeMenus(String type) {
+        var plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+        for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
+            var top = p.getOpenInventory().getTopInventory();
+            var holder = top.getHolder();
+            boolean match = switch (type.toLowerCase(Locale.ROOT)) {
+                case "caravaner" -> holder instanceof dev.lovelace.loveshops.gui.DailyCaravanGui;
+                case "lostcaravan" -> holder instanceof dev.lovelace.loveshops.gui.LostCaravanEntryGui
+                        || holder instanceof dev.lovelace.loveshops.gui.LostCaravanAuctionGui
+                        || holder instanceof dev.lovelace.loveshops.gui.LostCaravanInstantGui;
+                case "wanderer" -> {
+                    String title = plain.serialize(p.getOpenInventory().title());
+                    yield title.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)
+                            || title.contains(dev.lovelace.loveshops.gui.WandererDealGui.TITLE)
+                            || title.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE);
+                }
+                default -> false;
+            };
+            if (match) p.closeInventory();
+        }
+    }
+
+    /** Skin name of a Citizens NPC, {@code null} when it has no named skin. */
+    private static String skinNameOf(net.citizensnpcs.api.npc.NPC cNpc) {
+        if (cNpc == null || !cNpc.hasTrait(net.citizensnpcs.trait.SkinTrait.class)) return null;
+        String n = cNpc.getOrAddTrait(net.citizensnpcs.trait.SkinTrait.class).getSkinName();
+        return n == null || n.isBlank() ? null : n;
+    }
+
+    /** Old rows were bound to a Citizens NPC; the spawn point keeps its place, name and skin and the NPC goes. */
+    private void migrateBoundEventNpcs() {
+        List<String> migrated = new ArrayList<>();
+        for (NpcData npc : new ArrayList<>(loadedNpcs.values())) {
+            if (!isEphemeralType(npc.type()) || npc.citizensId() == null) continue;
+            net.citizensnpcs.api.npc.NPC cNpc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npc.citizensId());
+            String skin = skinNameOf(cNpc);
+            Location where = cNpc != null && cNpc.getStoredLocation() != null ? cNpc.getStoredLocation() : null;
+            NpcData fresh = new NpcData(npc.id(), npc.uuid(), npc.type(), npc.world(),
+                    where != null ? where.getX() : npc.x(), where != null ? where.getY() : npc.y(),
+                    where != null ? where.getZ() : npc.z(), where != null ? where.getYaw() : npc.yaw(),
+                    where != null ? where.getPitch() : npc.pitch(), npc.name(), npc.displayName(),
+                    skin != null ? skin : npc.skinOwner(), null, npc.createdAt(), System.currentTimeMillis() / 1000);
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "UPDATE shops_npcs SET citizens_id = NULL, skin_owner = ?, x = ?, y = ?, z = ?, yaw = ?, pitch = ?, updated_at = ? WHERE uuid = ?")) {
+                ps.setString(1, fresh.skinOwner());
+                ps.setDouble(2, fresh.x());
+                ps.setDouble(3, fresh.y());
+                ps.setDouble(4, fresh.z());
+                ps.setFloat(5, fresh.yaw());
+                ps.setFloat(6, fresh.pitch());
+                ps.setLong(7, fresh.updatedAt());
+                ps.setString(8, npc.uuid().toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Миграция NPC #" + npc.id() + " не удалась: " + e.getMessage());
+                continue;
+            }
+            loadedNpcs.put(fresh.uuid(), fresh);
+            if (cNpc != null) {
+                try {
+                    if (cNpc.isSpawned()) cNpc.despawn();
+                    net.citizensnpcs.api.CitizensAPI.getNPCRegistry().deregister(cNpc);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Не удалось убрать старый Citizens NPC #" + npc.citizensId() + ": " + e.getMessage());
+                }
+            }
+            migrated.add("#" + npc.id() + " " + npc.type());
+        }
+        if (!migrated.isEmpty()) {
+            plugin.getLogger().warning("NPC событий больше не привязаны к Citizens, плагин создаёт их сам. Перенесены точки: " + String.join(", ", migrated));
+        }
+    }
+
+    /** Event NPCs of a previous run (crash, restart during an event) are removed; a running event gets a fresh one. */
+    private void purgeOrphanEventNpcs() {
+        List<net.citizensnpcs.api.npc.NPC> tagged = new ArrayList<>();
+        for (net.citizensnpcs.api.npc.NPC existing : net.citizensnpcs.api.CitizensAPI.getNPCRegistry()) {
+            if (existing.data().has(TAG_EPHEMERAL)) tagged.add(existing);
+        }
+        Set<net.citizensnpcs.api.npc.NPC> live = new HashSet<>(citizensNpcs.values());
+        for (net.citizensnpcs.api.npc.NPC orphan : orphans(tagged, live::contains)) {
+            try {
+                if (orphan.isSpawned()) orphan.despawn();
+                net.citizensnpcs.api.CitizensAPI.getNPCRegistry().deregister(orphan);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Не удалось убрать забытый NPC события: " + e.getMessage());
+            }
         }
     }
 

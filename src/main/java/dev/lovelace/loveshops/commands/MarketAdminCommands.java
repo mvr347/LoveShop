@@ -53,7 +53,7 @@ public final class MarketAdminCommands {
     // ------------------------------------------------------------------ plumbing
 
     private void msg(CommandSender to, String key, String... kv) {
-        plugin.getMarketMessages().send(to, key, kv);
+        plugin.getMarketMessages().sendAdmin(to, key, kv);
     }
 
     private static String esc(String text) {
@@ -62,7 +62,7 @@ public final class MarketAdminCommands {
 
     private boolean allowed(CommandSender sender, String permission) {
         if (sender.hasPermission(permission) || sender.hasPermission("loveshops.admin")) return true;
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+        sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
         return false;
     }
 

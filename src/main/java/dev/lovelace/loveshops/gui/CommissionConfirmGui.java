@@ -85,8 +85,8 @@ public class CommissionConfirmGui implements InventoryHolder {
         inventory.setItem(0, preview);
 
         // Слот 1: Подтвердить
-        String confirmTitle = action == ConfirmAction.BUY ? "<green><bold>Купить за " + CoinFormat.formatGlyphs(eco, lot.price()) + "</bold></green>"
-                : "<green><bold>Забрать предмет</bold></green>";
+        String confirmTitle = action == ConfirmAction.BUY ? "<green>Купить за " + CoinFormat.formatGlyphs(eco, lot.price()) + "</green>"
+                : "<green>Забрать предмет</green>";
         inventory.setItem(1, GuiUtils.createCustomHead(
                 HeadTextures.HEAD_CONFIRM,
                 confirmTitle,
@@ -96,7 +96,7 @@ public class CommissionConfirmGui implements InventoryHolder {
         // Слот 3: Отмена
         inventory.setItem(3, GuiUtils.createCustomHead(
                 HeadTextures.HEAD_DELETE_NO,
-                "<red><bold>Отмена</bold></red>",
+                "<red>Отмена</red>",
                 List.of("", "<gray>Вернуться назад</gray>")
         ));
     }

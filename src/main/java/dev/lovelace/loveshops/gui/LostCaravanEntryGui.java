@@ -78,7 +78,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>⚔ Правила Потерянного Каравана</bold></gold>",
+                "<gold>⚔ Правила Потерянного Каравана</gold>",
                 List.of(
                         "",
                         "<gray>Еженедельное торговое событие с ценными ящиками!</gray>",
@@ -91,7 +91,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
                         "<gray>До торгов: </gray>" + remainingLabel()
                 )
         );
-        inventory.setItem(1, infoItem);
+        inventory.setItem(0, infoItem);
 
         for (int i = 9; i <= 17; i++) {
             inventory.setItem(i, null);
@@ -104,7 +104,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
         if (already) {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.HEAD_CONFIRM,
-                    "<green><bold>Вы зарегистрированы</bold></green>",
+                    "<green>Вы зарегистрированы</green>",
                     List.of(
                             "",
                             "<green>Вы уже зарегистрированы!</green>",
@@ -114,7 +114,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
         } else {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold><bold>Внести залог и участвовать</bold></gold>",
+                    "<gold>Внести залог и участвовать</gold>",
                     List.of(
                             "",
                             "<gray>Стоимость залога: </gray>" + CoinFormat.formatGlyphs(eco, fee),
@@ -157,7 +157,6 @@ public class LostCaravanEntryGui implements InventoryHolder {
             LostCaravanManager.RegisterResult result = manager.registerParticipant(player);
             switch (result) {
                 case ALREADY_REGISTERED -> MessageUtils.sendMessage(player, "<yellow>Вы уже зарегистрированы в этом караване.</yellow>");
-                case COOLDOWN -> MessageUtils.sendMessage(player, "<red>Вы можете участвовать в Потерянном Караване только 1 раз в 7 дней!</red>");
                 case NO_FEE -> MessageUtils.sendMessage(player, "<red>У вас нет достаточного количества монет для внесения залога!</red>");
                 case EVENT_NOT_REGISTRATION -> MessageUtils.sendMessage(player, "<red>Регистрация уже закрыта!</red>");
                 default -> {}

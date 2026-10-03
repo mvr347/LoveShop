@@ -64,21 +64,21 @@ public final class WizardService implements Listener {
     public void start(Player admin, String id, long price) {
         var messages = plugin.getMarketMessages();
         if (sessions.containsKey(admin.getUniqueId())) {
-            messages.send(admin, "wiz-already");
+            messages.sendAdmin(admin, "wiz-already");
             return;
         }
         if (!PointWizard.validId(id)) {
-            messages.send(admin, "wiz-id-bad");
+            messages.sendAdmin(admin, "wiz-id-bad");
             return;
         }
         if (plugin.getTradePointManager().claimsLink().byName(id).isPresent()) {
-            messages.send(admin, "wiz-id-taken", "id", id);
+            messages.sendAdmin(admin, "wiz-id-taken", "id", id);
             return;
         }
         Session session = new Session(new PointWizard(id, price, MAX_FOOTPRINT));
         sessions.put(admin.getUniqueId(), session);
         session.preview = Bukkit.getScheduler().runTaskTimer(plugin, () -> tick(admin, session), 10L, 10L);
-        messages.send(admin, "wiz-started", "id", id);
+        messages.sendAdmin(admin, "wiz-started", "id", id);
         prompt(admin, session);
     }
 
@@ -118,7 +118,7 @@ public final class WizardService implements Listener {
         Session session = sessions.get(admin.getUniqueId());
         var messages = plugin.getMarketMessages();
         if (session == null) {
-            messages.send(admin, "wiz-no-session");
+            messages.sendAdmin(admin, "wiz-no-session");
             return;
         }
         session.lastActivity = System.currentTimeMillis();
@@ -126,17 +126,17 @@ public final class WizardService implements Listener {
         switch (action.toLowerCase(java.util.Locale.ROOT)) {
             case "set" -> set(admin, session);
             case "back" -> {
-                if (!wizard.back()) messages.send(admin, "wiz-back-denied");
+                if (!wizard.back()) messages.sendAdmin(admin, "wiz-back-denied");
                 prompt(admin, session);
             }
             case "skip" -> {
-                if (!wizard.skip()) messages.send(admin, "wiz-skip-denied");
+                if (!wizard.skip()) messages.sendAdmin(admin, "wiz-skip-denied");
                 prompt(admin, session);
             }
             case "finish" -> finish(admin, session);
             case "cancel" -> cancel(admin.getUniqueId(), true);
             case "status" -> prompt(admin, session);
-            default -> messages.send(admin, "wiz-usage");
+            default -> messages.sendAdmin(admin, "wiz-usage");
         }
     }
 
@@ -151,22 +151,22 @@ public final class WizardService implements Listener {
             case CLOSED_SIGN, ID_SIGN -> {
                 pos = signSpot(admin);
                 if (pos == null) {
-                    messages.send(admin, "wiz-err-sign-target");
+                    messages.sendAdmin(admin, "wiz-err-sign-target");
                     return;
                 }
             }
             default -> {
-                messages.send(admin, "wiz-err-summary");
+                messages.sendAdmin(admin, "wiz-err-summary");
                 return;
             }
         }
         SetResult result = wizard.set(pos);
         switch (result) {
-            case OK -> messages.send(admin, "wiz-set-ok");
-            case WRONG_WORLD -> messages.send(admin, "wiz-err-wrong-world");
-            case TOO_LARGE -> messages.send(admin, "wiz-err-too-large", "max", String.valueOf(MAX_FOOTPRINT));
-            case OUTSIDE_ZONE -> messages.send(admin, "wiz-err-outside-zone");
-            case WRONG_STEP -> messages.send(admin, "wiz-err-summary");
+            case OK -> messages.sendAdmin(admin, "wiz-set-ok");
+            case WRONG_WORLD -> messages.sendAdmin(admin, "wiz-err-wrong-world");
+            case TOO_LARGE -> messages.sendAdmin(admin, "wiz-err-too-large", "max", String.valueOf(MAX_FOOTPRINT));
+            case OUTSIDE_ZONE -> messages.sendAdmin(admin, "wiz-err-outside-zone");
+            case WRONG_STEP -> messages.sendAdmin(admin, "wiz-err-summary");
         }
         prompt(admin, session);
     }
@@ -246,13 +246,13 @@ public final class WizardService implements Listener {
         PointWizard wizard = session.wizard;
         var messages = plugin.getMarketMessages();
         if (!wizard.ready()) {
-            messages.send(admin, "wiz-not-ready");
+            messages.sendAdmin(admin, "wiz-not-ready");
             prompt(admin, session);
             return;
         }
         World world = Bukkit.getWorld(wizard.corner1().world());
         if (world == null) {
-            messages.send(admin, "wiz-fail");
+            messages.sendAdmin(admin, "wiz-fail");
             return;
         }
         var manager = plugin.getTradePointManager();
@@ -264,11 +264,11 @@ public final class WizardService implements Listener {
         ClaimsLink.CreateResult result = manager.claimsLink().create(wizard.id(), world, c1, c2, home, wizard.price());
         switch (result.status()) {
             case OK -> { }
-            case BAD_ID -> { messages.send(admin, "wiz-id-bad"); return; }
-            case ID_TAKEN -> { messages.send(admin, "wiz-id-taken", "id", wizard.id()); return; }
-            case OVERLAP -> { messages.send(admin, "wiz-overlap"); return; }
-            case BAD_PRICE -> { messages.send(admin, "wiz-fail"); return; }
-            default -> { messages.send(admin, "wiz-fail"); return; }
+            case BAD_ID -> { messages.sendAdmin(admin, "wiz-id-bad"); return; }
+            case ID_TAKEN -> { messages.sendAdmin(admin, "wiz-id-taken", "id", wizard.id()); return; }
+            case OVERLAP -> { messages.sendAdmin(admin, "wiz-overlap"); return; }
+            case BAD_PRICE -> { messages.sendAdmin(admin, "wiz-fail"); return; }
+            default -> { messages.sendAdmin(admin, "wiz-fail"); return; }
         }
 
         TradePoint point = manager.registerNewPoint(result.claimId());
@@ -285,7 +285,7 @@ public final class WizardService implements Listener {
         manager.saveSpots(point);
         manager.reconcileNpcs();
         cancel(admin.getUniqueId(), false);
-        messages.send(admin, "wiz-created", "id", wizard.id());
+        messages.sendAdmin(admin, "wiz-created", "id", wizard.id());
     }
 
     private static Location blockLoc(World world, Pos pos) {

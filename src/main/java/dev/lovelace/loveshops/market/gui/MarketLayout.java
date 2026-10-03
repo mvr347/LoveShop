@@ -105,6 +105,13 @@ public final class MarketLayout {
         return slots;
     }
 
+    /** Middle of the work zone: where the "nothing here yet" card of an empty list goes. */
+    public static int centerSlot(int size) {
+        int start = workStart(size);
+        int rows = Math.max(1, (size - 9 - start) / 9);
+        return start + (rows / 2) * 9 + 4;
+    }
+
     public static int extraSlot(int size) { return size - 3; }
     public static int backSlot(int size) { return size - 2; }
     public static int closeSlot(int size) { return size - 1; }

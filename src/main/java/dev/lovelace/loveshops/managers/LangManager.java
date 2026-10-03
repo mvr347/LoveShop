@@ -31,9 +31,22 @@ public class LangManager {
         return langConfig.getString(path, defaultValue);
     }
 
+    /** A player-facing message: no plugin prefix (the prefix is for admin commands only). */
     public Component getMessage(String path, String defaultValue, Map<String, String> placeholders) {
+        return build("", path, defaultValue, placeholders);
+    }
+
+    /** An admin-command message: carries the plugin prefix. */
+    public Component getAdminMessage(String path, String defaultValue, Map<String, String> placeholders) {
+        return build(getRaw("prefix", ""), path, defaultValue, placeholders);
+    }
+
+    public Component getAdminMessage(String path, String defaultValue) {
+        return getAdminMessage(path, defaultValue, null);
+    }
+
+    private Component build(String prefix, String path, String defaultValue, Map<String, String> placeholders) {
         String raw = getRaw(path, defaultValue);
-        String prefix = getRaw("prefix", "");
         String full = prefix + raw;
 
         if (placeholders != null) {

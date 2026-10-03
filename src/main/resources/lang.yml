@@ -235,6 +235,25 @@ market:
     - ""
     - "<gray>Перетащите сюда предмет</gray>"
     - "<gray>или кликните по нему с Shift в инвентаре.</gray>"
+  money-empty: "<gray>ПУСТО</gray>"
+  gui-slot-locked: "<red>Слот №{no} закрыт</red>"
+  gui-slot-locked-lore:
+    - ""
+    - "<gray>Сначала заполните предыдущий слот (№{prev}).</gray>"
+  slot-locked-hint: "<red>Сначала заполните предыдущий слот (№{prev}).</red>"
+  gui-empty-title: "<gray>Пока ничего нет</gray>"
+  gui-blacklist-empty-lore:
+    - ""
+    - "<gray>Здесь появятся игроки, которым закрыт вход в точку.</gray>"
+  gui-discount-empty-lore:
+    - ""
+    - "<gray>Здесь появятся игроки с личной скидкой.</gray>"
+  gui-storage-empty-lore:
+    - ""
+    - "<gray>Сюда попадают снятые товары и излишки.</gray>"
+  gui-feudal-empty-lore:
+    - ""
+    - "<gray>Торговых точек пока нет.</gray>"
   gui-customer-empty: "<gray>Нет лотов</gray>"
   gui-customer-empty-lore:
     - ""
@@ -512,7 +531,7 @@ market:
     - ""
     - "<green>ЛКМ </green><gray>— +1</gray> <dark_gray>(Shift: +8)</dark_gray>"
     - "<red>ПКМ </red><gray>— −1</gray> <dark_gray>(Shift: −8)</dark_gray>"
-  gui-price-confirm: "<green><bold>Подтвердить</bold></green>"
+  gui-price-confirm: "<green>Подтвердить</green>"
   gui-price-confirm-top:
     - ""
     - "<gray>Выставить по цене за штуку:</gray>"
@@ -882,7 +901,7 @@ market:
     - ""
     - "<green>ЛКМ </green><gray>— +1 неделя</gray>"
     - "<red>ПКМ </red><gray>— −1 неделя</gray>"
-  gui-feudal-rent-confirm: "<green><bold>Арендовать</bold></green>"
+  gui-feudal-rent-confirm: "<green>Арендовать</green>"
   gui-feudal-rent-confirm-top:
     - ""
     - "<gray>Точка <white>{id}</white> на <white>{weeks}</white> нед. (<white>{days}</white> дн.)</gray>"
