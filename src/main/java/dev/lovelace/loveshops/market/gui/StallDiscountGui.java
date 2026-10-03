@@ -51,7 +51,8 @@ public final class StallDiscountGui extends MarketGui {
         List<DiscountEntry> list = new ArrayList<>();
         try {
             list = plugin.getMarketRepository().loadDiscounts(point.claimId()).stream().filter(d -> !d.isExpired()).toList();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            plugin.getLogger().warning("Не удалось загрузить скидок точки: " + e.getMessage());
             // an unreadable list is shown as empty; the actions below report database errors
         }
 

@@ -113,7 +113,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
                     lore.add(Component.empty());
                     lore.add(MessageUtils.parse("<green>ЛКМ — купить ящик</green>"));
                     meta.lore(lore);
-                    meta.getPersistentDataContainer().set(new NamespacedKey(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
+                    meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
                     displayItem.setItemMeta(meta);
                 }
             }
@@ -142,7 +142,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
         ItemStack clicked = openInv.getItem(rawSlot);
         if (clicked != null && clicked.hasItemMeta()) {
             Integer lotIdx = clicked.getItemMeta().getPersistentDataContainer()
-                    .get(new NamespacedKey(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER);
+                    .get(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER);
             if (lotIdx != null) {
                 LostCaravanManager manager = plugin.getLostCaravanManager();
                 if (manager != null) {

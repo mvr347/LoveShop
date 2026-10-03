@@ -66,7 +66,7 @@ public final class MarketRepository {
                 conn.commit();
                 return result;
             } catch (SQLException | RuntimeException e) {
-                try { conn.rollback(); } catch (SQLException ignored) { }
+                try { conn.rollback(); } catch (SQLException rb) { /* the original failure below is the one that matters */ }
                 throw e;
             }
         }

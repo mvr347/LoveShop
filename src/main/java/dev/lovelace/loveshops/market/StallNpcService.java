@@ -247,7 +247,9 @@ public final class StallNpcService {
             if (npc.isSpawned()) {
                 npc.despawn();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            plugin.getLogger().fine("hardDestroy: despawn не удался: " + t.getMessage());
+        }
         try {
             npc.destroy();
         } catch (Throwable t) {

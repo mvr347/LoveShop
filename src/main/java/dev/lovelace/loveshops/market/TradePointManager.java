@@ -641,7 +641,9 @@ public final class TradePointManager {
                         return npc.getEntity().getLocation();
                     }
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+                // intentional: Citizens may be unloading; the claim point below is the fallback
+            }
         }
         return claims.point(p.claimId()).map(ClaimsLink.PointInfo::location).orElse(null);
     }

@@ -537,10 +537,42 @@ public class LostCaravanManager {
                 + settleMinutes + " мин. для расчётов.</yellow>");
     }
 
+    /** Coins back to a player: straight into the inventory when they fit, otherwise into the pending payouts. */
+    private void returnMoney(UUID uuid, @Nullable Player online, int amount, LoveEconomy eco) {
+        if (amount <= 0) return;
+        if (online != null && online.isOnline() && eco != null && eco.canFit(online, amount)) {
+            eco.give(online, amount);
+        } else {
+            addPendingRefund(uuid, amount);
+        }
+    }
+
+    /** A session closed (stop, timeout) while a lot still has a leader: their charged bid goes back. */
+    private void refundStandingBid() {
+        if (currentAuctionLotIndex < 0 || currentAuctionLotIndex >= activeLots.size()) return;
+        LostCaravanLot lot = activeLots.get(currentAuctionLotIndex);
+        if (!"ACTIVE".equalsIgnoreCase(lot.status()) || lot.highestBidder() == null || lot.currentBid() <= 0) return;
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        Player leader = Bukkit.getPlayer(lot.highestBidder());
+        returnMoney(lot.highestBidder(), leader, lot.currentBid(), eco);
+        if (leader != null && leader.isOnline()) {
+            MessageUtils.sendMessage(leader, "<yellow>[Потерянный Караван] Торги прерваны, ваша ставка возвращена.</yellow>");
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE lost_caravan_lots SET status = 'EXPIRED', ended_at = strftime('%s','now') WHERE id = ?");
+            ps.setInt(1, lot.id());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Не удалось закрыть лот после возврата ставки: " + e.getMessage());
+        }
+    }
+
     public synchronized void closeSession() {
         clearAllParticipantBossBars();
         stopAuctionTicker();
         if (currentSession == null) return;
+        refundStandingBid();
         long now = System.currentTimeMillis() / 1000;
 
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
@@ -596,25 +628,8 @@ public class LostCaravanManager {
             return BidResult.NO_MONEY;
         }
 
-        // 2. Возврат ставки предыдущему лидеру
-        if (lot.highestBidder() != null && lot.currentBid() > 0) {
-            Player prevBidder = Bukkit.getPlayer(lot.highestBidder());
-            if (prevBidder != null && prevBidder.isOnline()) {
-                if (eco.canFit(prevBidder, lot.currentBid())) {
-                    eco.give(prevBidder, lot.currentBid());
-                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Вам возвращено "
-                            + CoinFormat.formatGlyphs(eco, lot.currentBid()) + ".</yellow>");
-                } else {
-                    addPendingRefund(lot.highestBidder(), lot.currentBid());
-                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Ваш инвентарь полон, возврат "
-                            + CoinFormat.formatGlyphs(eco, lot.currentBid()) + " сохранён и ожидает вас у торговца.</yellow>");
-                }
-            } else {
-                addPendingRefund(lot.highestBidder(), lot.currentBid());
-            }
-        }
-
-        // 3. Обновление БД
+        // 2. Запись в БД ДО возврата предыдущему лидеру: при сбое новый игрок получает деньги назад,
+        // а предыдущий остаётся лидером (раньше монеты исчезали у обоих).
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             PreparedStatement psLot = conn.prepareStatement("""
                 UPDATE lost_caravan_lots SET current_bid = ?, highest_bidder = ? WHERE id = ?
@@ -633,7 +648,26 @@ public class LostCaravanManager {
             psBid.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Ошибка сохранения ставки: " + e.getMessage());
+            returnMoney(player.getUniqueId(), player, amount, eco);
             return BidResult.DB_ERROR;
+        }
+
+        // 3. Возврат ставки предыдущему лидеру
+        if (lot.highestBidder() != null && lot.currentBid() > 0) {
+            Player prevBidder = Bukkit.getPlayer(lot.highestBidder());
+            if (prevBidder != null && prevBidder.isOnline()) {
+                if (eco.canFit(prevBidder, lot.currentBid())) {
+                    eco.give(prevBidder, lot.currentBid());
+                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Вам возвращено "
+                            + CoinFormat.formatGlyphs(eco, lot.currentBid()) + ".</yellow>");
+                } else {
+                    addPendingRefund(lot.highestBidder(), lot.currentBid());
+                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Ваш инвентарь полон, возврат "
+                            + CoinFormat.formatGlyphs(eco, lot.currentBid()) + " сохранён и ожидает вас у торговца.</yellow>");
+                }
+            } else {
+                addPendingRefund(lot.highestBidder(), lot.currentBid());
+            }
         }
 
         // 4. Обновление в памяти
@@ -717,7 +751,9 @@ public class LostCaravanManager {
                 psPartRev.setInt(1, currentSession.id());
                 psPartRev.setString(2, player.getUniqueId().toString());
                 psPartRev.executeUpdate();
-            } catch (SQLException ignored) {}
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Откат покупки ящика #" + lot.id() + " не удался (лот остался проданным без оплаты): " + e.getMessage());
+            }
             MessageUtils.sendMessage(player, "<red>Не удалось списать монеты!</red>");
             return false;
         }

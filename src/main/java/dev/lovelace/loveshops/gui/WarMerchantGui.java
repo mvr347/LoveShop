@@ -70,7 +70,7 @@ public class WarMerchantGui {
                 // Индекс в каноническом списке config.yml - клик-обработчик пересчитывает
                 // цену/товар по нему заново, а не доверяет лору отображаемого предмета.
                 meta.getPersistentDataContainer().set(
-                        new NamespacedKey(plugin, "war_merchant_index"), PersistentDataType.INTEGER, slotIdx);
+                        dev.lovelace.loveshops.utils.Keys.of(plugin, "war_merchant_index"), PersistentDataType.INTEGER, slotIdx);
                 displayItem.setItemMeta(meta);
             }
 

@@ -130,7 +130,7 @@ public class WandererDealGui {
             lore.add(MessageUtils.parse("<green>ПКМ </green><gray>— заказать текущую категорию</gray>"));
             meta.lore(lore);
             meta.getPersistentDataContainer().set(
-                new NamespacedKey(plugin, CATEGORY_INDEX_KEY), PersistentDataType.INTEGER, category.ordinal());
+                dev.lovelace.loveshops.utils.Keys.of(plugin, CATEGORY_INDEX_KEY), PersistentDataType.INTEGER, category.ordinal());
             item.setItemMeta(meta);
         }
         return item;

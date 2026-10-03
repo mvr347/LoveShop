@@ -112,7 +112,9 @@ public record WandererItemConfig(
                 if (ench != null) {
                     meta.addEnchant(ench, entry.getValue(), true);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // intentional: an unknown enchantment name in the config is skipped
+            }
         }
     }
 }

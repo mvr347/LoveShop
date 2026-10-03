@@ -149,7 +149,7 @@ public class CommissionAgentGui implements InventoryHolder {
                 }
 
                 meta.lore(lore);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, LOT_ID_KEY), PersistentDataType.INTEGER, lot.id());
+                meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_ID_KEY), PersistentDataType.INTEGER, lot.id());
                 displayItem.setItemMeta(meta);
             }
             inventory.setItem(slot, displayItem);
@@ -266,7 +266,7 @@ public class CommissionAgentGui implements InventoryHolder {
         ItemStack clicked = openInv.getItem(rawSlot);
         if (clicked != null && clicked.hasItemMeta()) {
             Integer lotId = clicked.getItemMeta().getPersistentDataContainer()
-                    .get(new NamespacedKey(plugin, LOT_ID_KEY), PersistentDataType.INTEGER);
+                    .get(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_ID_KEY), PersistentDataType.INTEGER);
             if (lotId != null) {
                 Optional<CommissionLot> lotOpt = manager.getLotById(lotId);
                 if (lotOpt.isEmpty() || !"ACTIVE".equalsIgnoreCase(lotOpt.get().status())) {

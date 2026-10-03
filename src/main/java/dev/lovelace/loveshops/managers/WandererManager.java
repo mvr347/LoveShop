@@ -80,7 +80,9 @@ public class WandererManager {
                 if (raw != null) {
                     try {
                         lastArrivalDate = LocalDate.parse(raw);
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Странник: неверная дата последнего прихода '" + raw + "'");
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -323,7 +325,9 @@ public class WandererManager {
                         return;
                     }
                 }
-            } catch (SQLException ignored) {}
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Странник: не удалось прочитать локальный статус игрока: " + e.getMessage());
+            }
 
             // 2. Check LoveBehavior API via Bukkit ServicesManager
             try {
@@ -338,7 +342,9 @@ public class WandererManager {
                                 future.complete(true);
                                 return;
                             }
-                        } catch (NoSuchMethodException ignored) {}
+                        } catch (NoSuchMethodException ignored) {
+                            // intentional: this LoveBehavior version has no such accessor, the next one is tried
+                        }
                         try {
                             var m = apiClass.getMethod(methodName, Player.class);
                             Object res = m.invoke(apiInstance, player);
@@ -349,7 +355,9 @@ public class WandererManager {
                         } catch (NoSuchMethodException ignored) {}
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // intentional: LoveBehavior is optional, the PlaceholderAPI fallback follows
+            }
 
             // 3. Check PlaceholderAPI if present
             if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
@@ -359,7 +367,9 @@ public class WandererManager {
                         future.complete(true);
                         return;
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                    // intentional: an unknown placeholder only means "style not known"
+                }
             }
 
             future.complete(false);
@@ -677,54 +687,63 @@ public class WandererManager {
         long expiresAt = readyAt + (expireHours * 3600L);
 
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-            // Dynamic pricing multiplier needs a DB round-trip (weekly scarcity/activity
-            // signals) - computed here, on the async thread, right before rolling items, not on
-            // the main thread that started this deal.
-            double priceMultiplier;
-            try (Connection multiplierConn = plugin.getDatabaseManager().getConnection()) {
-                priceMultiplier = computeDynamicPriceMultiplier(multiplierConn);
-            } catch (SQLException e) {
-                plugin.getLogger().warning("Странник: не удалось посчитать динамический множитель цены, использую 1.0: " + e.getMessage());
-                priceMultiplier = 1.0;
-            }
-
-            List<WandererDealItem> items = rollRandomItems(minItems, maxItems, finalCategory, priceMultiplier);
-            String itemsJson = gson.toJson(items);
-
-            String sql = """
-                INSERT INTO wanderer_deals (player_uuid, status, ordered_at, ready_at, expires_at, items_json, requested_category)
-                VALUES (?, 'WAITING', ?, ?, ?, ?, ?)
-                ON CONFLICT(player_uuid) DO UPDATE SET
-                    status='WAITING', ordered_at=EXCLUDED.ordered_at, ready_at=EXCLUDED.ready_at,
-                    expires_at=EXCLUDED.expires_at, items_json=EXCLUDED.items_json, requested_category=EXCLUDED.requested_category
-            """;
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, player.getUniqueId().toString());
-                ps.setLong(2, now);
-                ps.setLong(3, readyAt);
-                ps.setLong(4, expiresAt);
-                ps.setString(5, itemsJson);
-                if (finalCategory != null) {
-                    ps.setString(6, finalCategory.name());
-                } else {
-                    ps.setNull(6, java.sql.Types.VARCHAR);
+            try {
+                // Dynamic pricing multiplier needs a DB round-trip (weekly scarcity/activity
+                // signals) - computed here, on the async thread, right before rolling items, not on
+                // the main thread that started this deal.
+                double priceMultiplier;
+                try (Connection multiplierConn = plugin.getDatabaseManager().getConnection()) {
+                    priceMultiplier = computeDynamicPriceMultiplier(multiplierConn);
+                } catch (SQLException e) {
+                    plugin.getLogger().warning("Странник: не удалось посчитать динамический множитель цены, использую 1.0: " + e.getMessage());
+                    priceMultiplier = 1.0;
                 }
-                ps.executeUpdate();
 
-                WandererDeal deal = new WandererDeal(0, player.getUniqueId(), "WAITING", now, readyAt, expiresAt, items, finalCategory != null ? finalCategory.name() : null);
+                List<WandererDealItem> items = rollRandomItems(minItems, maxItems, finalCategory, priceMultiplier);
+                String itemsJson = gson.toJson(items);
 
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    String timeText = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
-                    String startedMsg = plugin.getConfig().getString("wanderer.messages.deal-started",
-                        "<green>Странник:</green> <gray>Договорились! Я принесу товар через <gold>{time}</gold>.</gray>")
-                        .replace("{time}", timeText);
-                    MessageUtils.sendMessage(player, startedMsg);
-                    future.complete(true);
-                });
-            } catch (SQLException e) {
-                plugin.getLogger().severe("Ошибка создания сделки Странника: " + e.getMessage());
-                // Refund if failed
+                String sql = """
+                    INSERT INTO wanderer_deals (player_uuid, status, ordered_at, ready_at, expires_at, items_json, requested_category)
+                    VALUES (?, 'WAITING', ?, ?, ?, ?, ?)
+                    ON CONFLICT(player_uuid) DO UPDATE SET
+                        status='WAITING', ordered_at=EXCLUDED.ordered_at, ready_at=EXCLUDED.ready_at,
+                        expires_at=EXCLUDED.expires_at, items_json=EXCLUDED.items_json, requested_category=EXCLUDED.requested_category
+                """;
+                try (Connection conn = plugin.getDatabaseManager().getConnection();
+                     PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, player.getUniqueId().toString());
+                    ps.setLong(2, now);
+                    ps.setLong(3, readyAt);
+                    ps.setLong(4, expiresAt);
+                    ps.setString(5, itemsJson);
+                    if (finalCategory != null) {
+                        ps.setString(6, finalCategory.name());
+                    } else {
+                        ps.setNull(6, java.sql.Types.VARCHAR);
+                    }
+                    ps.executeUpdate();
+
+                    WandererDeal deal = new WandererDeal(0, player.getUniqueId(), "WAITING", now, readyAt, expiresAt, items, finalCategory != null ? finalCategory.name() : null);
+
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        String timeText = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
+                        String startedMsg = plugin.getConfig().getString("wanderer.messages.deal-started",
+                            "<green>Странник:</green> <gray>Договорились! Я принесу товар через <gold>{time}</gold>.</gray>")
+                            .replace("{time}", timeText);
+                        MessageUtils.sendMessage(player, startedMsg);
+                        future.complete(true);
+                    });
+                } catch (SQLException e) {
+                    plugin.getLogger().severe("Ошибка создания сделки Странника: " + e.getMessage());
+                    // Refund if failed
+                    if (finalCost > 0 && economy != null) {
+                        Bukkit.getScheduler().runTask(plugin, () -> economy.give(player, finalCost));
+                    }
+                    future.complete(false);
+                }
+            } catch (Exception fatal) {
+                // Anything but the SQL failure handled inside: the coins are already taken, so they go back.
+                plugin.getLogger().severe("Ошибка создания сделки Странника: " + fatal);
                 if (finalCost > 0 && economy != null) {
                     Bukkit.getScheduler().runTask(plugin, () -> economy.give(player, finalCost));
                 }
@@ -746,6 +765,8 @@ public class WandererManager {
             future.complete(false);
             return future;
         }
+        // Safety net: whatever fails on the way (async DB, main-thread step), the guard is released.
+        future.orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
         future.whenComplete((result, error) -> processingPurchases.remove(playerUuid));
 
         getPlayerDeal(playerUuid).thenAccept(optDeal -> {
@@ -823,6 +844,10 @@ public class WandererManager {
                     }
                 });
             });
+        }).exceptionally(ex -> {
+            plugin.getLogger().severe("Ошибка покупки у Странника: " + ex);
+            future.complete(false);
+            return null;
         });
 
         return future;
@@ -880,7 +905,9 @@ public class WandererManager {
                 ps.setString(1, status);
                 ps.setString(2, playerUuid.toString());
                 ps.executeUpdate();
-            } catch (SQLException ignored) {}
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Странник: статус сделки " + playerUuid + " не сохранён: " + e.getMessage());
+            }
         });
     }
 
@@ -890,7 +917,9 @@ public class WandererManager {
         if (json != null && !json.isEmpty()) {
             try {
                 items = gson.fromJson(json, itemsListType);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                plugin.getLogger().warning("Странник: сделка с неразбираемым списком предметов (" + e.getMessage() + ")");
+            }
         }
 
         return new WandererDeal(
