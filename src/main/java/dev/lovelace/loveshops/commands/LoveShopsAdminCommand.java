@@ -637,28 +637,39 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             }
             switch (action) {
                 case "start" -> {
-                    if (manager.isEventActive()) {
-                        sender.sendMessage(MessageUtils.parse("<yellow>Событие Потерянный Караван уже активно!</yellow>"));
+                    boolean force = false;
+                    String mode = "AUTO";
+                    for (int i = 3; i < args.length; i++) {
+                        String a = args[i];
+                        if (a.equalsIgnoreCase("--force") || a.equalsIgnoreCase("-f")) force = true;
+                        else if (a.equalsIgnoreCase("base") || a.equalsIgnoreCase("instant")) mode = "BASE";
+                        else if (a.equalsIgnoreCase("auction")) mode = "AUCTION";
+                        else if (a.equalsIgnoreCase("secret")) mode = "SECRET";
+                    }
+                    if (manager.isEventActive() && !force) {
+                        sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван уже активен. Используйте --force для перезапуска.</yellow>"));
                     } else {
-                        manager.announceSession(System.currentTimeMillis() / 1000);
-                        sender.sendMessage(MessageUtils.parse("<green>Событие Потерянный Караван успешно начато (фаза регистрации)!</green>"));
+                        boolean ok = manager.forceStart(mode, force || !manager.isEventActive());
+                        sender.sendMessage(MessageUtils.parse(ok
+                                ? "<green>Потерянный караван: регистрация запущена (модед " + mode + (force ? ", force" : "") + ").</green>"
+                                : "<red>Не удалось запустить потерянный караван.</red>"));
                     }
                 }
                 case "stop" -> {
                     if (manager.isEventActive()) {
                         manager.closeSession();
-                        sender.sendMessage(MessageUtils.parse("<green>Событие Потерянный Караван принудительно остановлено.</green>"));
+                        sender.sendMessage(MessageUtils.parse("<green>Потерянный караван остановлен.</green>"));
                     } else {
-                        sender.sendMessage(MessageUtils.parse("<yellow>Потерянный Караван сейчас не активен.</yellow>"));
+                        sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван сейчас не активен.</yellow>"));
                     }
                 }
                 case "status" -> {
                     boolean act = manager.isEventActive();
                     var session = manager.getCurrentSession();
-                    sender.sendMessage(MessageUtils.parse("<gold>Потерянный Караван: " + (act ? "<green>АКТИВЕН</green>" : "<red>НЕ АКТИВЕН</red>")
+                    sender.sendMessage(MessageUtils.parse("<gold>Потерянный караван: " + (act ? "<green>активен</green>" : "<red>не активен</red>")
                             + (session != null ? " <gray>(статус: " + session.status() + ", режим: " + session.mode() + ", участников: " + session.participantCount() + ")</gray>" : "") + "</gold>"));
                 }
-                default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan lost <start|stop|status></yellow>"));
+                default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
             }
         } else {
             sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin caravan <daily|lost> <start|stop|status></yellow>"));
