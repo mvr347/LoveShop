@@ -12,17 +12,12 @@ import java.util.List;
 /**
  * Единый стандарт форматирования денег в виде глифов монет ItemsAdder.
  * Соответствует эталону BankerGui: разбиение суммы long по LoveEconomy.denominations()
- * от старшего к младшему с отображением %img_<tag>% x<count>.
+ * от старшего к младшему с отображением %img_<tag>% и белым счётчиком (эквивалент &f xN).
  */
 public final class CoinFormat {
 
     private CoinFormat() {}
 
-    /**
-     * Возвращает тег глифа монеты (эталон BankerGui.getCoinGlyph):
-     * itemId -> tag после ":" -> "%img_" + tag + "%"
-     * null -> "%img_copper_coin%"
-     */
     public static String getCoinGlyph(Denomination den) {
         if (den == null || den.itemId() == null) return "%img_copper_coin%";
         String id = den.itemId();
@@ -31,9 +26,6 @@ public final class CoinFormat {
         return "%img_" + tag + "%";
     }
 
-    /**
-     * Градиентное название монеты (эталон BankerGui.getCoinName).
-     */
     public static String getCoinName(Denomination den) {
         if (den == null) return "Монета";
         String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
@@ -45,11 +37,6 @@ public final class CoinFormat {
         return "<gradient:#E67E22:#D35400>Медная монета</gradient>";
     }
 
-    /**
-     * Форматирует сумму в строку глифов:
-     * {@code %img_diamond_coin% x2  %img_gold_coin% x1  %img_iron_coin% x3}
-     * Если сумма <= 0 — отображается младший номинал x0.
-     */
     public static String formatGlyphs(LoveEconomy eco, long amount) {
         if (eco == null) return "%img_copper_coin% x0";
         List<Denomination> dens = new ArrayList<>(eco.denominations());
@@ -80,26 +67,16 @@ public final class CoinFormat {
         return sb.toString();
     }
 
-    /**
-     * Форматирует сумму в строку глифов, используя экземпляр LoveShops.
-     */
     public static String formatGlyphs(long amount) {
         LoveShops plugin = LoveShops.getInstance();
         return formatGlyphs(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
     }
 
-    /**
-     * Форматирует сумму построчно в виде списка Component для lore предметов, используя экземпляр LoveShops.
-     */
     public static List<Component> formatGlyphLines(long amount) {
         LoveShops plugin = LoveShops.getInstance();
         return formatGlyphLines(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
     }
 
-    /**
-     * Сумма построчно строками MiniMessage: {@code %img_gold_coin% <yellow>x3</yellow>}, по строке на номинал.
-     * Для lore, которое строит GUI из текстов (в отличие от {@link #formatGlyphLines}, возвращающего Component).
-     */
     public static List<String> glyphLineStrings(LoveEconomy eco, long amount) {
         List<String> lines = new ArrayList<>();
         List<Denomination> dens = eco == null ? List.of() : new ArrayList<>(eco.denominations());
@@ -110,24 +87,21 @@ public final class CoinFormat {
             if (den.value() <= 0) continue;
             long count = remaining / den.value();
             if (count > 0) {
-                lines.add(getCoinGlyph(den) + " <yellow>x" + count + "</yellow>");
+                lines.add(getCoinGlyph(den) + " <white>x" + count + "</white>");
                 remaining %= den.value();
             }
         }
         if (lines.isEmpty()) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
-            lines.add((smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <yellow>x0</yellow>");
+            lines.add((smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <white>x0</white>");
         }
         return lines;
     }
 
-    /**
-     * Форматирует сумму построчно в виде списка Component для lore предметов.
-     */
     public static List<Component> formatGlyphLines(LoveEconomy eco, long amount) {
         List<Component> lines = new ArrayList<>();
         if (eco == null) {
-            lines.add(MessageUtils.parse("%img_copper_coin% <yellow>x0</yellow>"));
+            lines.add(MessageUtils.parse("%img_copper_coin% <white>x0</white>"));
             return lines;
         }
 
@@ -137,7 +111,7 @@ public final class CoinFormat {
         if (amount <= 0) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
             String glyph = smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%";
-            lines.add(MessageUtils.parse(glyph + " <yellow>x0</yellow>"));
+            lines.add(MessageUtils.parse(glyph + " <white>x0</white>"));
             return lines;
         }
 
@@ -147,7 +121,7 @@ public final class CoinFormat {
             long count = remaining / den.value();
             if (count > 0) {
                 String glyph = getCoinGlyph(den);
-                lines.add(MessageUtils.parse(glyph + " <yellow>x" + count + "</yellow>"));
+                lines.add(MessageUtils.parse(glyph + " <white>x" + count + "</white>"));
                 remaining %= den.value();
             }
         }
@@ -155,10 +129,9 @@ public final class CoinFormat {
         if (lines.isEmpty()) {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
             String glyph = smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%";
-            lines.add(MessageUtils.parse(glyph + " <yellow>x0</yellow>"));
+            lines.add(MessageUtils.parse(glyph + " <white>x0</white>"));
         }
 
         return lines;
     }
 }
-

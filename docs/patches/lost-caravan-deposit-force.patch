@@ -1,0 +1,30 @@
+diff --git a/src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java b/src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java
+--- a/src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java
++++ b/src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java
+@@ -78,6 +78,7 @@ public class LostCaravanManager {
+     private final List<LostCaravanLot> activeLots = new ArrayList<>();
+     private int currentAuctionLotIndex = -1;
++    private String pendingForceMode;
+     private org.bukkit.scheduler.BukkitTask auctionTickTask;
+
+@@ openSession: after participantCount
++        if (participantCount <= 0 && plugin.getConfig().getBoolean("caravan.lost.leave-if-empty", true)) {
++            CaravanEffects.broadcast("<gold>Потерянный караван</gold> <gray>— никто не внёс залог. Обоз уезжает.</gray>");
++            closeSession();
++            return;
++        }
++        // pendingForceMode overrides INSTANT/AUCTION/SECRET
+
+@@ handleNpcClick OPEN:
++            if (!isParticipant(currentSession.id(), player.getUniqueId())) {
++                MessageUtils.sendMessage(player, "<gray>Вы не вносили залог. Меню лотов доступно только участникам.</gray>");
++                return;
++            }
+
++    public synchronized boolean forceStart(String mode, boolean force) {
++        if (isEventActive() && !force) return false;
++        if (isEventActive()) closeSession();
++        announceSession(System.currentTimeMillis() / 1000);
++        if (currentSession != null) pendingForceMode = mode == null ? "AUTO" : mode.trim().toUpperCase();
++        return true;
++    }
