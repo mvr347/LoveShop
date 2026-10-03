@@ -125,12 +125,6 @@ public final class LoveShops extends JavaPlugin {
             }
         }
 
-        var tpCommand = getCommand("tp");
-        if (tpCommand != null) {
-            var tpCmd = new dev.lovelace.loveshops.commands.TradePointTeleportCommand(this);
-            tpCommand.setExecutor(tpCmd);
-            tpCommand.setTabCompleter(tpCmd);
-        }
         var tpaCommand = getCommand("tradepointadmin");
         if (tpaCommand != null) {
             var tpaCmd = new dev.lovelace.loveshops.commands.TradePointAdminCommand(this);

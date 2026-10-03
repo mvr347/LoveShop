@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.utils.MessageUtils;
 import dev.lovelace.loveshops.market.TradePointManager;
 import dev.lovelace.loveshops.market.gui.StallOwnerGui;
 import dev.lovelace.loveshops.market.model.BlacklistEntry;
