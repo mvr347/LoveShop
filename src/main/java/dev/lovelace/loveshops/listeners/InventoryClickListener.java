@@ -229,6 +229,19 @@ public class InventoryClickListener implements Listener {
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionAgentGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionAgentGui.TITLE)) {
                 event.setCancelled(true);
                 if (raw >= 0 && raw < topSize) {
+                    // Drag / cursor onto «Выставить»: предмет с курсора уходит в меню цены
+                    if (raw == dev.lovelace.loveshops.gui.CommissionAgentGui.SLOT_CREATE_LOT) {
+                        ItemStack cursor = event.getCursor();
+                        if (cursor != null && !cursor.getType().isAir()) {
+                            ItemStack toList = cursor.clone();
+                            event.getView().setCursor(null);
+                            var mgr = plugin.getCommissionManager();
+                            if (mgr != null) {
+                                dev.lovelace.loveshops.gui.CommissionAgentGui.startListing(plugin, player, mgr, toList, false);
+                            }
+                            return;
+                        }
+                    }
                     dev.lovelace.loveshops.gui.CommissionAgentGui.handleClick(plugin, player, raw, event.getClick(), topInv);
                 }
             } else if (holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui || titleText.contains(dev.lovelace.loveshops.gui.CommissionConfirmGui.TITLE)) {

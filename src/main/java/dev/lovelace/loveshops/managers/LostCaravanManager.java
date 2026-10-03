@@ -29,6 +29,8 @@ import java.sql.*;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import net.kyori.adventure.bossbar.BossBar;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -79,6 +81,8 @@ public class LostCaravanManager {
     // Состояние текущего лота на аукционе
     private int currentAuctionLotIndex = -1;
     private String pendingForceMode;
+    private final Map<UUID, BossBar> participantBossBars = new ConcurrentHashMap<>();
+    private org.bukkit.scheduler.BukkitTask bossBarTickTask;
     private long currentLotEndTimestamp = 0;
     private io.papermc.paper.threadedregions.scheduler.ScheduledTask schedulerTask;
     private org.bukkit.scheduler.BukkitTask auctionTickTask;
@@ -535,6 +539,7 @@ public class LostCaravanManager {
     }
 
     public synchronized void closeSession() {
+        clearAllParticipantBossBars();
         stopAuctionTicker();
         if (currentSession == null) return;
         long now = System.currentTimeMillis() / 1000;
@@ -799,6 +804,7 @@ public class LostCaravanManager {
             return RegisterResult.DB_ERROR;
         }
 
+        attachParticipantBossBar(player);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
         MessageUtils.sendMessage(player, "<green><bold>Вы успешно зарегистрировались в Потерянном Караване!</bold></green>");
         MessageUtils.sendMessage(player, "<gray>Залог в размере " + CoinFormat.formatGlyphs(eco, entryFee) + " внесён. Ожидайте начала торгов!</gray>");
@@ -1053,27 +1059,49 @@ public class LostCaravanManager {
         loc.getWorld().playSound(loc, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.2f);
         loc.getWorld().spawnParticle(org.bukkit.Particle.FIREWORK, loc.clone().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.05);
 
-        // Роллим от 2 до 4 предметов из лут-таблицы
-        List<ItemStack> rewards = new ArrayList<>();
-        int rolls = ThreadLocalRandom.current().nextInt(2, 5);
+        // Качество: 30% плохой / 50% обычный / 20% хороший (секретный чуть лучше)
+        double qualityRoll = ThreadLocalRandom.current().nextDouble();
+        String quality;
+        int rolls;
+        double chanceMul;
+        if (isSecret) {
+            if (qualityRoll < 0.15) { quality = "bad"; rolls = 2; chanceMul = 0.7; }
+            else if (qualityRoll < 0.55) { quality = "normal"; rolls = 3; chanceMul = 1.0; }
+            else { quality = "good"; rolls = 5; chanceMul = 1.25; }
+        } else {
+            if (qualityRoll < 0.30) { quality = "bad"; rolls = 1; chanceMul = 0.55; }
+            else if (qualityRoll < 0.80) { quality = "normal"; rolls = 3; chanceMul = 1.0; }
+            else { quality = "good"; rolls = 4; chanceMul = 1.2; }
+        }
 
+        List<ItemStack> rewards = new ArrayList<>();
         for (int r = 0; r < rolls && !table.isEmpty(); r++) {
             LostCaravanLootEntry entry = table.get(ThreadLocalRandom.current().nextInt(table.size()));
             double rollChance = ThreadLocalRandom.current().nextDouble(0, 100);
-            if (rollChance <= entry.chance()) {
-                int count = ThreadLocalRandom.current().nextInt(entry.min(), entry.max() + 1);
+            if (rollChance <= entry.chance() * chanceMul) {
+                int min = entry.min();
+                int max = entry.max();
+                if ("bad".equals(quality)) max = Math.max(min, min + (max - min) / 2);
+                if ("good".equals(quality)) min = Math.max(min, (min + max) / 2);
+                int count = ThreadLocalRandom.current().nextInt(min, max + 1);
                 ItemStack rolled = ItemResolver.resolveItemStack(entry.itemId(), count);
                 rewards.add(rolled);
             }
         }
 
-        // Если ничего не выпало, даём гарантированно хотя бы золото/железо
         if (rewards.isEmpty()) {
-            rewards.add(ItemResolver.resolveItemStack(isSecret ? "DIAMOND" : "GOLD_INGOT", isSecret ? 3 : 8));
+            if ("bad".equals(quality)) {
+                rewards.add(ItemResolver.resolveItemStack(isSecret ? "IRON_INGOT" : "COBBLESTONE", isSecret ? 4 : 16));
+            } else if ("good".equals(quality)) {
+                rewards.add(ItemResolver.resolveItemStack(isSecret ? "DIAMOND" : "GOLD_INGOT", isSecret ? 5 : 12));
+            } else {
+                rewards.add(ItemResolver.resolveItemStack(isSecret ? "DIAMOND" : "GOLD_INGOT", isSecret ? 3 : 8));
+            }
         }
 
         MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
-        MessageUtils.sendMessage(player, "<yellow>Вы открыли " + (isSecret ? "<gold>⚡ Секретный Ящик" : "📦 Ящик каравана") + "!</yellow>");
+        String qLabel = "bad".equals(quality) ? "<gray>скромный</gray>" : ("good".equals(quality) ? "<green>удачный</green>" : "<yellow>обычный</yellow>");
+        MessageUtils.sendMessage(player, "<yellow>Вы открыли " + (isSecret ? "<gold>⚡ Секретный Ящик" : "📦 Ящик каравана") + "</yellow> <dark_gray>(" + qLabel + "<dark_gray>)</dark_gray>");
         MessageUtils.sendMessage(player, "<gray>Ваша награда:</gray>");
         for (ItemStack rw : rewards) {
             giveOrDropItem(player, rw);
@@ -1083,6 +1111,84 @@ public class LostCaravanManager {
         return true;
     }
 
+
+
+    private void attachParticipantBossBar(Player player) {
+        if (currentSession == null) return;
+        if (!plugin.getConfig().getBoolean("caravan.lost.bossbar-enabled", true)) return;
+        clearParticipantBossBar(player.getUniqueId());
+        long openAt = currentSession.openedAt();
+        long now = System.currentTimeMillis() / 1000;
+        long left = Math.max(0, openAt - now);
+        long total = Math.max(1L, openAt - currentSession.scheduledAt());
+        float progress = Math.max(0f, Math.min(1f, (float) left / (float) total));
+        BossBar bar = BossBar.bossBar(
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                        "<gold>Потерянный караван</gold> <gray>· регистрация</gray> <white>" + formatTime(left) + "</white>"),
+                progress,
+                BossBar.Color.YELLOW,
+                BossBar.Overlay.PROGRESS
+        );
+        player.showBossBar(bar);
+        participantBossBars.put(player.getUniqueId(), bar);
+        ensureBossBarTicker();
+    }
+
+    private void ensureBossBarTicker() {
+        if (bossBarTickTask != null) return;
+        bossBarTickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticipantBossBars, 20L, 20L);
+    }
+
+    private void tickParticipantBossBars() {
+        if (currentSession == null || !"ANNOUNCED".equalsIgnoreCase(currentSession.status())) {
+            clearAllParticipantBossBars();
+            return;
+        }
+        long openAt = currentSession.openedAt();
+        long now = System.currentTimeMillis() / 1000;
+        long left = Math.max(0, openAt - now);
+        long total = Math.max(1L, openAt - currentSession.scheduledAt());
+        float progress = Math.max(0f, Math.min(1f, (float) left / (float) total));
+        var title = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                "<gold>Потерянный караван</gold> <gray>· до торгов</gray> <white>" + formatTime(left) + "</white>");
+        for (var it = participantBossBars.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            Player pl = Bukkit.getPlayer(e.getKey());
+            if (pl == null || !pl.isOnline()) {
+                it.remove();
+                continue;
+            }
+            BossBar bar = e.getValue();
+            bar.name(title);
+            bar.progress(progress);
+        }
+        if (left <= 0) {
+            clearAllParticipantBossBars();
+        }
+    }
+
+    private static String formatTime(long seconds) {
+        long m = seconds / 60;
+        long s = seconds % 60;
+        return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    private void clearParticipantBossBar(UUID uuid) {
+        BossBar bar = participantBossBars.remove(uuid);
+        if (bar == null) return;
+        Player pl = Bukkit.getPlayer(uuid);
+        if (pl != null) pl.hideBossBar(bar);
+    }
+
+    private void clearAllParticipantBossBars() {
+        for (UUID uuid : new java.util.ArrayList<>(participantBossBars.keySet())) {
+            clearParticipantBossBar(uuid);
+        }
+        if (bossBarTickTask != null) {
+            bossBarTickTask.cancel();
+            bossBarTickTask = null;
+        }
+    }
 
     public synchronized boolean forceStart(String mode, boolean force) {
         if (isEventActive() && !force) {

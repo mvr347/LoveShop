@@ -7,6 +7,7 @@ import dev.lovelace.loveshops.models.commission.CommissionLot;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.market.gui.PriceGui;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -298,88 +299,94 @@ public class CommissionAgentGui implements InventoryHolder {
     }
 
     private static void handleCreateLotClick(LoveShops plugin, Player player, CommissionManager manager) {
-        if (manager.getPlayerActiveLot(player.getUniqueId()).isPresent()) {
-            MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот! Дождитесь его продажи или снимите его.</red>");
-            return;
-        }
-
         ItemStack held = player.getInventory().getItemInMainHand();
         if (held.getType().isAir() || held.getAmount() <= 0) {
-            MessageUtils.sendMessage(player, "<red>Возьмите предмет, который хотите продать, в главную руку!</red>");
+            MessageUtils.sendMessage(player, "<gray>Возьмите предмет в руку или перетащите его на кнопку «Выставить».</gray>");
+            return;
+        }
+        startListing(plugin, player, manager, held.clone(), true);
+    }
+
+    /**
+     * Открывает меню цены (как ставка в LoveDuels): Shift — смена монеты, ЛКМ/ПКМ — ±1 монета.
+     * @param takeFromHand если true — снимает предмет с главной руки после подтверждения
+     */
+    public static void startListing(LoveShops plugin, Player player, CommissionManager manager,
+                                    ItemStack itemToSell, boolean takeFromHand) {
+        if (manager.getPlayerActiveLot(player.getUniqueId()).isPresent()) {
+            MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот! Сначала снимите его.</red>");
+            return;
+        }
+        if (itemToSell == null || itemToSell.getType().isAir() || itemToSell.getAmount() <= 0) {
+            MessageUtils.sendMessage(player, "<gray>Нечего выставлять.</gray>");
+            return;
+        }
+        if (plugin.getForbiddenManager().isForbidden(itemToSell.getType())) {
+            MessageUtils.sendMessage(player, "<red>Этот предмет запрещено выставлять.</red>");
             return;
         }
 
-        if (plugin.getForbiddenManager().isForbidden(held.getType())) {
-            MessageUtils.sendMessage(player, "<red>Этот предмет запрещено выставлять на продажу!</red>");
-            return;
-        }
-
-        ItemStack itemToSell = held.clone();
+        final ItemStack listing = itemToSell.clone();
         player.closeInventory();
 
-        MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
-        MessageUtils.sendMessage(player, "<yellow>Выставление лота: <white>" + itemToSell.getType().name() + " x" + itemToSell.getAmount() + "</white></yellow>");
-        MessageUtils.sendMessage(player, "<gray>Введите в чат желаемую общую цену в монетах (или <red>отмена</red>):</gray>");
-        MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
+        new PriceGui(plugin, player, listing, false, (amount, price) -> {
+            ItemStack sell = listing.clone();
+            sell.setAmount(Math.max(1, Math.min(amount, listing.getAmount())));
 
-        if (plugin.getChatPromptService() != null) {
-            plugin.getChatPromptService().ask(player, text -> {
-                int price;
-                try {
-                    price = Integer.parseInt(text.replaceAll("[^0-9]", ""));
-                } catch (NumberFormatException e) {
-                    MessageUtils.sendMessage(player, "<red>Неверный формат числа! Создание лота отменено.</red>");
+            if (takeFromHand) {
+                ItemStack hand = player.getInventory().getItemInMainHand();
+                if (!hand.isSimilar(listing) || hand.getAmount() < sell.getAmount()) {
+                    MessageUtils.sendMessage(player, "<red>Предмет в руке изменился. Лог отменён.</red>");
                     return;
                 }
-
-                if (price <= 0 || price > 100_000_000) {
-                    MessageUtils.sendMessage(player, "<red>Цена должна быть от 1 до 100 000 000 монет!</red>");
-                    return;
-                }
-
-                // Проверяем, держит ли игрок всё ещё тот же предмет
-                ItemStack currentHeld = player.getInventory().getItemInMainHand();
-                if (!currentHeld.isSimilar(itemToSell) || currentHeld.getAmount() < itemToSell.getAmount()) {
-                    MessageUtils.sendMessage(player, "<red>Предмет в руке изменился! Создание лота отменено.</red>");
-                    return;
-                }
-
-                // Снимаем предмет из руки
-                int remaining = currentHeld.getAmount() - itemToSell.getAmount();
-                if (remaining > 0) {
-                    currentHeld.setAmount(remaining);
-                } else {
-                    player.getInventory().setItemInMainHand(null);
-                }
+                int left = hand.getAmount() - sell.getAmount();
+                if (left > 0) hand.setAmount(left);
+                else player.getInventory().setItemInMainHand(null);
                 player.updateInventory();
+            }
 
-                CommissionManager.LotResult result = manager.createLot(player, itemToSell, price);
-                if (result != CommissionManager.LotResult.SUCCESS) {
-                    // Возврат предмета в случае ошибки
-                    var leftovers = player.getInventory().addItem(itemToSell);
-                    for (ItemStack drop : leftovers.values()) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), drop);
-                    }
-                    switch (result) {
-                        case ALREADY_HAS_LOT -> MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот!</red>");
-                        case FORBIDDEN_ITEM -> MessageUtils.sendMessage(player, "<red>Этот предмет запрещено продавать.</red>");
-                        default -> MessageUtils.sendMessage(player, "<red>Ошибка при выставлении лота.</red>");
-                    }
-                } else {
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                        if (player.isOnline()) {
-                            new CommissionAgentGui(plugin, player, manager, 0).open();
-                        }
-                    }, 5L);
+            long total = price * (long) sell.getAmount();
+            if (total <= 0 || total > 100_000_000L) {
+                giveBack(player, sell);
+                MessageUtils.sendMessage(player, "<red>Некорректная цена.</red>");
+                return;
+            }
+
+            CommissionManager.LotResult result = manager.createLot(player, sell, (int) total);
+            if (result != CommissionManager.LotResult.SUCCESS) {
+                giveBack(player, sell);
+                switch (result) {
+                    case ALREADY_HAS_LOT -> MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот!</red>");
+                    case FORBIDDEN_ITEM -> MessageUtils.sendMessage(player, "<red>Этот предмет запрещено продавать.</red>");
+                    default -> MessageUtils.sendMessage(player, "<red>Не удалось выставить лот.</red>");
                 }
-            }, () -> {
-                MessageUtils.sendMessage(player, "<gray>Выставление лота отменено.</gray>");
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (player.isOnline()) {
-                        new CommissionAgentGui(plugin, player, manager, 0).open();
-                    }
-                }, 2L);
-            });
+            } else {
+                MessageUtils.sendMessage(player, "<green>Лот выставлен.</green>");
+            }
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    new CommissionAgentGui(plugin, player, manager, 0).open();
+                }
+            }, 3L);
+        }, () -> {
+            if (!takeFromHand) {
+                giveBack(player, listing);
+            }
+            MessageUtils.sendMessage(player, "<gray>Выставление отменено.</gray>");
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    new CommissionAgentGui(plugin, player, manager, 0).open();
+                }
+            }, 2L);
+        }).open();
+    }
+
+    private static void giveBack(Player player, ItemStack item) {
+        if (item == null || item.getType().isAir()) return;
+        var leftovers = player.getInventory().addItem(item);
+        for (ItemStack drop : leftovers.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), drop);
         }
     }
+
 }

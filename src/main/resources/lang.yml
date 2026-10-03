@@ -13,12 +13,12 @@ commands:
   # Единый формат для всех help-выводов плагина: разделитель, список
   # "<aqua>/команда аргументы</aqua> <gray>- описание</gray>", разделитель.
   admin-moved: "<yellow>Эта команда переехала: используйте <aqua>{command}</aqua>.</yellow>"
-  help-header: "<dark_gray>========== <aqua>LoveShops Помощь</aqua> ==========</dark_gray>"
-  help-admin: "<aqua>/loveshopsadmin</aqua> <gray>- Административные команды LoveShops</gray>"
+  help-header: "<dark_gray>========== <aqua>Помощь</aqua> ==========</dark_gray>"
+  help-admin: "<aqua>/loveshopsadmin</aqua> <gray>- Административные команды</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"
 
 admin:
-  help-header: "<dark_gray>========== <aqua>LoveShops Admin</aqua> ==========</dark_gray>"
+  help-header: "<dark_gray>========== <aqua>Админ</aqua> ==========</dark_gray>"
   help-reload: "<aqua>/loveshopsadmin reload</aqua> <gray>- Перезагрузить конфигурацию и локализацию</gray>"
   help-npc: "<aqua>/loveshopsadmin npc <create|delete|list></aqua> <gray>- Управление NPC-торговцами</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"

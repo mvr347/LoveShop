@@ -10,8 +10,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Единый стиль отображения монет LoveEconomy в GUI/сообщениях:
- * глиф %img_&lt;tag&gt;% и белый счётчик &lt;white&gt;xN&lt;/white&gt;.
+ * Единый стандарт форматирования денег в виде глифов монет ItemsAdder.
+ * Соответствует эталону BankerGui: разбиение суммы long по LoveEconomy.denominations()
+ * от старшего к младшему с отображением %img_<tag>% и белым счётчиком (эквивалент &f xN).
  */
 public final class CoinFormat {
 
@@ -62,11 +63,18 @@ public final class CoinFormat {
             Denomination smallest = dens.isEmpty() ? null : dens.get(dens.size() - 1);
             return (smallest != null ? getCoinGlyph(smallest) : "%img_copper_coin%") + " <white>x0</white>";
         }
+
         return sb.toString();
     }
 
-    public static String formatGlyphs(LoveShops plugin, long amount) {
+    public static String formatGlyphs(long amount) {
+        LoveShops plugin = LoveShops.getInstance();
         return formatGlyphs(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
+    }
+
+    public static List<Component> formatGlyphLines(long amount) {
+        LoveShops plugin = LoveShops.getInstance();
+        return formatGlyphLines(plugin != null ? plugin.getEconomy().orElse(null) : null, amount);
     }
 
     public static List<String> glyphLineStrings(LoveEconomy eco, long amount) {
