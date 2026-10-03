@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.loveshops.utils.Money;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.LostCaravanAuctionGui;
@@ -352,11 +353,36 @@ public class LostCaravanManager {
         }
     }
 
+    /**
+     * Starting price of a lot. 2026-10-03: {@code caravan.lost.starting-price} (default "8i" = 800) and
+     * {@code secret-starting-price} ("25i") are money values - the loot of a crate is worth about that: ~3 rolls of
+     * ores/ingots (diamonds 3-8, gold 12-32, scrap ...), the secret one netherite, diamond blocks and totems.
+     */
+    int startingPrice(boolean secret) {
+        long value = secret
+                ? Money.scaled(plugin.getConfig(), "caravan.lost.secret-starting-price", 2_500L)
+                : Money.scaled(plugin.getConfig(), "caravan.lost.starting-price", 800L);
+        return (int) Math.max(1L, Math.min(Integer.MAX_VALUE, value));
+    }
+
+    /** Deposit for taking part ({@code caravan.lost.entry-fee.amount}: number or money text, default "1i" = 100). */
+    public int entryFee() {
+        long fee = Money.scaled(plugin.getConfig(), "caravan.lost.entry-fee.amount", 100L);
+        return (int) Math.max(0L, Math.min(Integer.MAX_VALUE, fee));
+    }
+
+    /** Smallest raise over the current bid, percent ({@code caravan.lost.min-raise-percent}, default 5). */
+    public int minRaiseOver(int currentBid) {
+        double percent = Math.max(0.0, plugin.getConfig().getDouble("caravan.lost.min-raise-percent", 5.0));
+        return Math.max(1, (int) Math.round(currentBid * percent / 100.0));
+    }
+
     private void createLots(int sessionId, boolean secretCrate) {
         activeLots.clear();
         int baseCratesCount = plugin.getConfig().getInt("caravan.lost.crates-count", 5);
         int totalCrates = secretCrate ? baseCratesCount + 1 : baseCratesCount;
-        int startingPrice = plugin.getConfig().getInt("caravan.lost.starting-price", 10);
+        int startingPriceBase = startingPrice(false);
+        int startingPriceSecret = startingPrice(true);
 
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             for (int i = 0; i < totalCrates; i++) {
@@ -372,6 +398,7 @@ public class LostCaravanManager {
                 ps.setInt(2, i);
                 ps.setInt(3, isSecret ? 1 : 0);
                 ps.setString(4, base64);
+                int startingPrice = isSecret ? startingPriceSecret : startingPriceBase;
                 ps.setInt(5, startingPrice);
                 ps.executeUpdate();
 
@@ -417,7 +444,7 @@ public class LostCaravanManager {
 
         String crateName = lot.secret() ? "<red>⚡ СЕКРЕТНЫЙ ЯЩИК</red>" : "<gold>Ящик #" + (lotIndex + 1) + "</gold>";
         CaravanEffects.broadcast("<gold><bold>⚔ [Потерянный Караван]</bold></gold> <yellow>Открыты торги за "
-                + crateName + "! Начальная ставка: " + lot.startingPrice() + " монет. Время: " + durationSec + " сек.</yellow>");
+                + crateName + "! Начальная ставка: " + CoinFormat.formatGlyphs(lot.startingPrice()) + ". Время: " + durationSec + " сек.</yellow>");
     }
 
     private void tickAuction() {
@@ -466,7 +493,7 @@ public class LostCaravanManager {
                 giveOrDropItem(winner, lot.crateItem().clone());
                 CaravanEffects.playSubmitEffects(winner);
                 MessageUtils.sendMessage(winner, "<green>Поздравляем! Вы выиграли "
-                        + (lot.secret() ? "Секретный Ящик" : "Ящик каравана") + " со ставкой " + lot.currentBid() + " монет!</green>");
+                        + (lot.secret() ? "Секретный Ящик" : "Ящик каравана") + " со ставкой " + CoinFormat.formatGlyphs(lot.currentBid()) + "!</green>");
             } else {
                 // Если победитель офлайн, сохраняем в pending_returns
                 savePendingCrate(lot.highestBidder(), lot.crateItem().clone());
@@ -613,7 +640,7 @@ public class LostCaravanManager {
             return BidResult.ALREADY_HIGHEST;
         }
 
-        int minBid = lot.currentBid() > 0 ? (lot.currentBid() + Math.max(1, (int) Math.round(lot.currentBid() * 0.05))) : lot.startingPrice();
+        int minBid = lot.currentBid() > 0 ? (lot.currentBid() + minRaiseOver(lot.currentBid())) : lot.startingPrice();
         if (amount < minBid) {
             return BidResult.TOO_LOW;
         }
@@ -793,7 +820,7 @@ public class LostCaravanManager {
         }
 
         LoveEconomy eco = plugin.getEconomy().orElse(null);
-        int entryFee = plugin.getConfig().getInt("caravan.lost.entry-fee.amount", 1);
+        int entryFee = entryFee();
         if (eco == null || !eco.has(player, entryFee)) {
             return RegisterResult.NO_FEE;
         }

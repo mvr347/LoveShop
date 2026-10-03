@@ -55,8 +55,16 @@ public class WarMerchantManager {
         for (Map<?, ?> entry : plugin.getConfig().getMapList("war-merchant.items")) {
             try {
                 Material material = Material.valueOf(String.valueOf(entry.get("material")).toUpperCase());
-                int configPrice = entry.get("price") instanceof Number number ? number.intValue() : 0;
-                int price = plugin.getPricesManager().getWarMerchantPrice(material.name(), configPrice);
+                // price: a number (copper units) or money text ("2g"); times war-merchant.price-scale (the entries of
+                // config.yml were written for the old economy)
+                long configPrice = entry.get("price") == null ? 0L : parseMoneyEntry(entry.get("price"));
+                double scale = Math.max(0.0, plugin.getConfig().getDouble("war-merchant.price-scale", 8.0));
+                long scaled = Math.max(0L, Math.round(configPrice * scale));
+                // never cheaper than the model value times the mark-up: buying here and selling to the Buyer must not pay
+                long floor = plugin.getPriceCalculator().merchantFloor(material,
+                        plugin.getConfig().getDouble("war-merchant.markup-percent", 140.0));
+                int price = plugin.getPricesManager().getWarMerchantPrice(material.name(),
+                        (int) Math.min(Integer.MAX_VALUE, Math.max(scaled, floor)));
 
                 ItemStack item = new ItemStack(material);
                 Object enchantsRaw = entry.get("enchantments");
@@ -128,5 +136,15 @@ public class WarMerchantManager {
             return "&cВоенный торговец: Тебе тут делать нечего, миролюбивый. Проваливай.";
         }
         return messages.get((int) (Math.random() * messages.size()));
+    }
+
+    private long parseMoneyEntry(Object raw) {
+        if (raw instanceof Number number) return number.longValue();
+        try {
+            return dev.lovelace.loveshops.utils.Money.parse(String.valueOf(raw));
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("war-merchant.items: price '" + raw + "' is not readable (" + e.getMessage() + ")");
+            return 0L;
+        }
     }
 }

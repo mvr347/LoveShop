@@ -28,13 +28,15 @@ public final class CoinFormat {
 
     public static String getCoinName(Denomination den) {
         if (den == null) return "Монета";
+        // 2026-10-03: by id only. The old value thresholds (>= 1000 netherite, >= 100 diamond, ...) labelled every coin
+        // one tier too high once the denominations became 1/100/2000/20000.
         String id = den.itemId() != null ? den.itemId().toLowerCase() : "";
-        long val = den.value();
-        if (id.contains("netherite") || val >= 1000) return "<gradient:#9B51E0:#BB6BD9>Незеритовая монета</gradient>";
-        if (id.contains("diamond") || val >= 100) return "<gradient:#00C9FF:#92FE9D>Алмазная монета</gradient>";
-        if (id.contains("gold") || val >= 50) return "<gradient:#FFE000:#799F0C>Золотая монета</gradient>";
-        if (id.contains("iron") || val >= 10) return "<gradient:#E0E0E0:#F2F2F2>Железная монета</gradient>";
-        return "<gradient:#E67E22:#D35400>Медная монета</gradient>";
+        if (id.contains("netherite")) return "<gradient:#9B51E0:#BB6BD9>Незеритовая монета</gradient>";
+        if (id.contains("diamond")) return "<gradient:#00C9FF:#92FE9D>Алмазная монета</gradient>";
+        if (id.contains("gold")) return "<gradient:#FFE000:#799F0C>Золотая монета</gradient>";
+        if (id.contains("iron")) return "<gradient:#E0E0E0:#F2F2F2>Железная монета</gradient>";
+        if (id.contains("copper")) return "<gradient:#E67E22:#D35400>Медная монета</gradient>";
+        return "Монета";
     }
 
     public static String formatGlyphs(LoveEconomy eco, long amount) {

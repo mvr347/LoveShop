@@ -147,6 +147,24 @@ public class DailyCaravanManager {
         }
     }
 
+    /**
+     * Price per unit paid for an accepted item. 2026-10-03: {@code caravan.daily.price-source} MODEL (default) pays the
+     * LoveCore price model's value of the item times {@code caravan.daily.markup-percent} (130 %: the caravan pays more than
+     * the Buyer's 55 %, that is its point); FIXED, an unpriced item or a model that is not ready use the config number.
+     */
+    private int resolveUnitPrice(DailyCrateAcceptedItem accepted) {
+        if ("MODEL".equalsIgnoreCase(plugin.getConfig().getString("caravan.daily.price-source", "MODEL"))) {
+            org.bukkit.Material material = org.bukkit.Material.matchMaterial(accepted.itemId());
+            var value = dev.lovelace.loveshops.utils.Money.modelValue(material);
+            if (value.isPresent()) {
+                long price = dev.lovelace.loveshops.utils.Money.percentOf(value.getAsLong(),
+                        plugin.getConfig().getDouble("caravan.daily.markup-percent", 130.0));
+                return (int) Math.min(Integer.MAX_VALUE, Math.max(1L, price));
+            }
+        }
+        return Math.max(1, accepted.pricePerUnit());
+    }
+
     private void tickSchedule() {
         if (!plugin.getConfig().getBoolean("caravan.daily.enabled", true)) {
             if (active) endVisit("DISABLED");
@@ -276,7 +294,7 @@ public class DailyCaravanManager {
         int selectedCount = Math.min(count, poolList.size());
         for (int i = 0; i < selectedCount; i++) {
             DailyCrateConfig cfg = poolList.get(i);
-            int basePrice = cfg.acceptedItems().isEmpty() ? 1 : cfg.acceptedItems().get(0).pricePerUnit();
+            int basePrice = cfg.acceptedItems().isEmpty() ? 1 : resolveUnitPrice(cfg.acceptedItems().get(0));
             int variance = variancePercent > 0 ? (random.nextInt(variancePercent * 2 + 1) - variancePercent) : 0;
             int finalPrice = Math.max(1, Math.round(basePrice * (1.0f + (variance / 100.0f))));
             int maxAmount = cfg.maxStacks() * 64;
@@ -291,7 +309,7 @@ public class DailyCaravanManager {
             DailyCrateConfig urgentCfg = poolList.get(random.nextInt(poolList.size()));
             int urgentDurationMin = Math.max(5, plugin.getConfig().getInt("caravan.daily.urgent-order.duration-minutes", 60));
             double multiplier = Math.max(1.0, plugin.getConfig().getDouble("caravan.daily.urgent-order.price-multiplier", 1.8));
-            int basePrice = urgentCfg.acceptedItems().isEmpty() ? 1 : urgentCfg.acceptedItems().get(0).pricePerUnit();
+            int basePrice = urgentCfg.acceptedItems().isEmpty() ? 1 : resolveUnitPrice(urgentCfg.acceptedItems().get(0));
             int urgentPrice = Math.max(1, (int) Math.round(basePrice * multiplier));
             int maxAmount = Math.max(10, (urgentCfg.maxStacks() / 2)) * 64;
             String urgentName = plugin.getConfig().getString("caravan.daily.urgent-order.display-name",

@@ -1,7 +1,9 @@
 package dev.lovelace.loveshops.managers;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.utils.Money;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -32,20 +34,43 @@ public class PriceCalculator {
         // ушёл бы по цене обычного предмета того же материала.
         String artifactType = artifactTypeOf(item);
         if (artifactType != null) {
-            int artifactPrice = plugin.getConfig().getInt("prices-config.artifacts." + artifactType, -1);
+            long artifactPrice = Money.scaled(plugin.getConfig(), "prices-config.artifacts." + artifactType, -1L);
             if (artifactPrice > 0) {
-                return artifactPrice;
+                return clampToInt(artifactPrice);
             }
-            return plugin.getConfig().getInt("prices-config.artifacts.default-price", 2500);
+            return clampToInt(Money.scaled(plugin.getConfig(), "prices-config.artifacts.default-price", 6_000L));
         }
 
         String materialName = item.getType().name();
 
+        // 1. An explicit override from prices.yml (/lsa price buyer ...) always wins.
         int configuredPrice = plugin.getPricesManager().getCommonPrice(materialName, -1);
         if (configuredPrice > 0) {
             return configuredPrice;
         }
-        return plugin.getConfig().getInt("buyer.base-price-config.default-price", 1);
+        // 2. 2026-10-03: the LoveCore recipe-based price model, paid out at buyer.payout-percent of the item's value.
+        if ("MODEL".equalsIgnoreCase(plugin.getConfig().getString("buyer.price-source", "MODEL"))) {
+            var modelValue = Money.modelValue(item.getType());
+            if (modelValue.isPresent()) {
+                double percent = plugin.getConfig().getDouble("buyer.payout-percent", 55.0);
+                return clampToInt(Money.percentOf(modelValue.getAsLong(), percent));
+            }
+        }
+        // 3. Not in the model (or the model is off / not ready): the flat default.
+        return clampToInt(Money.scaled(plugin.getConfig(), "buyer.base-price-config.default-price", 1L));
+    }
+
+    private static int clampToInt(long value) {
+        return (int) Math.max(0L, Math.min(Integer.MAX_VALUE, value));
+    }
+
+    /**
+     * Cheapest price a merchant may ask for an item so that buying from it and selling to the buyer is never a
+     * profit: the model value times {@code markupPercent}. 0 when the model does not know the item.
+     */
+    public long merchantFloor(Material material, double markupPercent) {
+        var modelValue = Money.modelValue(material);
+        return modelValue.isPresent() ? Money.percentOf(modelValue.getAsLong(), markupPercent) : 0L;
     }
 
     /**

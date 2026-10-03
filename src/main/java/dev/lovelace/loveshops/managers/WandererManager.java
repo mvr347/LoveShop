@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.loveshops.utils.CoinFormat;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import dev.lovelace.lovecore.api.LoveCore;
@@ -409,7 +410,15 @@ public class WandererManager {
                     }
                 }
 
-                int basePrice = map.get("price") != null ? Integer.parseInt(String.valueOf(map.get("price"))) : 100;
+                // price: a number (copper units) or money text ("2g"); times wanderer.price-scale (the pool was written for
+                // the old economy), and never below the model value times wanderer.markup-percent - so buying from the
+                // Wanderer and selling to the Buyer can never be a profit.
+                long configPrice = map.get("price") != null ? parsePoolPrice(map.get("price")) : 100L;
+                long scaledPrice = Math.max(0L, Math.round(configPrice * Math.max(0.0, plugin.getConfig().getDouble("wanderer.price-scale", 8.0))));
+                org.bukkit.Material poolMaterial = org.bukkit.Material.matchMaterial(material);
+                long floorPrice = poolMaterial == null ? 0L : plugin.getPriceCalculator().merchantFloor(poolMaterial,
+                        plugin.getConfig().getDouble("wanderer.markup-percent", 160.0));
+                int basePrice = (int) Math.min(Integer.MAX_VALUE, Math.max(scaledPrice, floorPrice));
                 int price = plugin.getPricesManager().getWandererPrice(id, plugin.getPricesManager().getWandererPrice(material, basePrice));
                 int amount = map.get("amount") != null ? Integer.parseInt(String.valueOf(map.get("amount"))) : 1;
                 int weight = map.get("weight") != null ? Integer.parseInt(String.valueOf(map.get("weight"))) : 10;
@@ -637,22 +646,30 @@ public class WandererManager {
      *                          have the Wanderer's incoming delivery drawn only from that
      *                          category of {@code wanderer.items-pool} instead of the full pool.
      */
+    /**
+     * Advance for a deal with the Wanderer ({@code wanderer.deal.cost}: number or money text, price index applied).
+     * 2026-10-03: the config said 30 and the code fell back to 150; one default now, "4i" (400).
+     */
+    public long dealBaseCost() {
+        return Math.max(0L, dev.lovelace.loveshops.utils.Money.scaled(plugin.getConfig(), "wanderer.deal.cost", 400L));
+    }
+
     public CompletableFuture<Boolean> startDeal(Player player, WandererRequestCategory requestedCategory) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
 
-        int baseCost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
-        int cost = baseCost;
+        long baseCost = dealBaseCost();
+        long cost = baseCost;
         boolean personalRequestEnabled = plugin.getConfig().getBoolean("wanderer.deal.personal-request.enabled", true);
         if (requestedCategory != null && personalRequestEnabled) {
             double surchargePercent = plugin.getConfig().getDouble("wanderer.deal.personal-request.surcharge-percent", 50);
-            cost = (int) Math.round(baseCost * (1 + surchargePercent / 100.0));
+            cost = Math.round(baseCost * (1 + surchargePercent / 100.0));
         } else if (requestedCategory != null) {
             // personal-request disabled server-side — fall back to a regular unfiltered deal
             // rather than silently charging a surcharge for a feature that's off.
             requestedCategory = null;
         }
         final WandererRequestCategory finalCategory = requestedCategory;
-        final int finalCost = cost;
+        final long finalCost = cost;
 
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
         int minItems = plugin.getConfig().getInt("wanderer.deal.min-items", 3);
@@ -666,10 +683,10 @@ public class WandererManager {
         if (finalCost > 0) {
             if (economy == null || !economy.has(player, finalCost)) {
                 String msg = plugin.getConfig().getString("wanderer.messages.insufficient-funds-deal",
-                    "<red>Недостаточно монет! Требуется: <gold>{currency_icon}{cost} {currency}</gold></red>")
-                    .replace("{cost}", String.valueOf(finalCost))
+                    "<red>Недостаточно монет! Требуется: {cost}</red>")
+                    .replace("{cost}", CoinFormat.formatGlyphs(economy, finalCost))
                     .replace("{currency}", currencyName)
-                    .replace("{currency_icon}", MessageUtils.currencyIcon());
+                    .replace("{currency_icon}", "");
                 MessageUtils.sendMessage(player, msg);
                 future.complete(false);
                 return future;
@@ -968,5 +985,10 @@ public class WandererManager {
                 });
             });
         });
+    }
+
+    private long parsePoolPrice(Object raw) {
+        if (raw instanceof Number number) return number.longValue();
+        return dev.lovelace.loveshops.utils.Money.parse(String.valueOf(raw));
     }
 }

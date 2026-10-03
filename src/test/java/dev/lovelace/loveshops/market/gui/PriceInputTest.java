@@ -64,4 +64,17 @@ class PriceInputTest {
         assertEquals(1, in.price());
         assertEquals(1, in.unitCount());
     }
+
+    @Test
+    void startsOnTheSmallestCoinWorthAtLeastTheStartUnit() {
+        PriceInput in = new PriceInput(new long[]{1, 100, 2_000, 20_000}, 1, 1_000_000, 0);
+        in.startAtUnit(100);
+        assertEquals(100, in.activeUnit());
+        in.add();
+        assertEquals(100, in.price());
+        in.startAtUnit(150); // no coin of exactly 150: the next bigger one
+        assertEquals(2_000, in.activeUnit());
+        in.startAtUnit(1_000_000); // none that big: unchanged
+        assertEquals(2_000, in.activeUnit());
+    }
 }

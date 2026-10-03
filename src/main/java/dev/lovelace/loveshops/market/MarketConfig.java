@@ -27,9 +27,14 @@ public final class MarketConfig {
         return s == null ? def : s.getInt(path, def);
     }
 
+    /** Plain number or money text ("3i"); no price index (counters, limits). */
     private long getLong(String path, long def) {
-        ConfigurationSection s = root();
-        return s == null ? def : s.getLong(path, def);
+        return dev.lovelace.loveshops.utils.Money.raw(root(), path, def);
+    }
+
+    /** A price-like money value: number or money text, with LoveCore's price index applied. */
+    private long getMoney(String path, long def) {
+        return dev.lovelace.loveshops.utils.Money.scaled(root(), path, def);
     }
 
     private boolean getBool(String path, boolean def) {
@@ -57,7 +62,7 @@ public final class MarketConfig {
     }
 
     /** Weekly rent given to a point made by the wizard when the admin does not type a price. */
-    public long defaultRentPrice() { return Math.max(0L, getLong("feudal.default-rent-price", 100L)); }
+    public long defaultRentPrice() { return Math.max(0L, getMoney("feudal.default-rent-price", 3_000L)); }
 
     public String feudalName() { return getString("npc.feudal-name", "&6Феодал"); }
     public String feudalSkin() { return getString("npc.feudal-skin", ""); }
@@ -85,7 +90,7 @@ public final class MarketConfig {
         int cap = getInt("stalls.max-level", 0);
         return cap > 0 ? Math.min(cap, full) : full;
     }
-    public long confirmThreshold() { return Math.max(0L, getLong("stalls.confirm-threshold", 5000L)); }
+    public long confirmThreshold() { return Math.max(0L, getMoney("stalls.confirm-threshold", 1_000L)); }
     public int pendingTimeoutSeconds() { return Math.max(5, getInt("stalls.pending-timeout-seconds", 30)); }
 
     /** Name shown above the stall NPC; {@code {owner}} is the tenant's name. Legacy {@code &} codes. */
@@ -113,7 +118,7 @@ public final class MarketConfig {
     public int storagePerLevel() { return Math.max(0, getInt("stalls.storage-per-level", 5)); }
     public boolean allowSellOnly() { return getBool("stalls.allow-sell-only", true); }
     public boolean allowBuyOnly() { return getBool("stalls.allow-buy-only", true); }
-    public long guardCostPerDay() { return Math.max(0L, getLong("guard.cost-per-day", 1L)); }
+    public long guardCostPerDay() { return Math.max(0L, getMoney("guard.cost-per-day", 200L)); }
     public java.util.List<Integer> guardDurationsDays() {
         ConfigurationSection s = root();
         if (s != null && s.isList("guard.durations-days")) {
@@ -141,6 +146,9 @@ public final class MarketConfig {
     /** Upper bound for any single price, so a typo cannot overflow sums. */
     public long priceMax() { return Math.max(1L, getLong("price.max", 100_000_000L)); }
 
+    /** The picker starts on the smallest coin worth at least this ({@code price.start-unit}, default "1i" = 100). */
+    public long priceStartUnit() { return Math.max(1L, getLong("price.start-unit", 100L)); }
+
     public boolean antiDumpEnabled() { return getBool("anti-dump.enabled", true); }
 
     /**
@@ -152,7 +160,18 @@ public final class MarketConfig {
         long floor = 0L;
         ConfigurationSection s = root();
         if (antiDumpEnabled() && s != null) {
-            floor = Math.max(0L, s.getLong("anti-dump.min-prices." + itemKey.toUpperCase(Locale.ROOT), 0L));
+            floor = Math.max(0L, dev.lovelace.loveshops.utils.Money.scaled(s,
+                    "anti-dump.min-prices." + itemKey.toUpperCase(Locale.ROOT), 0L));
+            // 2026-10-03: the floor also follows the LoveCore price model (anti-dump.min-percent-of-model of an item's value),
+            // so every priced item is protected, not just the two listed in min-prices.
+            double percent = s.getDouble("anti-dump.min-percent-of-model", 0.0);
+            if (percent > 0) {
+                org.bukkit.Material material = org.bukkit.Material.matchMaterial(itemKey);
+                var model = dev.lovelace.loveshops.utils.Money.modelValue(material);
+                if (model.isPresent()) {
+                    floor = Math.max(floor, dev.lovelace.loveshops.utils.Money.percentOf(model.getAsLong(), percent));
+                }
+            }
         }
         var prices = plugin.getPricesManager();
         if (prices != null) floor = Math.max(floor, prices.getBounds(itemKey).min());
@@ -192,11 +211,16 @@ public final class MarketConfig {
     public boolean taxExemptPerfect() { return getBool("tax.exempt-perfect", true); }
 
     // ----- upgrades -----
-    public long upgradeCostCoins() { return Math.max(1L, getLong("stalls.upgrade-cost-coins", 1L)); }
-    public long upgradeCostStepCoins() { return Math.max(0L, getLong("stalls.upgrade-cost-step-coins", 1L)); }
+    /**
+     * 2026-10-03: the upgrade price is a plain money value ({@code stalls.upgrade-cost}, default "20i" = 2 000) and a
+     * step ({@code stalls.upgrade-cost-step}, "20i"): level 1 -> 2 costs the base, every next one the step more.
+     * It used to be "N coins of the biggest denomination", which jumped 20x when the denominations changed.
+     */
+    public long upgradeCost() { return Math.max(1L, getMoney("stalls.upgrade-cost", 2_000L)); }
+    public long upgradeCostStep() { return Math.max(0L, getMoney("stalls.upgrade-cost-step", 2_000L)); }
 
     // ----- rating -----
-    public long ratingMinTrade() { return Math.max(0L, getLong("rating.min-trade-amount", 500L)); }
+    public long ratingMinTrade() { return Math.max(0L, getMoney("rating.min-trade-amount", 1_000L)); }
     public int ratingCooldownHours() { return Math.max(0, getInt("rating.cooldown-hours", 48)); }
     public int ratingNewAccountDays() { return Math.max(0, getInt("rating.new-account-days", 7)); }
     public double ratingNewAccountWeight() { return Math.min(1.0, Math.max(0.0, getDouble("rating.new-account-weight", 0.3))); }
@@ -223,7 +247,7 @@ public final class MarketConfig {
 
     // ----- guard -----
     public boolean guardEnabled() { return getBool("guard.enabled", true); }
-    public long guardSalary() { return Math.max(0L, getLong("guard.salary", 800L)); }
+    public long guardSalary() { return Math.max(0L, getMoney("guard.salary", 800L)); }
     public int guardSalaryPeriodHours() { return Math.max(1, getInt("guard.salary-period-hours", 24)); }
     public int guardHarassmentLimit() { return Math.max(1, getInt("guard.harassment-limit", 5)); }
     public int guardHarassmentWindowMinutes() { return Math.max(1, getInt("guard.harassment-window-minutes", 10)); }
