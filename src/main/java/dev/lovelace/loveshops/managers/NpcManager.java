@@ -106,7 +106,7 @@ public class NpcManager {
                 int citizensId = cNpc.getId();
                 insertNpc(type, name, loc, skinOwner, citizensId).whenComplete((npc, err) -> {
                     if (err != null) {
-                        try { registry.deregister(cNpc); } catch (Exception ignored) {}
+                        try { registry.deregister(cNpc); } catch (Exception e) { plugin.getLogger().warning("Откат создания NPC: не удалось снять Citizens NPC: " + e.getMessage()); }
                         future.completeExceptionally(err);
                     } else {
                         cNpc.data().setPersistent("loveshops_uuid", npc.uuid().toString());

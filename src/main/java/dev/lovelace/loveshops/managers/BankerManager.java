@@ -109,7 +109,9 @@ public class BankerManager {
                         int fee = Math.max(0, Math.min(100, rs.getInt("fee_percent")));
                         feeOverrides.put(uuid, fee);
                         n++;
-                    } catch (IllegalArgumentException ignored) {}
+                    } catch (IllegalArgumentException e) {
+                        plugin.getLogger().warning("Банкир: пропущена строка комиссии с неверным UUID: " + e.getMessage());
+                    }
                 }
                 if (n > 0) {
                     plugin.getLogger().info("Загружено персональных комиссий банкира: " + n);

@@ -123,7 +123,9 @@ public final class ItemResolver {
                 ItemStack is = (ItemStack) iaGetItemStack.invoke(customStack);
                 if (is != null) return is.clone();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            // intentional: ItemsAdder is optional and its API may differ between versions
+        }
         return null;
     }
 
@@ -146,7 +148,9 @@ public final class ItemResolver {
                         return true;
                     }
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+                // intentional: ItemsAdder is optional
+            }
         }
 
         // Проверка по ванильному материалу

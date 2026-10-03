@@ -30,6 +30,7 @@ public class DatabaseManager {
                 stmt.execute("PRAGMA busy_timeout=5000;");
                 createTables(conn);
                 purgeLegacyAuctionAndFlea(conn);
+                purgeOrphanRows(conn);
             }
 
             plugin.getLogger().info("✓ База данных SQLite успешно подключена.");
@@ -509,6 +510,63 @@ public class DatabaseManager {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_active ON commission_lots(status, is_hot);");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_seller ON commission_lots(seller_uuid, status);");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_lost_lots_session ON lost_caravan_lots(session_id, status);");
+        // Hot lookups: "is this player registered" on every click, the per-visit submission limit,
+        // pending payouts on join, the sale history of a lot.
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_lost_part_session_player ON lost_caravan_participants(session_id, player_uuid);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_lost_bids_lot ON lost_caravan_bids(lot_id);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_daily_subs_crate_player ON daily_caravan_submissions(crate_id, player_uuid);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_payouts_seller ON commission_pending_payouts(seller_uuid);");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_commission_history_lot ON commission_sales_history(lot_id);");
+    }
+
+    /**
+     * Foreign keys were never enforced (the pragma is per connection and every query opens its own), so
+     * deleted parents left children behind. They are removed once here, before the flag is switched on for
+     * every connection.
+     */
+    private void purgeOrphanRows(Connection conn) {
+        String[] statements = {
+                "DELETE FROM daily_caravan_crates WHERE visit_id NOT IN (SELECT id FROM daily_caravan_visits)",
+                "DELETE FROM daily_caravan_submissions WHERE crate_id NOT IN (SELECT id FROM daily_caravan_crates)",
+                "DELETE FROM lost_caravan_participants WHERE session_id NOT IN (SELECT id FROM lost_caravan_sessions)",
+                "DELETE FROM lost_caravan_lots WHERE session_id NOT IN (SELECT id FROM lost_caravan_sessions)",
+                "DELETE FROM lost_caravan_bids WHERE lot_id NOT IN (SELECT id FROM lost_caravan_lots)"
+        };
+        try (Statement stmt = conn.createStatement()) {
+            int removed = 0;
+            for (String sql : statements) removed += stmt.executeUpdate(sql);
+            if (removed > 0) plugin.getLogger().info("БД: удалено осиротевших строк караванов: " + removed);
+        } catch (SQLException e) {
+            plugin.getLogger().warning("БД: очистка осиротевших строк не удалась: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Daily maintenance: finished caravan visits and sessions, sold or cancelled commission lots and their
+     * history older than {@code retentionDays}. Children go with their parents through the cascades.
+     *
+     * @return rows removed from the parent tables and the history
+     */
+    public int pruneOldData(int retentionDays) {
+        long cutoff = System.currentTimeMillis() / 1000 - Math.max(7, retentionDays) * 86_400L;
+        String[] statements = {
+                "DELETE FROM lost_caravan_sessions WHERE status = 'CLOSED' AND closed_at > 0 AND closed_at < ?",
+                "DELETE FROM daily_caravan_visits WHERE status <> 'ACTIVE' AND despawn_at < ?",
+                "DELETE FROM commission_lots WHERE status IN ('SOLD', 'CANCELLED') AND COALESCE(sold_at, created_at) < ?",
+                "DELETE FROM commission_sales_history WHERE sold_at < ?"
+        };
+        int removed = 0;
+        try (Connection conn = getConnection()) {
+            for (String sql : statements) {
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, cutoff);
+                    removed += ps.executeUpdate();
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("БД: плановая очистка истории не удалась: " + e.getMessage());
+        }
+        return removed;
     }
 
     private void purgeLegacyAuctionAndFlea(Connection conn) {
@@ -536,7 +594,7 @@ public class DatabaseManager {
 
     public Connection getConnection() throws SQLException {
         File dbFile = new File(plugin.getDataFolder(), "database.db");
-        return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000");
+        return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true");
     }
 
     /**
@@ -547,7 +605,7 @@ public class DatabaseManager {
     public Connection getImmediateConnection() throws SQLException {
         File dbFile = new File(plugin.getDataFolder(), "database.db");
         return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath()
-                + "?journal_mode=WAL&busy_timeout=5000&transaction_mode=IMMEDIATE");
+                + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true&transaction_mode=IMMEDIATE");
     }
 
     public synchronized void close() {

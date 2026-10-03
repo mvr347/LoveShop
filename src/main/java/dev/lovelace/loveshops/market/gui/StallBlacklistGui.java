@@ -51,7 +51,8 @@ public final class StallBlacklistGui extends MarketGui {
         List<BlacklistEntry> list = new ArrayList<>();
         try {
             list = plugin.getMarketRepository().loadBlacklist(point.claimId());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            plugin.getLogger().warning("Не удалось загрузить чёрного списка точки: " + e.getMessage());
             // an unreadable list is shown as empty; the actions below report database errors
         }
         int max = plugin.getMarketConfig().blacklistMaxEntries();

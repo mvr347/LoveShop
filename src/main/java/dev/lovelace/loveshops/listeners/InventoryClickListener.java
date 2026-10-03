@@ -86,6 +86,10 @@ public class InventoryClickListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getView().title() == null) return;
+        // Every click on the server passes here: other plugins' and vanilla inventories have a holder of
+        // their own and are none of ours, so the title is only serialized for ours and holder-less menus.
+        var topHolder = event.getView().getTopInventory().getHolder();
+        if (topHolder != null && !topHolder.getClass().getName().startsWith("dev.lovelace.loveshops.")) return;
 
         String titleText = serializer.serialize(event.getView().title());
 
@@ -112,7 +116,7 @@ public class InventoryClickListener implements Listener {
                 int currentIndex = 0;
                 if (clicked != null && clicked.hasItemMeta()) {
                     Integer ordinal = clicked.getItemMeta().getPersistentDataContainer().get(
-                        new NamespacedKey(plugin, dev.lovelace.loveshops.gui.WandererDealGui.CATEGORY_INDEX_KEY), PersistentDataType.INTEGER);
+                        dev.lovelace.loveshops.utils.Keys.of(plugin, dev.lovelace.loveshops.gui.WandererDealGui.CATEGORY_INDEX_KEY), PersistentDataType.INTEGER);
                     if (ordinal != null && ordinal >= 0 && ordinal < categories.length) {
                         currentIndex = ordinal;
                     }
@@ -207,7 +211,7 @@ public class InventoryClickListener implements Listener {
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.hasItemMeta()) {
                 Integer index = clicked.getItemMeta().getPersistentDataContainer()
-                        .get(new NamespacedKey(plugin, "war_merchant_index"), PersistentDataType.INTEGER);
+                        .get(dev.lovelace.loveshops.utils.Keys.of(plugin, "war_merchant_index"), PersistentDataType.INTEGER);
                 if (index != null) {
                     boolean success = plugin.getWarMerchantManager().purchase(player, index);
                     if (success) {
@@ -377,7 +381,7 @@ public class InventoryClickListener implements Listener {
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || !clicked.hasItemMeta()) return;
             Long unit = clicked.getItemMeta().getPersistentDataContainer()
-                    .get(new NamespacedKey(plugin, BankerGui.DENOM_KEY), PersistentDataType.LONG);
+                    .get(dev.lovelace.loveshops.utils.Keys.of(plugin, BankerGui.DENOM_KEY), PersistentDataType.LONG);
             if (unit == null || unit <= 0) return;
             boolean shift = event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT;
             long count = shift ? Long.MAX_VALUE / unit : 1L;

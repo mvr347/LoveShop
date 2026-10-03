@@ -157,7 +157,7 @@ public class DailyCaravanGui implements InventoryHolder {
                 }
 
                 meta.lore(lore);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER, crate.id());
+                meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER, crate.id());
                 crateItem.setItemMeta(meta);
             }
 
@@ -191,7 +191,7 @@ public class DailyCaravanGui implements InventoryHolder {
             ItemStack clicked = top.getItem(rawSlot);
             if (clicked != null && clicked.hasItemMeta()) {
                 Integer crateId = clicked.getItemMeta().getPersistentDataContainer()
-                        .get(new NamespacedKey(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER);
+                        .get(dev.lovelace.loveshops.utils.Keys.of(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER);
                 if (crateId != null) {
                     DailyCaravanManager.SubmitResult result = manager.submitCursorItem(player, crateId, cursor);
                     if (result == DailyCaravanManager.SubmitResult.SUCCESS) {
@@ -263,7 +263,7 @@ public class DailyCaravanGui implements InventoryHolder {
         ItemStack clicked = openInv.getItem(rawSlot);
         if (clicked != null && clicked.hasItemMeta()) {
             Integer crateId = clicked.getItemMeta().getPersistentDataContainer()
-                    .get(new NamespacedKey(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER);
+                    .get(dev.lovelace.loveshops.utils.Keys.of(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER);
             if (crateId != null) {
                 boolean allMatching = clickType.isRightClick() || clickType == ClickType.SHIFT_RIGHT;
                 DailyCaravanManager.SubmitResult result = manager.submitItems(player, crateId, allMatching);

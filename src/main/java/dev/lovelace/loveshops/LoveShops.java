@@ -115,6 +115,11 @@ public final class LoveShops extends JavaPlugin {
         }
         // Price-change journal keeps 90 days; trim once a day (the first run shortly after start).
         getServer().getAsyncScheduler().runAtFixedRate(this, task -> adminCmd.pruneAudit(), 5, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
+        // Finished caravan visits/sessions and old commission lots: trimmed once a day (see config maintenance.*).
+        getServer().getAsyncScheduler().runAtFixedRate(this, task -> {
+            int removed = databaseManager.pruneOldData(getConfig().getInt("maintenance.history-retention-days", 60));
+            if (removed > 0) getLogger().info("БД: удалено устаревших записей истории: " + removed);
+        }, 10, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
 
         dev.lovelace.loveshops.commands.TradePointCommand tradePointCmd = new dev.lovelace.loveshops.commands.TradePointCommand(this);
         for (String cmdName : java.util.List.of("tradepoint", "point", "точка")) {

@@ -283,7 +283,9 @@ public class BankerGui {
                 ItemStack is = (ItemStack) iaGetItemStack.invoke(customStack);
                 if (is != null) return is.clone();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            // intentional: ItemsAdder is optional and its API may differ between versions
+        }
         return null;
     }
 
@@ -360,8 +362,8 @@ public class BankerGui {
         return item;
     }
 
-    private NamespacedKey denomKey() { return new NamespacedKey(plugin, DENOM_KEY); }
-    private NamespacedKey actionKey() { return new NamespacedKey(plugin, ACTION_KEY); }
+    private NamespacedKey denomKey() { return dev.lovelace.loveshops.utils.Keys.of(plugin, DENOM_KEY); }
+    private NamespacedKey actionKey() { return dev.lovelace.loveshops.utils.Keys.of(plugin, ACTION_KEY); }
 
     public static Session session(UUID uuid) { return SESSIONS.get(uuid); }
     public static void clearSession(UUID uuid) { SESSIONS.remove(uuid); }
