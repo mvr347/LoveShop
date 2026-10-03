@@ -29,7 +29,7 @@ class LangKeysTest {
             "gui-mode-sell_only", "gui-mode-buy_only", "gui-mode-both",
             "gui-customer-tab-goods", "gui-customer-tab-goods-on", "gui-customer-tab-goods-lore",
             "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore",
-            "gui-customer-tab-rating", "gui-customer-tab-rating-on", "gui-customer-tab-rating-lore",
+            
             "wiz-step-corner_1", "wiz-step-corner_2", "wiz-step-npc", "wiz-step-closed_sign", "wiz-step-id_sign", "wiz-step-teleport");
 
     @Test

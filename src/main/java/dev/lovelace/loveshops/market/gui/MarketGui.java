@@ -49,6 +49,9 @@ public abstract class MarketGui implements InventoryHolder {
     /** The trade point this menu shows, {@code null} for menus that are not tied to one. */
     public abstract UUID pointId();
 
+    /** {@code true} for the owner's own menus: they are closed when the point changes hands. */
+    public boolean ownerMenu() { return false; }
+
     /** (Re)draws the whole menu into {@link #inventory}. */
     public abstract void render();
 
@@ -150,6 +153,22 @@ public abstract class MarketGui implements InventoryHolder {
         for (int i = 0; i < slots.length; i++) {
             button(slots[i], controls.get(i).item(), controls.get(i).action());
         }
+    }
+
+    /**
+     * Puts the buttons of a menu into one row of the work zone (columns 1-7, centred), the header
+     * keeping only the head and glass. Several rows: call it once per row.
+     */
+    protected void rowButtons(int rowStart, List<Control> controls) {
+        int[] slots = MarketLayout.rowSlots(rowStart, controls.size());
+        for (int i = 0; i < slots.length; i++) {
+            button(slots[i], controls.get(i).item(), controls.get(i).action());
+        }
+    }
+
+    /** A free shelf / order slot: a plus head that is also the drop target for an item. */
+    protected ItemStack freeShelfTile() {
+        return tile(HeadTextures.BUTTON_PLUS, "gui-shelf-free", "gui-shelf-free-lore");
     }
 
     /** Footer: Back (only when {@code back} is given, else the glass stays) and Close, always. */

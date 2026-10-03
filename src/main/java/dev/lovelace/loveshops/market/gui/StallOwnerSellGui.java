@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The owner's shelves (gui_gen v2.1). Free shelves are real empty slots: an item dropped on one
+ * The owner's shelves (gui_gen v2.1). A free shelf is a plus head and a drop target: an item dropped on it
  * (dragged with the mouse, or placed from the cursor) or shift-clicked in the inventory opens the
  * price menu. The menu is 27 or 36 slots depending on how many shelves the point has.
  */
@@ -51,6 +51,9 @@ public final class StallOwnerSellGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         listingAt.clear();
@@ -72,6 +75,7 @@ public final class StallOwnerSellGui extends MarketGui {
                 listingAt.put(slot, listing);
                 used++;
             } else {
+                inventory.setItem(slot, freeShelfTile());
                 freeShelfAt.put(slot, shelf);
             }
         }

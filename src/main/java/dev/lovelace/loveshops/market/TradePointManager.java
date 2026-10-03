@@ -289,6 +289,8 @@ public final class TradePointManager {
         claims.transferTenant(p.claimId(), newOwner);
         save(p);
         reconcileNpcs();
+        // The former owner must not keep managing a point that is no longer theirs.
+        closeOwnerMenus(p.claimId());
         refreshViewers(p.claimId());
         return true;
     }
@@ -330,6 +332,7 @@ public final class TradePointManager {
         UUID owner = p.ownerUuid();
         if (owner == null) return;
         closeViewers(p.claimId());
+        npcStatusShown.remove(p.claimId());
         remindedHours.remove(p.claimId());
         graceRemindedAt.remove(p.claimId());
         Integer npc = p.npcCitizensId();
@@ -608,6 +611,7 @@ public final class TradePointManager {
 
     public void updateNpc(TradePoint p) {
         if (p == null) return;
+        npcStatusShown.remove(p.claimId());
         npcs.updateStallNpc(p);
     }
 
@@ -1213,6 +1217,25 @@ public final class TradePointManager {
     public void refreshViewers(UUID pointId) {
         for (MarketGui gui : new ArrayList<>(viewers.values())) {
             if (pointId.equals(gui.pointId())) gui.render();
+        }
+        refreshNpcStatus(pointId);
+    }
+
+    /** Status line shown per point on its trader; the hologram is rewritten only when this text changes. */
+    private final Map<UUID, String> npcStatusShown = new HashMap<>();
+
+    /** Lots were added, bought out or removed: the trader's status ("No lots" / "Open") may have changed. */
+    private void refreshNpcStatus(UUID pointId) {
+        TradePoint p = points.get(pointId);
+        if (p == null || p.npcCitizensId() == null) return;
+        String now = npcs.statusText(p);
+        if (!now.equals(npcStatusShown.put(pointId, now))) npcs.updateStallNpc(p);
+    }
+
+    /** Closes the management menus of a point (not the customers' windows): its owner changed. */
+    public void closeOwnerMenus(UUID pointId) {
+        for (MarketGui gui : new ArrayList<>(viewers.values())) {
+            if (gui.ownerMenu() && pointId.equals(gui.pointId())) gui.viewer().closeInventory();
         }
     }
 

@@ -46,6 +46,9 @@ public final class StallGuardGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         boolean active = point.guardState() == GuardState.ACTIVE;
