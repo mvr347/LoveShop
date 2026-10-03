@@ -83,7 +83,7 @@ public class LostCaravanManager {
     private final Map<UUID, BossBar> participantBossBars = new ConcurrentHashMap<>();
     private org.bukkit.scheduler.BukkitTask bossBarTickTask;
     private long currentLotEndTimestamp = 0;
-    private io.papermc.paper.threadedregions.scheduler.ScheduledTask schedulerTask;
+    private org.bukkit.scheduler.BukkitTask schedulerTask;
     private org.bukkit.scheduler.BukkitTask auctionTickTask;
 
     public LostCaravanManager(LoveShops plugin) {
@@ -135,10 +135,9 @@ public class LostCaravanManager {
 
     public void start() {
         if (!isEnabled()) return;
-        // Проверка расписания каждые 30 секунд
-        schedulerTask = Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> {
-            checkSchedule();
-        }, 15, 30, TimeUnit.SECONDS);
+        // Проверка расписания каждые 30 секунд. Именно на главном потоке: фазы события выдают предметы и
+        // монеты, шлют сообщения и меняют боссбары - всё это Bukkit API, которому нельзя на async-потоке.
+        schedulerTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkSchedule, 300L, 600L);
     }
 
     public synchronized void startAuctionTicker() {
@@ -166,6 +165,7 @@ public class LostCaravanManager {
             schedulerTask = null;
         }
         stopAuctionTicker();
+        clearAllParticipantBossBars();
     }
 
     public void reload() {
@@ -784,6 +784,9 @@ public class LostCaravanManager {
             psCount.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Ошибка регистрации участника Lost Caravan: " + e.getMessage());
+            // The deposit is already taken: it must not vanish with the failed registration.
+            if (eco.canFit(player, entryFee)) eco.give(player, entryFee);
+            else addPendingRefund(uuid, entryFee);
             return RegisterResult.DB_ERROR;
         }
 
@@ -814,11 +817,11 @@ public class LostCaravanManager {
                 if (p != null && p.isOnline() && eco != null) {
                     if (eco.canFit(p, refundAmount)) {
                         eco.give(p, refundAmount);
-                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено 50% залога: "
+                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога: "
                                 + CoinFormat.formatGlyphs(eco, refundAmount) + ".</yellow>");
                     } else {
                         addPendingRefund(uuid, refundAmount);
-                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено 50% залога ("
+                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога ("
                                 + CoinFormat.formatGlyphs(eco, refundAmount) + "), но ваш инвентарь полон! Выплата сохранена и ожидает вас у торговца.</yellow>");
                     }
                 } else {
@@ -1076,7 +1079,7 @@ public class LostCaravanManager {
         MessageUtils.sendMessage(player, "<gray>Ваша награда:</gray>");
         for (ItemStack rw : rewards) {
             giveOrDropItem(player, rw);
-            MessageUtils.sendMessage(player, " <dark_gray>•</dark_gray> <green>" + rw.getType().name() + " x" + rw.getAmount() + "</green>");
+            MessageUtils.sendMessage(player, " <dark_gray>•</dark_gray> <green>" + ItemResolver.getFriendlyRussianName(rw.getType().name()) + " x" + rw.getAmount() + "</green>");
         }
         MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
         return true;
