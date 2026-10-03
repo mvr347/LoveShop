@@ -69,6 +69,14 @@ public class LostCaravanManager {
         DB_ERROR
     }
 
+    /** One accepted bid, kept in memory for the auction menu's "recent bids" row. */
+    public record BidEntry(int lotId, UUID bidder, String bidderName, int amount, long atMillis) {}
+
+    /** Most recent bids kept in memory (a few are shown in the menu, see caravan.lost.recent-bids-shown). */
+    private static final int RECENT_BIDS_KEPT = 10;
+
+    private final Deque<BidEntry> recentBids = new ArrayDeque<>();
+
     private final LoveShops plugin;
     private final NamespacedKey crateTypeKey;
     private final NamespacedKey crateSessionKey;
@@ -128,6 +136,42 @@ public class LostCaravanManager {
             return activeLots.get(currentAuctionLotIndex);
         }
         return null;
+    }
+
+    /** Lots queued after the current one, at most {@code max}, in auction order. */
+    public synchronized List<LostCaravanLot> getUpcomingLots(int max) {
+        List<LostCaravanLot> upcoming = new ArrayList<>();
+        for (int i = currentAuctionLotIndex + 1; i < activeLots.size() && upcoming.size() < max; i++) {
+            upcoming.add(activeLots.get(i));
+        }
+        return upcoming;
+    }
+
+    /** Newest-first bids placed on the given lot, at most {@code max}. */
+    public synchronized List<BidEntry> getRecentBids(int lotId, int max) {
+        List<BidEntry> result = new ArrayList<>();
+        for (BidEntry entry : recentBids) {
+            if (entry.lotId() == lotId) {
+                result.add(entry);
+                if (result.size() >= max) break;
+            }
+        }
+        return result;
+    }
+
+    /** The cheapest bid that would be accepted right now (starting price, or current bid plus the minimum raise). */
+    public int minimumBid(LostCaravanLot lot) {
+        return lot.currentBid() > 0 ? lot.currentBid() + minRaiseOver(lot.currentBid()) : lot.startingPrice();
+    }
+
+    /** Anti-snipe: a bid within this many seconds of the end extends the lot (caravan.lost.anti-snipe.threshold-seconds). */
+    public int antiSnipeThresholdSeconds() {
+        return Math.max(0, plugin.getConfig().getInt("caravan.lost.anti-snipe.threshold-seconds", 10));
+    }
+
+    /** How many seconds an anti-snipe bid adds (caravan.lost.anti-snipe.extend-seconds; 0 turns the extension off). */
+    public int antiSnipeExtendSeconds() {
+        return Math.max(0, plugin.getConfig().getInt("caravan.lost.anti-snipe.extend-seconds", 15));
     }
 
     public long getCurrentLotTimeRemainingSeconds() {
@@ -640,7 +684,7 @@ public class LostCaravanManager {
             return BidResult.ALREADY_HIGHEST;
         }
 
-        int minBid = lot.currentBid() > 0 ? (lot.currentBid() + minRaiseOver(lot.currentBid())) : lot.startingPrice();
+        int minBid = minimumBid(lot);
         if (amount < minBid) {
             return BidResult.TOO_LOW;
         }
@@ -703,11 +747,18 @@ public class LostCaravanManager {
                 lot.startingPrice(), amount, player.getUniqueId(), "ACTIVE", lot.startedAt(), lot.endedAt()
         ));
 
-        // Анти-снайп: если до конца осталось < 10 сек, продлеваем на 15 сек
+        recentBids.addFirst(new BidEntry(lot.id(), player.getUniqueId(), player.getName(), amount, System.currentTimeMillis()));
+        while (recentBids.size() > RECENT_BIDS_KEPT) {
+            recentBids.removeLast();
+        }
+
+        // Анти-снайп: ставка в последние threshold-seconds секунд продлевает лот на extend-seconds
+        // (раньше 10 / 15 были зашиты в код; 0 в extend-seconds отключает продление).
         long remaining = currentLotEndTimestamp - (System.currentTimeMillis() / 1000);
-        if (remaining < 10) {
-            currentLotEndTimestamp += 15;
-            CaravanEffects.broadcast("<yellow>[Анти-снайп] Торги за ящик продлены на 15 секунд!</yellow>");
+        int extend = antiSnipeExtendSeconds();
+        if (extend > 0 && remaining < antiSnipeThresholdSeconds()) {
+            currentLotEndTimestamp += extend;
+            CaravanEffects.broadcast("<yellow>[Анти-снайп] Торги за ящик продлены на " + extend + " сек.!</yellow>");
         }
 
         LostCaravanAuctionGui.refreshAll(plugin);
