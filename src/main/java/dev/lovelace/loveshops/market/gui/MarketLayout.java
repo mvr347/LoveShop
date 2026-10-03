@@ -58,6 +58,31 @@ public final class MarketLayout {
         return slots.stream().mapToInt(Integer::intValue).toArray();
     }
 
+    /** Shelves of the biggest menu (54 slots): the ceiling of a trade point's growth. */
+    public static int maxShelves() {
+        return contentSlots(54).length;
+    }
+
+    /**
+     * Slots for {@code count} buttons laid out in one work-zone row starting at {@code rowStart}:
+     * columns 1-7, centred with equal gaps like the header controls.
+     */
+    public static int[] rowSlots(int rowStart, int count) {
+        int[] cols = switch (count) {
+            case 1 -> new int[]{4};
+            case 2 -> new int[]{3, 5};
+            case 3 -> new int[]{2, 4, 6};
+            case 4 -> new int[]{1, 3, 5, 7};
+            case 5 -> new int[]{2, 3, 4, 5, 6};
+            case 6 -> new int[]{1, 2, 3, 5, 6, 7};
+            case 7 -> new int[]{1, 2, 3, 4, 5, 6, 7};
+            default -> throw new IllegalArgumentException("buttons per row must be 1..7, got " + count);
+        };
+        int[] slots = new int[cols.length];
+        for (int i = 0; i < cols.length; i++) slots[i] = rowStart + cols[i];
+        return slots;
+    }
+
     public static int extraSlot(int size) { return size - 3; }
     public static int backSlot(int size) { return size - 2; }
     public static int closeSlot(int size) { return size - 1; }

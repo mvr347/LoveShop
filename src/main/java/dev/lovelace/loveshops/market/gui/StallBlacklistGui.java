@@ -43,6 +43,9 @@ public final class StallBlacklistGui extends MarketGui {
     }
 
     @Override
+    public boolean ownerMenu() { return true; }
+
+    @Override
     public void render() {
         frame();
         List<BlacklistEntry> list = new ArrayList<>();
@@ -56,7 +59,8 @@ public final class StallBlacklistGui extends MarketGui {
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-blacklist-head", "gui-blacklist-head-lore",
                 "count", String.valueOf(list.size()), "max", String.valueOf(max)));
         if (list.size() < max) {
-            controls(List.of(new Control(tile(HeadTextures.BUTTON_PLUS, "gui-blacklist-add", "gui-blacklist-add-lore"), e -> promptAdd())));
+            // "Add player" is the footer's extra button (slot 51 of 54), not a header control.
+            button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BUTTON_PLUS, "gui-blacklist-add", "gui-blacklist-add-lore"), e -> promptAdd());
         }
 
         int[] content = MarketLayout.contentSlots(SIZE);

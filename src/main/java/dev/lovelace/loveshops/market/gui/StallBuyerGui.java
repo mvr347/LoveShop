@@ -1,9 +1,7 @@
 package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.market.MarketRepository.RatingSummary;
 import dev.lovelace.loveshops.market.MarketStyle;
-import dev.lovelace.loveshops.market.RatingService;
 import dev.lovelace.loveshops.market.StallTradeService;
 import dev.lovelace.loveshops.market.model.DiscountEntry;
 import dev.lovelace.loveshops.market.model.ListingType;
@@ -28,17 +26,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * 27-slot customer GUI at a trade point.
  * Respects tradingMode (BOTH, SELL_ONLY, BUY_ONLY), verifies blacklist,
- * applies personal discounts, and pre-checks rating permissions (canRate).
+ * applies personal discounts. Tabs (sell | buy) appear only for a point that does both.
  */
 public final class StallBuyerGui extends MarketGui {
 
-    public enum Tab { GOODS, ORDERS, RATING }
+    public enum Tab { GOODS, ORDERS }
 
     private final int size;
 
@@ -77,7 +74,6 @@ public final class StallBuyerGui extends MarketGui {
         List<Tab> tabs = new ArrayList<>();
         if (mode == TradingMode.BOTH || mode == TradingMode.SELL_ONLY) tabs.add(Tab.GOODS);
         if (mode == TradingMode.BOTH || mode == TradingMode.BUY_ONLY) tabs.add(Tab.ORDERS);
-        tabs.add(Tab.RATING);
         return tabs;
     }
 
@@ -113,23 +109,12 @@ public final class StallBuyerGui extends MarketGui {
                 }
             }));
         }
-        controls(tabControls);
+        // Tabs only when the point both sells and buys; a single mode shows its lots straight away.
+        if (tabControls.size() > 1) controls(tabControls);
         footer(null);
 
-        switch (tab) {
-            case GOODS -> renderListings(ListingType.SELL);
-            case ORDERS -> renderListings(ListingType.BUY);
-            case RATING -> renderRating();
-        }
+        renderListings(tab == Tab.ORDERS ? ListingType.BUY : ListingType.SELL);
         refreshClient();
-    }
-
-    private String ratingLine() {
-        RatingSummary s = plugin.getRatingService().summary(point);
-        String star = plugin.getMarketStyle().icon(MarketStyle.Icon.STAR);
-        if (s.count() == 0) return t("gui-main-rating-none");
-        return t("gui-main-rating", "star", star, "avg", String.format(Locale.ROOT, "%.1f", s.average()),
-                "count", String.valueOf(s.count()));
     }
 
     private ItemStack ownerHead() {
@@ -139,7 +124,8 @@ public final class StallBuyerGui extends MarketGui {
             meta.setOwningPlayer(owner);
             meta.displayName(MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName())));
             List<Component> lore = new ArrayList<>();
-            for (String line : lines("gui-customer-head-lore", "rating", ratingLine(), "level", String.valueOf(point.level()))) {
+            for (String line : lines("gui-customer-head-lore", "mode", t("gui-mode-" + point.tradingMode().name().toLowerCase(Locale.ROOT)),
+                    "level", String.valueOf(point.level()))) {
                 lore.add(MessageUtils.parse(viewer, line));
             }
             meta.lore(lore);
@@ -151,10 +137,12 @@ public final class StallBuyerGui extends MarketGui {
     private ItemStack tabItem(Tab each) {
         String base64;
         String key;
-        switch (each) {
-            case GOODS -> { base64 = HeadTextures.TAB_SELLER; key = "goods"; }
-            case ORDERS -> { base64 = HeadTextures.TAB_BUYER; key = "orders"; }
-            default -> { base64 = HeadTextures.BANKER_INFO; key = "rating"; }
+        if (each == Tab.GOODS) {
+            base64 = HeadTextures.TAB_SELLER;
+            key = "goods";
+        } else {
+            base64 = HeadTextures.TAB_BUYER;
+            key = "orders";
         }
         boolean selected = each == tab;
         ItemStack item = head(base64, t("gui-customer-tab-" + key + (selected ? "-on" : "")),
@@ -178,6 +166,11 @@ public final class StallBuyerGui extends MarketGui {
             all = List.of();
         }
 
+        if (all.isEmpty()) {
+            // Nothing to show in this mode: one explicit card instead of an empty menu.
+            inventory.setItem(content[content.length / 2], tile(HeadTextures.MARKET_CLOSED, "gui-customer-empty", "gui-customer-empty-lore"));
+            return;
+        }
         for (int i = 0; i < Math.min(content.length, all.size()); i++) {
             StallListing l = all.get(i);
             int slot = content[i];
@@ -227,30 +220,6 @@ public final class StallBuyerGui extends MarketGui {
         return item;
     }
 
-    private void renderRating() {
-        int[] content = MarketLayout.contentSlots(size);
-        inventory.setItem(content[1], head(HeadTextures.BANKER_INFO, t("gui-customer-rating"),
-                lines("gui-customer-rating-lore", "rating", ratingLine())));
-
-        Optional<RatingService.Result> cannotRate = plugin.getRatingService().canRate(viewer, point);
-        if (cannotRate.isPresent()) {
-            String reason = switch (cannotRate.get()) {
-                case SELF -> t("gui-customer-rate-self");
-                case NOT_TRADED -> t("gui-customer-rate-not-traded", "min", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()));
-                case COOLDOWN -> t("gui-customer-rate-cooldown", "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()));
-                case INVALID -> t("gui-customer-rate-invalid");
-                default -> t("gui-customer-rate-unavailable");
-            };
-            inventory.setItem(content[3], head(HeadTextures.MARKET_CLOSED, t("gui-customer-rate-off"),
-                    lines("gui-customer-rate-off-lore", "reason", reason)));
-        } else {
-            inventory.setItem(content[3], head(HeadTextures.MARKET_OPEN, t("gui-customer-rate"),
-                    lines("gui-customer-rate-lore", "min", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()),
-                            "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()))));
-            actions.put(content[3], e -> onRate());
-        }
-    }
-
     @Override
     public void handleClick(InventoryClickEvent event) {
         int slot = event.getRawSlot();
@@ -259,8 +228,6 @@ public final class StallBuyerGui extends MarketGui {
             super.handleClick(event);
             return;
         }
-        if (tab == Tab.RATING) return;
-
         ClickType click = event.getClick();
         StallListing l = listingAt.get(slot);
         if (l == null) return;
@@ -334,38 +301,6 @@ public final class StallBuyerGui extends MarketGui {
             case BUSY -> { }
         }
         if (viewer.getOpenInventory().getTopInventory().getHolder() == this) render();
-    }
-
-    private void onRate() {
-        Optional<RatingService.Result> cannotRate = plugin.getRatingService().canRate(viewer, point);
-        if (cannotRate.isPresent()) {
-            var msg = plugin.getMarketMessages();
-            switch (cannotRate.get()) {
-                case SELF -> msg.send(viewer, "rating-self");
-                case NOT_TRADED -> msg.send(viewer, "rating-not-traded", "min", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()));
-                case COOLDOWN -> msg.send(viewer, "rating-cooldown", "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()));
-                default -> msg.send(viewer, "rating-denied");
-            }
-            return;
-        }
-
-        Tab returnTo = tab;
-        Runnable back = () -> reopen(returnTo);
-        promptNumber("prompt-stars", 1, 5, back, stars ->
-                promptText("prompt-comment", back, comment -> {
-                    RatingService.Result r = plugin.getRatingService().rate(viewer, point, (int) stars, comment);
-                    var msg = plugin.getMarketMessages();
-                    switch (r) {
-                        case OK -> msg.send(viewer, "rating-saved");
-                        case SELF -> msg.send(viewer, "rating-self");
-                        case NOT_TRADED -> msg.send(viewer, "rating-need-trade",
-                                "amount", plugin.getMarketStyle().money(plugin.getMarketConfig().ratingMinTrade()));
-                        case COOLDOWN -> msg.send(viewer, "rating-cooldown",
-                                "hours", String.valueOf(plugin.getMarketConfig().ratingCooldownHours()));
-                        case INVALID -> msg.send(viewer, "prompt-invalid");
-                        case DB_ERROR -> msg.send(viewer, "listing-error");
-                    }
-                }, "max", String.valueOf(plugin.getMarketConfig().ratingMaxComment())));
     }
 
     private void reopen(Tab returnTo) {

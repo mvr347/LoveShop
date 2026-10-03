@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.market;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.market.gui.MarketLayout;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.Locale;
@@ -78,15 +79,27 @@ public final class MarketConfig {
 
     public int baseSellSlots() { return Math.max(1, getInt("stalls.base-sell-slots", 5)); }
     public int baseBuySlots() { return Math.max(1, getInt("stalls.base-buy-slots", 5)); }
-    public int maxLevel() { return Math.max(1, getInt("stalls.max-level", 10)); }
+    /** Highest level: the one that fills the biggest (54-slot) menu; {@code stalls.max-level} may only lower it. */
+    public int maxLevel() {
+        int full = UpgradeMath.maxLevel(MarketLayout.maxShelves(), Math.max(baseSellSlots(), baseBuySlots()));
+        int cap = getInt("stalls.max-level", 0);
+        return cap > 0 ? Math.min(cap, full) : full;
+    }
     public long confirmThreshold() { return Math.max(0L, getLong("stalls.confirm-threshold", 5000L)); }
     public int pendingTimeoutSeconds() { return Math.max(5, getInt("stalls.pending-timeout-seconds", 30)); }
 
     /** Name shown above the stall NPC; {@code {owner}} is the tenant's name. Legacy {@code &} codes. */
-    public String npcNameFormat() { return getString("npc.name-format", "&6Торговая точка\n&f{owner}"); }
+    /** The old default ("Trade point" + owner) is replaced by the new one, so existing config.yml files get the id too. */
+    public String npcNameFormat() {
+        String format = getString("npc.name-format", NEW_NAME_FORMAT);
+        return OLD_NAME_FORMAT.equals(format) ? NEW_NAME_FORMAT : format;
+    }
+    private static final String OLD_NAME_FORMAT = "&6Торговая точка\n&f{owner}";
+    private static final String NEW_NAME_FORMAT = "&6Торговая точка №{id}\n&fВладелец: &e{owner}";
     public String statusOpen() { return getString("npc.status-open", "&aОткрыто"); }
     public String statusClosed() { return getString("npc.status-closed", getString("npc.status.closed", "&cЗакрыто")); }
     public String statusRobbed() { return getString("npc.status-robbed", getString("npc.status.robbed", "&4[ОГРАБЛЕНО]")); }
+    public String statusEmpty() { return getString("npc.status-empty", "&7Нет лотов"); }
     public String statusSellOnly() { return getString("npc.status-sell-only", "&eВитрина"); }
     public String statusBuyOnly() { return getString("npc.status-buy-only", "&bСкупка"); }
     public String statusActive() { return statusOpen(); }
@@ -179,8 +192,8 @@ public final class MarketConfig {
     public boolean taxExemptPerfect() { return getBool("tax.exempt-perfect", true); }
 
     // ----- upgrades -----
-    public long upgradeCostBase() { return Math.max(0L, getLong("stalls.upgrade-cost-base", 5000L)); }
-    public double upgradeCostMultiplier() { return Math.max(1.0, getDouble("stalls.upgrade-cost-multiplier", 1.5)); }
+    public long upgradeCostCoins() { return Math.max(1L, getLong("stalls.upgrade-cost-coins", 1L)); }
+    public long upgradeCostStepCoins() { return Math.max(0L, getLong("stalls.upgrade-cost-step-coins", 1L)); }
 
     // ----- rating -----
     public long ratingMinTrade() { return Math.max(0L, getLong("rating.min-trade-amount", 500L)); }
