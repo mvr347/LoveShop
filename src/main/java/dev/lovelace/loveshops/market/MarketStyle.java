@@ -43,6 +43,9 @@ public final class MarketStyle {
      * Formatted strictly via {@link CoinFormat}.
      */
     public String money(long amount) {
+        if (amount <= 0) {
+            return plugin.getMarketMessages().raw("money-empty");
+        }
         Optional<LoveEconomy> economy = plugin.getEconomy();
         return CoinFormat.formatGlyphs(economy.orElse(null), amount);
     }

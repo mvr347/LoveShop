@@ -63,7 +63,12 @@ public class CitizensListener implements Listener {
 
         NpcData npcData = resolveNpcData(npc);
         if (npcData == null) {
-            npcData = plugin.getNpcManager().getNpcNear(event.getClicker().getLocation(), 3.0).orElse(null);
+            npcData = plugin.getNpcManager().getNpcNear(event.getClicker().getLocation(), 3.0)
+                    .filter(n -> !dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(n.type())).orElse(null);
+        }
+        if (npcData != null && dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(npcData.type())
+                && !plugin.getNpcManager().isNpcAllowedToSpawn(npcData)) {
+            return; // the event is over: its NPC is on its way out, no menu
         }
 
         if (npcData != null) {

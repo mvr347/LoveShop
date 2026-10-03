@@ -42,6 +42,13 @@ public class GuiUtils {
         return head;
     }
 
+    /** Centre card of a list menu that has nothing to show: "Пока ничего нет". */
+    public static ItemStack emptyCard(String hint) {
+        return createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.BANKER_DEPOSIT_EMPTY,
+                "<gray>Пока ничего нет</gray>",
+                hint == null || hint.isBlank() ? List.of() : List.of("", hint));
+    }
+
     public static ItemStack createCustomHead(String base64, String name, List<String> lore) {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();

@@ -81,7 +81,7 @@ public class DailyCaravanGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>📦 Караванщик</bold></gold>",
+                "<gold>📦 Караванщик</gold>",
                 List.of(
                         "",
                         "<gray>Сдавайте ресурсы каравану за монеты!</gray>",
@@ -89,7 +89,7 @@ public class DailyCaravanGui implements InventoryHolder {
                         "<gray>Бонус за сдачу полными стаками: <green>+8-10%</green></gray>"
                 )
         );
-        inventory.setItem(1, infoItem);
+        inventory.setItem(0, infoItem);
 
         // 2. Row 1 Header (слоты 9-17) - по стандарту gui-gen-5 всегда 100% стекло
         for (int i = 9; i <= 17; i++) {
@@ -119,8 +119,10 @@ public class DailyCaravanGui implements InventoryHolder {
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.empty());
 
-                // 1. Заполненность
-                lore.add(MessageUtils.parse(ProgressBarUtil.formatStackProgressBar(crate.currentAmount(), crate.maxAmount(), 64, 20)));
+                // 1. Заполненность: полоска в скобках, подпись строкой ниже
+                for (String line : ProgressBarUtil.formatStackProgressBar(crate.currentAmount(), crate.maxAmount(), 64, 20)) {
+                    lore.add(MessageUtils.parse(line));
+                }
                 lore.add(Component.empty());
 
                 // 2. Предметы (принимаются) — список на русском
@@ -138,7 +140,7 @@ public class DailyCaravanGui implements InventoryHolder {
                     long urgentSec = Math.max(0, crate.urgentExpiresAt() - (System.currentTimeMillis() / 1000));
                     long uMin = urgentSec / 60;
                     long uSec = urgentSec % 60;
-                    lore.add(MessageUtils.parse("<red><bold>⚡ СРОЧНЫЙ ЗАКАЗ!</bold></red> <yellow>(" + uMin + ":" + (uSec < 10 ? "0" : "") + uSec + ")</yellow>"));
+                    lore.add(MessageUtils.parse("<red>⚡ СРОЧНЫЙ ЗАКАЗ!</red> <yellow>(" + uMin + ":" + (uSec < 10 ? "0" : "") + uSec + ")</yellow>"));
                 }
                 lore.add(MessageUtils.parse("<gray>Цена за шт: </gray>" + CoinFormat.formatGlyphs(eco, crate.pricePerUnit())));
                 if (cfg != null && cfg.stackBonusPercent() > 0) {
@@ -148,7 +150,7 @@ public class DailyCaravanGui implements InventoryHolder {
 
                 // 4. Действия/кнопки
                 if (crate.isClosed()) {
-                    lore.add(MessageUtils.parse("<red><bold>[ ЯЩИК ЗАКРЫТ ]</bold></red>"));
+                    lore.add(MessageUtils.parse("<red>[ ЯЩИК ЗАКРЫТ ]</red>"));
                 } else {
                     lore.add(MessageUtils.parse("<yellow>Перетащите предмет </yellow><gray>— сдать в ящик</gray>"));
                     lore.add(MessageUtils.parse("<yellow>ПКМ </yellow><gray>— сдать все подходящие из инвентаря</gray>"));
@@ -207,6 +209,42 @@ public class DailyCaravanGui implements InventoryHolder {
             }
         }
         return false;
+    }
+
+    /**
+     * Shift-click of an inventory item: it goes into the first open crate that accepts it; whatever
+     * is not taken (wrong item, full crate, limit) returns to the player.
+     */
+    public static void handleShiftSubmit(LoveShops plugin, Player player, ItemStack moved) {
+        DailyCaravanManager manager = plugin.getDailyCaravanManager();
+        if (manager != null && manager.isCaravanerActive()) {
+            ItemStack held = moved.clone();
+            DailyCaravanManager.SubmitResult last = DailyCaravanManager.SubmitResult.NO_ITEMS;
+            for (DailyCrateState crate : new ArrayList<>(manager.getActiveCrates())) {
+                if (held.getType().isAir()) break;
+                player.setItemOnCursor(held);
+                last = manager.submitCursorItem(player, crate.id(), held);
+                ItemStack rest = player.getItemOnCursor();
+                player.setItemOnCursor(null);
+                held = rest == null ? new ItemStack(Material.AIR) : rest;
+                if (last == DailyCaravanManager.SubmitResult.SUCCESS && held.getType().isAir()) break;
+                if (last == DailyCaravanManager.SubmitResult.LIMIT_REACHED || last == DailyCaravanManager.SubmitResult.NO_SPACE) break;
+            }
+            if (last == DailyCaravanManager.SubmitResult.NO_ITEMS && !held.getType().isAir()) {
+                MessageUtils.sendMessage(player, "<yellow>Этот предмет не подходит ни для одного ящика!</yellow>");
+            } else if (last == DailyCaravanManager.SubmitResult.LIMIT_REACHED) {
+                MessageUtils.sendMessage(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
+            } else if (last == DailyCaravanManager.SubmitResult.NO_SPACE) {
+                MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
+            }
+            moved = held;
+        }
+        if (moved != null && !moved.getType().isAir()) {
+            for (ItemStack drop : player.getInventory().addItem(moved).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), drop);
+            }
+        }
+        refreshAll(plugin);
     }
 
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {

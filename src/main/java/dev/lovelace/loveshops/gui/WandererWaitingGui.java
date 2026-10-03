@@ -55,7 +55,7 @@ public class WandererWaitingGui {
         String remainingText = TimeUtils.formatRemainingTime(remaining);
 
         // Slot 13: Waiting Status Head
-        ItemStack waitingHead = GuiUtils.createCustomHead(HOURGLASS_HEAD_BASE64, "<yellow><bold>Странник в пути...</bold></yellow>",
+        ItemStack waitingHead = GuiUtils.createCustomHead(HOURGLASS_HEAD_BASE64, "<yellow>Странник в пути...</yellow>",
             List.of(
                 "",
                 "<gray>Странник исследует тайные уголки мира,</gray>",

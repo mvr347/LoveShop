@@ -35,15 +35,14 @@ import java.util.Optional;
  * - Стекло только в Header (0-8) и Row 1 (9-17)
  * - Рабочая зона (18-44) без стекла, боковые слоты пустые (AIR)
  * - Пагинация: слот 36 (←) и слот 44 (→)
- * - Footer (45-53): стекло, слот 49 — «Выставить лот», слот 53 — «Закрыть»
+ * - Footer (45-53): стекло, слот 52 — «Выставить лот» (или ваш активный лот), слот 53 — «Закрыть»
  */
 public class CommissionAgentGui implements InventoryHolder {
 
     public static final String TITLE = "Комиссионер";
     public static final String LOT_ID_KEY = "commission_lot_id";
 
-    public static final int SLOT_INFO = 1;
-    public static final int SLOT_MY_LOT = 6;
+    public static final int SLOT_INFO = 0;
     public static final int SLOT_PREV_PAGE = 36;
     public static final int SLOT_NEXT_PAGE = 44;
     public static final int SLOT_CREATE_LOT = 52;
@@ -93,7 +92,7 @@ public class CommissionAgentGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>⚖ Комиссионный брокер</bold></gold>",
+                "<gold>⚖ Комиссионный брокер</gold>",
                 List.of(
                         "",
                         "<gray>Покупайте товары других игроков и выставляйте свои!</gray>",
@@ -103,35 +102,6 @@ public class CommissionAgentGui implements InventoryHolder {
                 )
         );
         inventory.setItem(SLOT_INFO, infoItem);
-
-        // Кнопка «Мой лот» (слот 6)
-        Optional<CommissionLot> myLotOpt = manager.getPlayerActiveLot(player.getUniqueId());
-        if (myLotOpt.isPresent()) {
-            CommissionLot myLot = myLotOpt.get();
-            ItemStack myLotBtn = myLot.item().clone();
-            ItemMeta myMeta = myLotBtn.getItemMeta();
-            if (myMeta != null) {
-                myMeta.displayName(MessageUtils.parse("<green><bold>Ваш активный лот</bold></green>"));
-                List<Component> lore = new ArrayList<>();
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, myLot.price())));
-                lore.add(MessageUtils.parse("<gray>Вы получите при продаже: </gray>" + CoinFormat.formatGlyphs(eco, myLot.sellerReceives())));
-                if (myLot.hot()) {
-                    lore.add(MessageUtils.parse("<red><bold>🔥 ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ</bold></red>"));
-                }
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<yellow>Нажмите, чтобы снять лот и забрать предмет.</yellow>"));
-                myMeta.lore(lore);
-                myLotBtn.setItemMeta(myMeta);
-            }
-            inventory.setItem(SLOT_MY_LOT, myLotBtn);
-        } else {
-            inventory.setItem(SLOT_MY_LOT, GuiUtils.createCustomHead(
-                    HeadTextures.BUTTON_BACK,
-                    "<gray><bold>У вас нет активного лота</bold></gray>",
-                    List.of("", "<gray>Нажмите <white>[Выставить лот]</white> внизу,</gray>", "<gray>держа предмет для продажи в руке.</gray>")
-            ));
-        }
 
         // 2. Row 1 Header (слоты 9-17) - всегда 100% стекло
         for (int i = 9; i <= 17; i++) {
@@ -145,6 +115,9 @@ public class CommissionAgentGui implements InventoryHolder {
         List<CommissionLot> lots = manager.getActiveLots(page, pageSize);
         int totalCount = manager.getActiveLotsCount();
 
+        if (lots.isEmpty()) {
+            inventory.setItem(31, GuiUtils.emptyCard("<gray>Выставьте первый лот — кнопка внизу.</gray>"));
+        }
         for (int i = 0; i < lots.size() && i < CONTENT_SLOTS.length; i++) {
             CommissionLot lot = lots.get(i);
             int slot = CONTENT_SLOTS[i];
@@ -156,7 +129,7 @@ public class CommissionAgentGui implements InventoryHolder {
                 lore.add(Component.empty());
 
                 if (lot.hot()) {
-                    lore.add(MessageUtils.parse("<red><bold>🔥 ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ!</bold></red>"));
+                    lore.add(MessageUtils.parse("<red>🔥 ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ!</red>"));
                     lore.add(Component.empty());
                     meta.addEnchant(Enchantment.UNBREAKING, 1, true);
                     meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -170,9 +143,9 @@ public class CommissionAgentGui implements InventoryHolder {
                 lore.add(Component.empty());
 
                 if (player.getUniqueId().equals(lot.sellerUuid())) {
-                    lore.add(MessageUtils.parse("<yellow><bold>(Ваш лот)</bold> Нажмите для снятия</yellow>"));
+                    lore.add(MessageUtils.parse("<yellow>(Ваш лот) Нажмите для снятия</yellow>"));
                 } else {
-                    lore.add(MessageUtils.parse("<green><bold>ЛКМ</bold> — купить предмет</green>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ — купить предмет</green>"));
                 }
 
                 meta.lore(lore);
@@ -204,20 +177,43 @@ public class CommissionAgentGui implements InventoryHolder {
             inventory.setItem(i, filler);
         }
 
-        // Слот 49: Выставить лот
-        ItemStack createBtn = GuiUtils.createCustomHead(
-                HeadTextures.BUTTON_PLUS,
-                "<gold><bold>+ Выставить лот</bold></gold>",
-                List.of(
-                        "",
-                        "<gray>Возьмите предмет в руку и нажмите сюда,</gray>",
-                        "<gray>чтобы указать цену и выставить на комиссию.</gray>",
-                        "",
-                        "<gray>Лимит: <yellow>1 лот</yellow> на игрока.</gray>",
-                        "<gray>Комиссия при продаже: <yellow>" + feePercent + "%</yellow></gray>"
-                )
-        );
-        inventory.setItem(SLOT_CREATE_LOT, createBtn);
+        // Слот 52: «Ваш активный лот» (если выставлен) или «Выставить лот»
+        Optional<CommissionLot> myLotOpt = manager.getPlayerActiveLot(player.getUniqueId());
+        if (myLotOpt.isPresent()) {
+            CommissionLot myLot = myLotOpt.get();
+            ItemStack myLotBtn = myLot.item().clone();
+            ItemMeta myMeta = myLotBtn.getItemMeta();
+            if (myMeta != null) {
+                myMeta.displayName(MessageUtils.parse("<green>Ваш активный лот</green>"));
+                List<Component> lore = new ArrayList<>();
+                lore.add(Component.empty());
+                lore.add(MessageUtils.parse("<gray>Цена:</gray>"));
+                lore.add(MessageUtils.parse(CoinFormat.formatGlyphs(eco, myLot.price())));
+                lore.add(MessageUtils.parse("<gray>Вы получите при продаже:</gray>"));
+                lore.add(MessageUtils.parse(CoinFormat.formatGlyphs(eco, myLot.sellerReceives())));
+                if (myLot.hot()) {
+                    lore.add(MessageUtils.parse("<red>🔥 Горячее предложение</red>"));
+                }
+                lore.add(Component.empty());
+                lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— снять лот и забрать предмет</gray>"));
+                myMeta.lore(lore);
+                myLotBtn.setItemMeta(myMeta);
+            }
+            inventory.setItem(SLOT_CREATE_LOT, myLotBtn);
+        } else {
+            inventory.setItem(SLOT_CREATE_LOT, GuiUtils.createCustomHead(
+                    HeadTextures.BUTTON_PLUS,
+                    "<gold>Выставить лот</gold>",
+                    List.of(
+                            "",
+                            "<gray>Перетащите сюда предмет или нажмите</gray>",
+                            "<yellow>Shift</yellow><gray> на предмете в инвентаре.</gray>",
+                            "",
+                            "<gray>Лимит: <yellow>" + manager.getMaxLotsPerPlayer() + "</yellow> лот на игрока.</gray>",
+                            "<gray>Комиссия при продаже: <yellow>" + feePercent + "%</yellow></gray>"
+                    )
+            ));
+        }
 
         // Слот 53: Закрыть
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
@@ -255,20 +251,14 @@ public class CommissionAgentGui implements InventoryHolder {
             return;
         }
 
-        // Кнопка «Мой лот»
-        if (rawSlot == SLOT_MY_LOT) {
+        // Слот 52: свой лот (снять) или «Выставить лот»
+        if (rawSlot == SLOT_CREATE_LOT) {
             Optional<CommissionLot> myLotOpt = manager.getPlayerActiveLot(player.getUniqueId());
             if (myLotOpt.isPresent()) {
                 new CommissionConfirmGui(plugin, player, myLotOpt.get(), CommissionConfirmGui.ConfirmAction.CANCEL_OWN).open();
             } else {
-                MessageUtils.sendMessage(player, "<yellow>У вас нет активных лотов на комиссии. Нажмите [+ Выставить лот]!</yellow>");
+                MessageUtils.sendMessage(player, "<gray>Перетащите предмет на кнопку «Выставить лот» или нажмите Shift на предмете в инвентаре.</gray>");
             }
-            return;
-        }
-
-        // Кнопка «Выставить лот»
-        if (rawSlot == SLOT_CREATE_LOT) {
-            handleCreateLotClick(plugin, player, manager);
             return;
         }
 
@@ -297,15 +287,6 @@ public class CommissionAgentGui implements InventoryHolder {
         }
     }
 
-    private static void handleCreateLotClick(LoveShops plugin, Player player, CommissionManager manager) {
-        ItemStack held = player.getInventory().getItemInMainHand();
-        if (held.getType().isAir() || held.getAmount() <= 0) {
-            MessageUtils.sendMessage(player, "<gray>Возьмите предмет в руку или перетащите его на кнопку «Выставить».</gray>");
-            return;
-        }
-        startListing(plugin, player, manager, held.clone(), true);
-    }
-
     /**
      * Открывает меню цены (как ставка в LoveDuels): Shift — смена монеты, ЛКМ/ПКМ — ±1 монета.
      * @param takeFromHand если true — снимает предмет с главной руки после подтверждения
@@ -314,6 +295,7 @@ public class CommissionAgentGui implements InventoryHolder {
                                     ItemStack itemToSell, boolean takeFromHand) {
         if (manager.getPlayerActiveLot(player.getUniqueId()).isPresent()) {
             MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот! Сначала снимите его.</red>");
+            if (!takeFromHand) giveBack(player, itemToSell);
             return;
         }
         if (itemToSell == null || itemToSell.getType().isAir() || itemToSell.getAmount() <= 0) {
@@ -322,6 +304,7 @@ public class CommissionAgentGui implements InventoryHolder {
         }
         if (plugin.getForbiddenManager().isForbidden(itemToSell.getType())) {
             MessageUtils.sendMessage(player, "<red>Этот предмет запрещено выставлять.</red>");
+            if (!takeFromHand) giveBack(player, itemToSell);
             return;
         }
 

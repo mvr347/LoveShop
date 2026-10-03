@@ -166,6 +166,12 @@ public abstract class MarketGui implements InventoryHolder {
         }
     }
 
+    /** The "nothing here yet" card in the middle of the work zone of an empty list. */
+    protected void emptyCard(String hintKey) {
+        inventory.setItem(MarketLayout.centerSlot(inventory.getSize()),
+                head(HeadTextures.BANKER_DEPOSIT_EMPTY, t("gui-empty-title"), hintKey == null ? List.of() : lines(hintKey)));
+    }
+
     /** A free shelf / order slot: a plus head that is also the drop target for an item. */
     protected ItemStack freeShelfTile() {
         return tile(HeadTextures.BUTTON_PLUS, "gui-shelf-free", "gui-shelf-free-lore");

@@ -43,6 +43,7 @@ public final class FeudalListGui extends MarketGui {
         inventory.setItem(0, tile(HeadTextures.TAB_SELLER, "gui-feudal-list-head", "gui-feudal-list-head-lore",
                 "total", String.valueOf(points.size())));
 
+        if (points.isEmpty()) emptyCard("gui-feudal-empty-lore");
         int[] content = MarketLayout.contentSlots(SIZE);
         int start = pager((int) Math.ceil((double) points.size() / content.length)) * content.length;
         for (int i = 0; i < content.length && start + i < points.size(); i++) {

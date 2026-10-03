@@ -60,7 +60,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     @SuppressWarnings("NullableProblems")
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!hasAnyAdminAccess(sender)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return true;
         }
 
@@ -98,7 +98,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleReload(CommandSender sender) {
         if (!sender.hasPermission("loveshops.admin.reload") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         plugin.reloadConfig();
@@ -106,7 +106,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         plugin.getMarketMessages().reload();
         plugin.getPricesManager().load();
         plugin.getForbiddenManager().load();
-        sender.sendMessage(plugin.getLangManager().getMessage("commands.reload-success", "<green>Конфигурация перезагружена!</green>"));
+        sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.reload-success", "<green>Конфигурация перезагружена!</green>"));
     }
 
     private void handleNpc(CommandSender sender, String[] args) {
@@ -126,11 +126,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpcCreate(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.only-players", "<red>Только для игроков.</red>"));
             return;
         }
         if (!player.hasPermission("loveshops.admin.create") && !player.hasPermission("loveshops.admin")) {
-            player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            player.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 3) {
@@ -160,7 +160,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             boolean activeNow = plugin.getNpcManager().isNpcAllowedToSpawn(npc);
             String extra = activeNow
                     ? " и заспавнен на вашей позиции!"
-                    : " (скрыт, пока ивент не активен).";
+                    : " (точка сохранена: NPC появится вместе с событием).";
             player.sendMessage(MessageUtils.parse("<green>NPC <gold>" + finalName + "</gold> (<yellow>" + type + "</yellow>) создан" + extra + "</green>"));
         }).exceptionally(ex -> {
             String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
@@ -171,11 +171,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpcBind(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.only-players", "<red>Только для игроков.</red>"));
             return;
         }
         if (!player.hasPermission("loveshops.admin.create") && !player.hasPermission("loveshops.admin")) {
-            player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            player.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 3) {
@@ -209,7 +209,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         plugin.getNpcManager().bindNpc(type, ref.id(), name, player.getName()).thenAccept(npc -> {
             boolean activeNow = plugin.getNpcManager().isNpcAllowedToSpawn(npc);
             String extra = activeNow ? "" : " <gray>(скрыт, пока ивент не активен)</gray>";
-            player.sendMessage(plugin.getLangManager().getMessage("commands.npc-created",
+            player.sendMessage(plugin.getLangManager().getAdminMessage("commands.npc-created",
                 "<green>NPC #" + ref.id() + " («" + ref.name() + "») привязан как <gold>{type}</gold>!" + extra + "</green>",
                 java.util.Map.of("type", type, "name", npc.name())));
         }).exceptionally(ex -> {
@@ -241,11 +241,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpcDelete(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.only-players", "<red>Только для игроков.</red>"));
             return;
         }
         if (!player.hasPermission("loveshops.admin.delete") && !player.hasPermission("loveshops.admin")) {
-            player.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            player.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
 
@@ -268,14 +268,14 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             target = resolveLookedAtNpc(player).orElse(null);
         }
         if (target == null) {
-            player.sendMessage(plugin.getLangManager().getMessage("commands.npc-not-looking", "<red>Рядом не найден NPC!</red>"));
+            player.sendMessage(plugin.getLangManager().getAdminMessage("commands.npc-not-looking", "<red>Рядом не найден NPC!</red>"));
             return;
         }
 
         final NpcData toDelete = target;
         plugin.getNpcManager().deleteNpc(toDelete.uuid()).thenAccept(success -> {
             if (success) {
-                player.sendMessage(plugin.getLangManager().getMessage("commands.npc-deleted", "<green>NPC удалён!</green>",
+                player.sendMessage(plugin.getLangManager().getAdminMessage("commands.npc-deleted", "<green>NPC удалён!</green>",
                     java.util.Map.of("name", toDelete.name())));
             }
         });
@@ -298,7 +298,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpcTp(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.only-players", "<red>Только для игроков.</red>"));
             return;
         }
         if (args.length < 3) {
@@ -334,13 +334,14 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(MessageUtils.parse("<gold>=== Список NPC LoveShops (" + npcs.size() + ") ===</gold>"));
         for (var npc : npcs) {
             String locStr = String.format("%s [%.1f, %.1f, %.1f]", npc.world(), npc.x(), npc.y(), npc.z());
-            String bindStr = npc.citizensId() != null ? " <gray>(Citizens #" + npc.citizensId() + ")</gray>" : " <gray>(свой Villager)</gray>";
+            String bindStr = npc.citizensId() != null ? " <gray>(Citizens #" + npc.citizensId() + ")</gray>"
+                    : dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(npc.type()) ? " <gray>(точка: NPC создаёт плагин на время события)</gray>" : " <gray>(свой Villager)</gray>";
             sender.sendMessage(MessageUtils.parse("<yellow># " + npc.id() + "</yellow> | <green>" + npc.type() + "</green> | <white>" + npc.name() + "</white> | <gray>" + locStr + "</gray>" + bindStr));
         }
     }
     private void handleBanker(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 2 || !args[1].equalsIgnoreCase("fee")) {
@@ -419,11 +420,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     @Nullable
     private ItemStack requireHeldItem(CommandSender sender, String permission) {
         if (!sender.hasPermission(permission) && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return null;
         }
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.only-players", "<red>Только для игроков.</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.only-players", "<red>Только для игроков.</red>"));
             return null;
         }
         ItemStack hand = player.getInventory().getItemInMainHand();
@@ -444,7 +445,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handlePriceCommand(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.price") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         // get / list / reset / mult / bounds / history are the newer sub-commands; everything else is
@@ -585,7 +586,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleEventWanderer(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.wanderer") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 3) {
@@ -618,7 +619,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleCaravan(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 2) {
@@ -637,7 +638,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleCaravanDaily(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 3) {
@@ -676,11 +677,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleCaravanLost(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.caravan") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 3) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status|skiptimer> [--force] [base|auction|secret]</yellow>"));
             return;
         }
         String action = args[2].toLowerCase(Locale.ROOT);
@@ -717,19 +718,29 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(MessageUtils.parse("<yellow>Потерянный караван сейчас не активен.</yellow>"));
                 }
             }
+            case "skiptimer" -> {
+                String phase = manager.skipTimer();
+                sender.sendMessage(MessageUtils.parse(switch (phase == null ? "NONE" : phase) {
+                    case "REGISTRATION" -> "<green>Таймер регистрации пропущен: торги открываются.</green>";
+                    case "LOT" -> "<green>Таймер текущего лота пропущен.</green>";
+                    case "SETTLING" -> "<green>Таймер расчётов пропущен: караван уезжает.</green>";
+                    case "INSTANT" -> "<yellow>В режиме мгновенной покупки таймера лотов нет.</yellow>";
+                    default -> "<yellow>Потерянный караван сейчас не активен.</yellow>";
+                }));
+            }
             case "status" -> {
                 boolean act = manager.isEventActive();
                 var session = manager.getCurrentSession();
                 sender.sendMessage(MessageUtils.parse("<gold>Потерянный караван: " + (act ? "<green>активен</green>" : "<red>не активен</red>")
                         + (session != null ? " <gray>(статус: " + session.status() + ", режим: " + session.mode() + ", участников: " + session.participantCount() + ")</gray>" : "") + "</gold>"));
             }
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status> [--force] [base|auction|secret]</yellow>"));
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin event lost <start|stop|status|skiptimer> [--force] [base|auction|secret]</yellow>"));
         }
     }
 
     private void handleOpen(CommandSender sender, String[] args) {
         if (!sender.hasPermission("loveshops.admin.open") && !sender.hasPermission("loveshops.admin")) {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
+            sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
             return;
         }
         if (args.length < 2) {
@@ -786,7 +797,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(MessageUtils.parse("<dark_gray>▬▬▬▬▬▬▬▬▬▬▬▬ </dark_gray><gold><bold>LoveShops Admin</bold></gold><dark_gray> ▬▬▬▬▬▬▬▬▬▬▬▬</dark_gray>"));
         sender.sendMessage(MessageUtils.parse("<yellow>• События и караваны:</yellow>"));
-        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin event <daily|lost|wanderer> <start|stop|status></gold>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin event <daily|lost|wanderer> <start|stop|status|skiptimer></gold>"));
         sender.sendMessage(MessageUtils.parse("<yellow>• Управление NPC:</yellow>"));
         sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <create|bind> <тип> [имя]</gold> <gray>— создать или привязать NPC</gray>"));
         sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <delete|tp|list> [id]</gold> <gray>— удалить, тп к NPC или список</gray>"));
@@ -859,7 +870,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             if (args[1].equalsIgnoreCase("wanderer")) {
                 return StringUtil.copyPartialMatches(args[2], WANDERER_ACTIONS, new ArrayList<>());
             }
-            if (args[1].equalsIgnoreCase("daily") || args[1].equalsIgnoreCase("lost")) {
+            if (args[1].equalsIgnoreCase("lost")) {
+                return StringUtil.copyPartialMatches(args[2], List.of("start", "stop", "status", "skiptimer"), new ArrayList<>());
+            }
+            if (args[1].equalsIgnoreCase("daily")) {
                 return StringUtil.copyPartialMatches(args[2], List.of("start", "stop", "status"), new ArrayList<>());
             }
         }

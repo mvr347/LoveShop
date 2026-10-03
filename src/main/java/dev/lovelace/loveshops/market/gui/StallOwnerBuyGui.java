@@ -79,11 +79,12 @@ public final class StallOwnerBuyGui extends MarketGui {
                 boolean prevFilled = (i == 0) || (byIndex.containsKey(i - 1) && byIndex.get(i - 1) != null);
                 if (prevFilled) {
                     freeSlotAt.put(slot, i);
+                    inventory.setItem(slot, freeShelfTile());
                 } else {
-                    int prevSlotNum = i;
-                    ItemStack locked = head(HeadTextures.HEAD_DELETE_NO, "<red>Слот №" + (i + 1) + " заблокирован</red>",
-                            List.of("", "<gray>Сначала заполните предыдущий слот (Слот №" + prevSlotNum + ")</gray>"));
-                    button(slot, locked, e -> MessageUtils.sendMessage(viewer, "<red>Сначала заполните предыдущий слот (Слот №" + prevSlotNum + ")</red>"));
+                    String no = String.valueOf(i + 1);
+                    String prevNo = String.valueOf(i);
+                    button(slot, tile(HeadTextures.HEAD_DELETE_NO, "gui-slot-locked", "gui-slot-locked-lore", "no", no, "prev", prevNo),
+                            e -> plugin.getMarketMessages().send(viewer, "slot-locked-hint", "prev", prevNo));
                 }
             }
         }

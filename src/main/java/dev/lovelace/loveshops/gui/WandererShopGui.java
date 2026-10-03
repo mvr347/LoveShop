@@ -71,7 +71,7 @@ public class WandererShopGui {
             Math.max(0, deal.expiresAt() - (System.currentTimeMillis() / 1000)) : 0;
         String expireStr = TimeUtils.formatRemainingTime(expireRemaining);
 
-        inv.setItem(4, GuiUtils.createCustomHead(INFO_HEAD_BASE64, "<light_purple><bold>Заказ Странника</bold></light_purple>",
+        inv.setItem(4, GuiUtils.createCustomHead(INFO_HEAD_BASE64, "<light_purple>Заказ Странника</light_purple>",
             List.of(
                 "",
                 "<gray>Товары, доставленные специально для вас.</gray>",
@@ -81,7 +81,7 @@ public class WandererShopGui {
             )));
 
         // Slot 51: Reset / Complete Deal button
-        inv.setItem(51, GuiUtils.createCustomHead(RESET_HEAD_BASE64, "<gold><bold>Завершить заказ</bold></gold>",
+        inv.setItem(51, GuiUtils.createCustomHead(RESET_HEAD_BASE64, "<gold>Завершить заказ</gold>",
             List.of(
                 "",
                 "<gray>Завершает текущую партию товаров,</gray>",
@@ -124,7 +124,7 @@ public class WandererShopGui {
                             lore.add(Component.empty());
                             String currency = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
                             lore.add(MessageUtils.parse("<gray>Цена: <gold>" + MessageUtils.currencyIcon() + item.price() + " " + currency + "</gold></gray>"));
-                            lore.add(MessageUtils.parse("<green><bold>ЛКМ</bold> </green><gray>— приобрести предмет</gray>"));
+                            lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— приобрести предмет</gray>"));
                             meta.lore(lore);
                             display.setItemMeta(meta);
                         }

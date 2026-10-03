@@ -1191,8 +1191,7 @@ public final class TradePointManager {
     public void deliverNotices(Player player) {
         try {
             for (String text : repo.takeNotices(player.getUniqueId())) {
-                player.sendMessage(dev.lovelace.loveshops.utils.MessageUtils.parse(player,
-                        plugin.getLangManager().getRaw("prefix", "") + text));
+                player.sendMessage(dev.lovelace.loveshops.utils.MessageUtils.parse(player, text));
             }
             if (repo.countReturns(player.getUniqueId()) > 0) {
                 claimReturns(player);

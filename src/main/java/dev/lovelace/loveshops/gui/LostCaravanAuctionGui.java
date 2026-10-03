@@ -37,7 +37,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
     public static final String TITLE = "Аукцион Каравана";
 
-    public static final int SLOT_INFO = 1;
+    public static final int SLOT_INFO = 0;
     public static final int SLOT_LOT_PREVIEW = 22;
     public static final int SLOT_BID_10 = 29;
     public static final int SLOT_BID_50 = 30;
@@ -87,13 +87,13 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>⚔ Торги Каравана</bold></gold>",
+                "<gold>⚔ Торги Каравана</gold>",
                 List.of(
                         "",
                         "<gray>Текущий лот: <yellow>" + lotIdx + " из " + totalLots + "</yellow></gray>",
                         "<gray>Осталось времени на лот: <gold>" + timeRem + " сек.</gold></gray>",
                         "<gray>Участников каравана: <yellow>" + (session != null ? session.participantCount() : 0) + "</yellow></gray>",
-                        lot != null && lot.secret() ? "<red><bold>⚡ ВНИМАНИЕ: ЭТО СЕКРЕТНЫЙ ЯЩИК!</bold></red>" : ""
+                        lot != null && lot.secret() ? "<red>⚡ ВНИМАНИЕ: ЭТО СЕКРЕТНЫЙ ЯЩИК!</red>" : ""
                 )
         );
         inventory.setItem(SLOT_INFO, infoItem);
@@ -112,7 +112,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.empty());
                 if (lot.secret()) {
-                    lore.add(MessageUtils.parse("<red><bold>⚡ СЕКРЕТНЫЙ ЯЩИК КАРАВАНА</bold></red>"));
+                    lore.add(MessageUtils.parse("<red>⚡ СЕКРЕТНЫЙ ЯЩИК КАРАВАНА</red>"));
                 } else {
                     lore.add(MessageUtils.parse("<gold>📦 Ящик каравана #" + lotIdx + "</gold>"));
                 }
@@ -137,19 +137,19 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             int current = Math.max(lot.startingPrice(), lot.currentBid());
             inventory.setItem(SLOT_BID_10, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<green><bold>+10 монет</bold></green>",
+                    "<green>+10 монет</green>",
                     List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 10), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
             inventory.setItem(SLOT_BID_50, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold><bold>+50 монет</bold></gold>",
+                    "<gold>+50 монет</gold>",
                     List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 50), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
             inventory.setItem(SLOT_BID_100, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<yellow><bold>+100 монет</bold></yellow>",
+                    "<yellow>+100 монет</yellow>",
                     List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 100), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
@@ -158,13 +158,13 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             if (isLeading) {
                 inventory.setItem(SLOT_MY_STATUS, GuiUtils.createCustomHead(
                         HeadTextures.HEAD_CONFIRM,
-                        "<green><bold>Вы лидируете!</bold></green>",
+                        "<green>Вы лидируете!</green>",
                         List.of("", "<gray>Ваша ставка в размере </gray>" + CoinFormat.formatGlyphs(eco, lot.currentBid()) + "<gray> является наивысшей.</gray>")
                 ));
             } else {
                 inventory.setItem(SLOT_MY_STATUS, GuiUtils.createCustomHead(
                         HeadTextures.HEAD_DELETE_NO,
-                        "<red><bold>Вы не лидируете</bold></red>",
+                        "<red>Вы не лидируете</red>",
                         List.of("", "<gray>Сделайте ставку, чтобы побороться за этот ящик!</gray>")
                 ));
             }
@@ -177,7 +177,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
         inventory.setItem(SLOT_CUSTOM_BID, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>Своя сумма ставки</bold></gold>",
+                "<gold>Своя сумма ставки</gold>",
                 List.of("", "<gray>Нажмите, чтобы ввести точную сумму ставки в чат.</gray>")
         ));
 

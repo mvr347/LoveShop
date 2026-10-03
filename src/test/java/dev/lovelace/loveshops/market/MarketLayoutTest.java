@@ -136,4 +136,15 @@ class MarketLayoutTest {
         for (int slot : MarketLayout.rowSlots(row1, 4)) assertTrue(slot < 27);
         for (int slot : MarketLayout.rowSlots(row1 + 9, 3)) assertTrue(slot >= 18 && slot < 27);
     }
+
+    @org.junit.jupiter.api.Test
+    void emptyCardSitsInTheMiddleOfTheWorkZone() {
+        assertEquals(13, MarketLayout.centerSlot(27));
+        assertEquals(31, MarketLayout.centerSlot(54));
+        for (int size : new int[]{27, 36, 45, 54}) {
+            int c = MarketLayout.centerSlot(size);
+            assertTrue(c >= MarketLayout.workStart(size) && c < size - 9, "size " + size);
+            assertTrue(java.util.Arrays.stream(MarketLayout.contentSlots(size)).anyMatch(x -> x == c), "size " + size);
+        }
+    }
 }

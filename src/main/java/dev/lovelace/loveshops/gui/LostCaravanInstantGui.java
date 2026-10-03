@@ -72,7 +72,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold><bold>📦 Мгновенная покупка ящиков</bold></gold>",
+                "<gold>📦 Мгновенная покупка ящиков</gold>",
                 List.of(
                         "",
                         "<gray>В караване мало участников — режим аукциона отключён!</gray>",
@@ -80,7 +80,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
                         "<gray>Первый купивший забирает ящик!</gray>"
                 )
         );
-        inventory.setItem(1, infoItem);
+        inventory.setItem(0, infoItem);
 
         // 2. Рабочая зона (слоты 9-26) - без стекла
         List<LostCaravanLot> lots = manager.getActiveLots();
@@ -94,7 +94,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
             if ("SOLD".equalsIgnoreCase(lot.status())) {
                 displayItem = GuiUtils.createCustomHead(
                         HeadTextures.HEAD_DELETE_NO,
-                        "<red><bold>[ РАСПРОДАНО ]</bold></red>",
+                        "<red>[ РАСПРОДАНО ]</red>",
                         List.of("", "<gray>Этот ящик уже приобрёл другой игрок.</gray>")
                 );
             } else {
@@ -104,14 +104,14 @@ public class LostCaravanInstantGui implements InventoryHolder {
                     List<Component> lore = new ArrayList<>();
                     lore.add(Component.empty());
                     if (lot.secret()) {
-                        lore.add(MessageUtils.parse("<red><bold>⚡ СЕКРЕТНЫЙ ЯЩИК</bold></red>"));
+                        lore.add(MessageUtils.parse("<red>⚡ СЕКРЕТНЫЙ ЯЩИК</red>"));
                     } else {
                         lore.add(MessageUtils.parse("<gold>Ящик #" + (i + 1) + "</gold>"));
                     }
                     lore.add(Component.empty());
                     lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.startingPrice())));
                     lore.add(Component.empty());
-                    lore.add(MessageUtils.parse("<green><bold>ЛКМ</bold> — купить ящик</green>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ — купить ящик</green>"));
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(new NamespacedKey(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
                     displayItem.setItemMeta(meta);

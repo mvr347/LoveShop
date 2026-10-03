@@ -118,10 +118,20 @@ public final class MarketMessages {
         return text;
     }
 
-    /** A line with the plugin prefix, ready to send. */
+    /** A player-facing line, ready to send; the plugin prefix is reserved for admin commands. */
     public Component get(Player viewer, String key, String... kv) {
+        return MessageUtils.parse(viewer, raw(key, kv));
+    }
+
+    /** An admin-command line with the plugin prefix. */
+    public Component getAdmin(Player viewer, String key, String... kv) {
         String prefix = plugin.getLangManager().getRaw("prefix", "");
         return MessageUtils.parse(viewer, prefix + raw(key, kv));
+    }
+
+    public void sendAdmin(CommandSender to, String key, String... kv) {
+        Player viewer = to instanceof Player p ? p : null;
+        to.sendMessage(getAdmin(viewer, key, kv));
     }
 
     /** A line without the prefix (GUI names, NPC speech that carries its own prefix). */

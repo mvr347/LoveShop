@@ -63,6 +63,7 @@ public final class StallBlacklistGui extends MarketGui {
             button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BUTTON_PLUS, "gui-blacklist-add", "gui-blacklist-add-lore"), e -> promptAdd());
         }
 
+        if (list.isEmpty()) emptyCard("gui-blacklist-empty-lore");
         int[] content = MarketLayout.contentSlots(SIZE);
         int start = pager((int) Math.ceil((double) list.size() / content.length)) * content.length;
         for (int i = 0; i < content.length && start + i < list.size(); i++) {
