@@ -39,6 +39,19 @@ public final class PriceInput {
 
     public long unit(int index) { return units[index]; }
 
+    /**
+     * Makes the smallest coin worth at least {@code minUnit} the active one (the picker starts there instead of on
+     * the copper coin, which needs hundreds of clicks on the 1/100/2000/20000 scale). No such coin: keeps the current one.
+     */
+    public void startAtUnit(long minUnit) {
+        for (int i = 0; i < units.length; i++) {
+            if (units[i] >= minUnit) {
+                active = i;
+                return;
+            }
+        }
+    }
+
     /** Next coin; wraps around after the last one. */
     public void cycle() {
         active = (active + 1) % units.length;

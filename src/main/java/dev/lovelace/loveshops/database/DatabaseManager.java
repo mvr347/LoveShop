@@ -31,6 +31,7 @@ public class DatabaseManager {
                 createTables(conn);
                 purgeLegacyAuctionAndFlea(conn);
                 purgeOrphanRows(conn);
+                migrateEconomy(conn, dbFile);
             }
 
             plugin.getLogger().info("✓ База данных SQLite успешно подключена.");
@@ -567,6 +568,34 @@ public class DatabaseManager {
             plugin.getLogger().warning("БД: плановая очистка истории не удалась: " + e.getMessage());
         }
         return removed;
+    }
+
+    /**
+     * Rescales stored amounts once when LoveCore's {@code economy.scale-version} is higher than the one the data was
+     * written under (see {@link EconomyMigration}); the database file is copied first.
+     */
+    private void migrateEconomy(Connection conn, File dbFile) {
+        try {
+            var economy = dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.economy.LoveEconomy.class);
+            if (economy.isEmpty()) return;
+            int target = economy.get().economyScaleVersion();
+            double moneyFactor = plugin.getConfig().getDouble("economy.migration.money-factor", 5.0);
+            double priceFactor = plugin.getConfig().getDouble("economy.migration.price-factor", 2.0);
+            if (EconomyMigration.needsRescale(conn, target)) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+                }
+                File backup = new File(plugin.getDataFolder(), dbFile.getName() + ".pre-economy-v" + target);
+                if (!backup.exists()) {
+                    java.nio.file.Files.copy(dbFile.toPath(), backup.toPath());
+                    plugin.getLogger().info("Economy migration: database copy saved to " + backup.getName());
+                }
+            }
+            EconomyMigration.migrate(conn, target, moneyFactor, priceFactor, plugin.getLogger());
+        } catch (Throwable t) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Economy migration failed - amounts were NOT rescaled; restore from *.pre-economy-v* if needed", t);
+        }
     }
 
     private void purgeLegacyAuctionAndFlea(Connection conn) {

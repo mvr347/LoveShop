@@ -31,18 +31,12 @@ public final class StallUpgradeService {
         return atMax(p);
     }
 
-    /** Face value of the biggest coin of LoveEconomy (the netherite coin by default); 0 when the economy is down. */
-    public long bigCoinValue() {
-        return plugin.getEconomy()
-                .map(e -> e.denominations().stream().mapToLong(d -> d.value()).max().orElse(0L))
-                .orElse(0L);
-    }
-
     /** Price of the next level, or -1 at the top. */
     public long nextCost(TradePoint p) {
         if (atMax(p)) return -1L;
-        return UpgradeMath.linearCost(p.level(), bigCoinValue(),
-                plugin.getMarketConfig().upgradeCostCoins(), plugin.getMarketConfig().upgradeCostStepCoins());
+        // coinValue 1: the config values are plain money amounts now (copper units), not "N biggest coins"
+        return UpgradeMath.linearCost(p.level(), 1L,
+                plugin.getMarketConfig().upgradeCost(), plugin.getMarketConfig().upgradeCostStep());
     }
 
     public Result upgrade(Player owner, TradePoint p) {

@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.gui;
 
+import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.WandererRequestCategory;
@@ -67,7 +68,7 @@ public class WandererDealGui {
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
             List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
 
-        int cost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
+        long cost = plugin.getWandererManager().dealBaseCost();
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
         String currencyName = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
         String icon = MessageUtils.currencyIcon();
@@ -80,7 +81,7 @@ public class WandererDealGui {
                 "<gray>Странник отправится в запретные земли и</gray>",
                 "<gray>добудет случайный набор редкой контрабанды.</gray>",
                 "",
-                "<gray>Стоимость аванса: <gold>" + icon + cost + " " + currencyName + "</gold></gray>",
+                "<gray>Стоимость аванса: </gray>" + CoinFormat.formatGlyphs(cost),
                 "<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>",
                 "",
                 "<green>ЛКМ </green><gray>— договориться и отправить Странника</gray>"
@@ -105,9 +106,9 @@ public class WandererDealGui {
      * straight off the clicked ItemStack instead of tracking per-player GUI state elsewhere.
      */
     public static ItemStack buildCategoryButton(LoveShops plugin, WandererRequestCategory category) {
-        int baseCost = plugin.getConfig().getInt("wanderer.deal.cost", 150);
+        long baseCost = plugin.getWandererManager().dealBaseCost();
         double surchargePercent = plugin.getConfig().getDouble("wanderer.deal.personal-request.surcharge-percent", 50);
-        int personalCost = (int) Math.round(baseCost * (1 + surchargePercent / 100.0));
+        long personalCost = Math.round(baseCost * (1 + surchargePercent / 100.0));
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
         String currencyName = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
         String icon = MessageUtils.currencyIcon();
@@ -123,7 +124,7 @@ public class WandererDealGui {
             lore.add(MessageUtils.parse("<gray>выбранной категории — с доплатой.</gray>"));
             lore.add(Component.empty());
             lore.add(MessageUtils.parse("<gray>Текущий выбор: <light_purple>" + category.displayName() + "</light_purple></gray>"));
-            lore.add(MessageUtils.parse("<gray>Стоимость заказа: <gold>" + icon + personalCost + " " + currencyName + "</gold></gray>"));
+            lore.add(MessageUtils.parse("<gray>Стоимость заказа: </gray>" + CoinFormat.formatGlyphs(personalCost)));
             lore.add(MessageUtils.parse("<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>"));
             lore.add(Component.empty());
             lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— сменить категорию</gray>"));

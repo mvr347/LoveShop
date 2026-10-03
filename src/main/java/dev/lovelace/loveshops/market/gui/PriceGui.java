@@ -71,6 +71,7 @@ public final class PriceGui extends MarketGui {
         long[] units = dens.stream().mapToLong(Denomination::value).toArray();
         this.input = new PriceInput(units, plugin.getMarketConfig().minPrice(key),
                 plugin.getMarketConfig().maxPrice(key), initialPrice);
+        this.input.startAtUnit(plugin.getMarketConfig().priceStartUnit());
     }
 
     /** Convenience: only the unit price matters (editing an existing lot, buy orders). */

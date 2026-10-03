@@ -34,10 +34,46 @@ public final class PricesManager {
 
     public void load() {
         file = new File(plugin.getDataFolder(), "prices.yml");
-        if (!file.exists()) {
+        boolean existed = file.exists();
+        if (!existed) {
             plugin.saveResource("prices.yml", false);
         }
         yaml = YamlConfiguration.loadConfiguration(file);
+        if (existed && !yaml.contains(SCALE_VERSION_KEY)) {
+            convertLegacyFile();
+        }
+    }
+
+    /** Marks a prices.yml written for the economy of 2026-10-03 (denominations 1/100/2000/20000, prices from the LoveCore model). */
+    private static final String SCALE_VERSION_KEY = "scale-version";
+
+    /**
+     * 2026-10-03: prices.yml used to be a full price list written for the old denominations (cap ~100). It is now only
+     * a list of OVERRIDES on top of LoveCore's recipe-based price model. A file without {@code scale-version} is the old
+     * list: it is copied to {@code prices.yml.pre-economy-v2} and replaced by the new (empty) default, otherwise every
+     * old number would silently override the model. {@code economy.reset-legacy-prices: false} keeps the old file
+     * as it is (only the marker is added) - then the old numbers stay in force.
+     */
+    private void convertLegacyFile() {
+        try {
+            if (plugin.getConfig().getBoolean("economy.reset-legacy-prices", true)) {
+                File backup = new File(plugin.getDataFolder(), "prices.yml.pre-economy-v2");
+                if (!backup.exists()) {
+                    java.nio.file.Files.copy(file.toPath(), backup.toPath());
+                }
+                plugin.saveResource("prices.yml", true);
+                yaml = YamlConfiguration.loadConfiguration(file);
+                plugin.getLogger().warning("prices.yml was written for the old economy: it is saved as " + backup.getName()
+                        + " and replaced by an empty list of overrides - prices now come from the LoveCore price model.");
+            } else {
+                yaml.set(SCALE_VERSION_KEY, 2);
+                save();
+                plugin.getLogger().warning("prices.yml has no scale-version; economy.reset-legacy-prices is false, "
+                        + "so the old prices stay as overrides.");
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Cannot convert prices.yml to the new economy: " + e.getMessage());
+        }
     }
 
     public int getBuyerPrice(String material, int def) {

@@ -44,7 +44,7 @@
         <dependency>
             <groupId>com.github.mvr347.LoveCore</groupId>
             <artifactId>lovecore-api</artifactId>
-            <version>1ea0b3aa87</version>
+            <version>ff8d28387d</version>
             <scope>provided</scope>
         </dependency>
         <!-- LoveClaims: торговые точки (события аренды, оплата из кассы). Мягкая зависимость на сервере. -->

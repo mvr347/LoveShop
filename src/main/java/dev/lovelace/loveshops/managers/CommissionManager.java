@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.managers;
 
+import dev.lovelace.loveshops.utils.Money;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.gui.CommissionAgentGui;
@@ -69,6 +70,11 @@ public class CommissionManager {
         return Math.max(1, plugin.getConfig().getInt("commission.max-items-per-lot", 64));
     }
 
+    /** Highest price of one lot ({@code commission.max-lot-price}: number or money text; default 100 000 000). */
+    public long maxLotPrice() {
+        return Math.max(1L, Math.min(Integer.MAX_VALUE, Money.raw(plugin.getConfig(), "commission.max-lot-price", 100_000_000L)));
+    }
+
     /**
      * Создание нового лота на комиссии.
      */
@@ -77,7 +83,7 @@ public class CommissionManager {
         if (seller == null || !seller.isOnline()) return LotResult.INVALID_ITEM;
         if (item == null || item.getType().isAir() || item.getAmount() <= 0) return LotResult.INVALID_ITEM;
 
-        if (price <= 0 || price > 100_000_000) {
+        if (price <= 0 || price > maxLotPrice()) {
             return LotResult.INVALID_PRICE;
         }
 

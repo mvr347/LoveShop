@@ -134,23 +134,24 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             inventory.setItem(SLOT_LOT_PREVIEW, preview);
 
             // Кнопки быстрых ставок
-            int current = Math.max(lot.startingPrice(), lot.currentBid());
+            // 2026-10-03: quick bids are percentages of the current price (caravan.lost.quick-bid-percents, default
+            // 5 / 15 / 30) - fixed +10/+50/+100 were below the 5% minimum raise once lots started at 800.
             inventory.setItem(SLOT_BID_10, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<green>+10 монет</green>",
-                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 10), "", "<yellow>Нажмите для ставки</yellow>")
+                    "<green>+" + quickPercent(0) + "%</green>",
+                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, quickBid(manager, lot, 0)), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
             inventory.setItem(SLOT_BID_50, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold>+50 монет</gold>",
-                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 50), "", "<yellow>Нажмите для ставки</yellow>")
+                    "<gold>+" + quickPercent(1) + "%</gold>",
+                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, quickBid(manager, lot, 1)), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
             inventory.setItem(SLOT_BID_100, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<yellow>+100 монет</yellow>",
-                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, current + 100), "", "<yellow>Нажмите для ставки</yellow>")
+                    "<yellow>+" + quickPercent(2) + "%</yellow>",
+                    List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, quickBid(manager, lot, 2)), "", "<yellow>Нажмите для ставки</yellow>")
             ));
 
             // Слот 33: Статус игрока
@@ -210,22 +211,20 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             return;
         }
 
-        int base = Math.max(lot.startingPrice(), lot.currentBid());
-
         if (rawSlot == SLOT_BID_10) {
-            report(player, manager.placeBid(player, base + 10));
+            report(player, manager.placeBid(player, quickBid(manager, lot, 0)));
             refreshAll(plugin);
             return;
         }
 
         if (rawSlot == SLOT_BID_50) {
-            report(player, manager.placeBid(player, base + 50));
+            report(player, manager.placeBid(player, quickBid(manager, lot, 1)));
             refreshAll(plugin);
             return;
         }
 
         if (rawSlot == SLOT_BID_100) {
-            report(player, manager.placeBid(player, base + 100));
+            report(player, manager.placeBid(player, quickBid(manager, lot, 2)));
             refreshAll(plugin);
             return;
         }
@@ -233,7 +232,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         if (rawSlot == SLOT_CUSTOM_BID) {
             player.closeInventory();
             MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
-            MessageUtils.sendMessage(player, "<yellow>Текущая ставка: <white>" + lot.currentBid() + " монет</white></yellow>");
+            MessageUtils.sendMessage(player, "<yellow>Текущая ставка: </yellow>" + CoinFormat.formatGlyphs(lot.currentBid()));
             MessageUtils.sendMessage(player, "<gray>Введите желаемую ставку в чат (или <red>отмена</red>):</gray>");
             MessageUtils.sendMessage(player, "<gold>══════════════════════════════════</gold>");
 
@@ -241,9 +240,12 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                 plugin.getChatPromptService().ask(player, text -> {
                     int amount;
                     try {
-                        amount = Integer.parseInt(text.replaceAll("[^0-9]", ""));
-                    } catch (NumberFormatException e) {
-                        MessageUtils.sendMessage(player, "<red>Неверный формат ставки!</red>");
+                        // a plain number (copper units) or money text such as "3i 50c" (c/i/g/d = copper/iron/gold/diamond)
+                        long typed = dev.lovelace.loveshops.utils.Money.parse(text);
+                        if (typed <= 0 || typed > Integer.MAX_VALUE) throw new IllegalArgumentException("out of range");
+                        amount = (int) typed;
+                    } catch (IllegalArgumentException e) {
+                        MessageUtils.sendMessage(player, "<red>Неверный формат ставки! Число или, например, 3i 50c (c — медная, i — железная, g — золотая, d — алмазная).</red>");
                         return;
                     }
 
@@ -274,10 +276,27 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         }
     }
 
+    private static int quickPercent(int index) {
+        List<Integer> percents = dev.lovelace.loveshops.LoveShops.getInstance().getConfig().getIntegerList("caravan.lost.quick-bid-percents");
+        int[] defaults = {5, 15, 30};
+        return index < percents.size() && percents.get(index) > 0 ? percents.get(index) : defaults[index];
+    }
+
+    /** The bid a quick button places: the current price plus the button's percent, never below the minimum bid. */
+    private static int quickBid(LostCaravanManager manager, LostCaravanLot lot, int index) {
+        int base = Math.max(lot.startingPrice(), lot.currentBid());
+        int raise = Math.max(1, (int) Math.round(base * quickPercent(index) / 100.0));
+        int bid = base + raise;
+        if (lot.currentBid() > 0) {
+            bid = Math.max(bid, lot.currentBid() + manager.minRaiseOver(lot.currentBid()));
+        }
+        return bid;
+    }
+
     /** Tells the player why a quick bid did not go through (it used to fail silently). */
     private static void report(Player player, LostCaravanManager.BidResult result) {
         switch (result) {
-            case TOO_LOW -> MessageUtils.sendMessage(player, "<red>Ставка слишком мала: нужно хотя бы на 5% выше текущей.</red>");
+            case TOO_LOW -> MessageUtils.sendMessage(player, "<red>Ставка слишком мала: нужно выше текущей минимум на шаг повышения (по умолчанию 5%).</red>");
             case NO_MONEY -> MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для такой ставки!</red>");
             case ALREADY_HIGHEST -> MessageUtils.sendMessage(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
             case NOT_REGISTERED -> MessageUtils.sendMessage(player, "<red>Вы не вносили залог для участия!</red>");

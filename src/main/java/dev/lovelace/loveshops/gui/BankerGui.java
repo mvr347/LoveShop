@@ -323,10 +323,11 @@ public class BankerGui {
             if (mat != null && !mat.isAir()) return mat;
         }
         long unit = den != null ? den.value() : 1;
-        if (unit >= 1000) return Material.NETHERITE_INGOT;
-        if (unit >= 100) return Material.DIAMOND;
-        if (unit >= 50) return Material.GOLD_INGOT;
-        if (unit >= 10) return Material.IRON_INGOT;
+        // unknown id: guess by value on the standard scale (1 / 100 / 2000 / 20000 / 100000)
+        if (unit >= 100_000) return Material.NETHERITE_INGOT;
+        if (unit >= 20_000) return Material.DIAMOND;
+        if (unit >= 2_000) return Material.GOLD_INGOT;
+        if (unit >= 100) return Material.IRON_INGOT;
         return Material.COPPER_INGOT;
     }
 

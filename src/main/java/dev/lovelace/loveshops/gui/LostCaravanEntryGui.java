@@ -73,7 +73,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
             inventory.setItem(i, filler);
         }
 
-        int fee = plugin.getConfig().getInt("caravan.lost.entry-fee.amount", 1);
+        int fee = plugin.getLostCaravanManager().entryFee();
         LoveEconomy eco = plugin.getEconomy().orElse(null);
 
         ItemStack infoItem = GuiUtils.createCustomHead(
@@ -84,7 +84,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
                         "<gray>Еженедельное торговое событие с ценными ящиками!</gray>",
                         "<gray>Залог за участие: </gray>" + CoinFormat.formatGlyphs(eco, fee),
                         "<gray>Кулдаун участия: <yellow>1 раз в 7 дней</yellow></gray>",
-                        "<gray>Если вы ничего не выиграете — вернётся <green>50% залога</green>.</gray>",
+                        "<gray>Если вы ничего не выиграете — вернётся <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "% залога</green>.</gray>",
                         "<gray>При >6 участниках — открывается аукцион.</gray>",
                         "<gray>При ≥12 участниках — появляется <red>6-й Секретный Ящик</red>!</gray>",
                         "",

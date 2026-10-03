@@ -328,7 +328,7 @@ public class CommissionAgentGui implements InventoryHolder {
             }
 
             long total = price * (long) sell.getAmount();
-            if (total <= 0 || total > 100_000_000L) {
+            if (total <= 0 || total > manager.maxLotPrice()) {
                 giveBack(player, sell);
                 MessageUtils.sendMessage(player, "<red>Некорректная цена.</red>");
                 return;

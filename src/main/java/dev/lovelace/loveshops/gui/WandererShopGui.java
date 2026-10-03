@@ -1,5 +1,6 @@
 package dev.lovelace.loveshops.gui;
 
+import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.models.WandererDeal;
@@ -122,8 +123,7 @@ public class WandererShopGui {
                         if (meta != null) {
                             List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                             lore.add(Component.empty());
-                            String currency = plugin.getEconomy().map(LoveEconomy::currencyName).orElse("монет");
-                            lore.add(MessageUtils.parse("<gray>Цена: <gold>" + MessageUtils.currencyIcon() + item.price() + " " + currency + "</gold></gray>"));
+                            lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(item.price())));
                             lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— приобрести предмет</gray>"));
                             meta.lore(lore);
                             display.setItemMeta(meta);
