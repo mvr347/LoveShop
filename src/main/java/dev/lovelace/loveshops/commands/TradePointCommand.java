@@ -2,11 +2,10 @@ package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.TradePointManager;
+import dev.lovelace.loveshops.market.gui.StallOwnerGui;
 import dev.lovelace.loveshops.market.model.BlacklistEntry;
-import dev.lovelace.loveshops.market.model.DiscountEntry;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.market.model.TradingMode;
-import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
@@ -23,16 +22,20 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Player command for trade point management:
- * /tradepoint returns
- * /tradepoint transfer <player>
- * /tradepoint blacklist add|remove|list <player> [reason]
- * /tradepoint discount set|remove <player> [percent]
+ * {@code /tradepoint} (торговая точка): managing your own shop.
+ * <pre>
+ * /tradepoint                              open the shop menu
+ * /tradepoint returns                      collect returned goods and coins
+ * /tradepoint transfer &lt;player&gt;            hand the point to another player
+ * /tradepoint blacklist add|remove|list    the point's blacklist
+ * /tradepoint discount set|remove          personal discounts
  * /tradepoint mode [BOTH|SELL_ONLY|BUY_ONLY]
+ * </pre>
+ * All texts are in lang.yml ({@code market.cmd-*}).
  */
 public final class TradePointCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("returns", "transfer", "blacklist", "discount", "mode");
+    private static final List<String> SUBS = List.of("menu", "returns", "transfer", "blacklist", "discount", "mode", "help");
     private static final List<String> BLACKLIST_SUBS = List.of("add", "remove", "list");
     private static final List<String> DISCOUNT_SUBS = List.of("set", "remove");
     private static final List<String> MODE_SUBS = List.of("BOTH", "SELL_ONLY", "BUY_ONLY");
@@ -43,57 +46,47 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
     }
 
+    private void msg(CommandSender to, String key, String... kv) {
+        plugin.getMarketMessages().send(to, key, kv);
+    }
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageUtils.parse("<red>Команда только для игроков!</red>"));
+            msg(sender, "cmd-players-only");
             return true;
         }
-
         TradePointManager manager = plugin.getTradePointManager();
         if (manager == null) {
-            player.sendMessage(MessageUtils.parse(player, "<red>Модуль торговых точек отключён.</red>"));
+            msg(player, "cmd-market-off");
             return true;
         }
 
-        if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            sendHelp(player);
+        if (args.length == 0 || args[0].equalsIgnoreCase("menu")) {
+            manager.byOwner(player.getUniqueId()).ifPresentOrElse(
+                    point -> new StallOwnerGui(plugin, player, point).open(),
+                    () -> {
+                        msg(player, "cmd-no-point");
+                        sendHelp(player);
+                    });
             return true;
         }
 
-        String sub = args[0].toLowerCase(Locale.ROOT);
-        switch (sub) {
-            case "returns" -> {
-                manager.claimReturns(player);
-                return true;
-            }
-            case "transfer" -> {
-                handleTransfer(player, manager, args);
-                return true;
-            }
-            case "blacklist" -> {
-                handleBlacklist(player, manager, args);
-                return true;
-            }
-            case "discount" -> {
-                handleDiscount(player, manager, args);
-                return true;
-            }
-            case "mode" -> {
-                handleMode(player, manager, args);
-                return true;
-            }
-            default -> {
-                sendHelp(player);
-                return true;
-            }
+        switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "returns" -> manager.claimReturns(player);
+            case "transfer" -> handleTransfer(player, manager, args);
+            case "blacklist" -> handleBlacklist(player, manager, args);
+            case "discount" -> handleDiscount(player, manager, args);
+            case "mode" -> handleMode(player, manager, args);
+            default -> sendHelp(player);
         }
+        return true;
     }
 
-    private TradePoint getOwnedPoint(Player player, TradePointManager manager) {
+    private TradePoint ownedPoint(Player player, TradePointManager manager) {
         var opt = manager.byOwner(player.getUniqueId());
         if (opt.isEmpty()) {
-            player.sendMessage(MessageUtils.parse(player, "<red>У вас нет арендованной торговой точки!</red>"));
+            msg(player, "cmd-no-point");
             return null;
         }
         return opt.get();
@@ -101,211 +94,195 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
 
     private void handleTransfer(Player player, TradePointManager manager, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint transfer <игрок></yellow>"));
+            msg(player, "cmd-usage-transfer");
             return;
         }
-        TradePoint point = getOwnedPoint(player, manager);
+        TradePoint point = ownedPoint(player, manager);
         if (point == null) return;
-
         Player target = Bukkit.getPlayerExact(args[1]);
-        if (target == null || !target.isOnline()) {
-            player.sendMessage(MessageUtils.parse(player, "<red>Игрок " + args[1] + " не найден или не в сети!</red>"));
+        if (target == null) {
+            msg(player, "cmd-player-offline", "player", args[1]);
             return;
         }
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(MessageUtils.parse(player, "<red>Нельзя передать точку самому себе!</red>"));
+            msg(player, "transfer-self");
             return;
         }
-
-        boolean ok = manager.transfer(point, target.getUniqueId());
-        if (ok) {
-            player.sendMessage(MessageUtils.parse(player, "<green>Торговая точка успешно передана игроку " + target.getName() + "!</green>"));
-            target.sendMessage(MessageUtils.parse(target, "<green>Вам передана торговая точка от " + player.getName() + "!</green>"));
+        if (manager.transfer(point, target.getUniqueId())) {
+            msg(player, "transfer-done", "player", target.getName());
+            msg(target, "transfer-received", "player", player.getName());
         } else {
-            player.sendMessage(MessageUtils.parse(player, "<red>Не удалось передать точку.</red>"));
+            msg(player, "transfer-failed");
         }
     }
 
     private void handleBlacklist(Player player, TradePointManager manager, String[] args) {
-        TradePoint point = getOwnedPoint(player, manager);
+        TradePoint point = ownedPoint(player, manager);
         if (point == null) return;
-
         if (args.length < 2) {
-            player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint blacklist <add|remove|list> [игрок] [причина]</yellow>"));
+            msg(player, "cmd-usage-blacklist");
             return;
         }
-
-        String action = args[1].toLowerCase(Locale.ROOT);
-        switch (action) {
+        switch (args[1].toLowerCase(Locale.ROOT)) {
             case "list" -> {
                 try {
                     List<BlacklistEntry> list = plugin.getMarketRepository().loadBlacklist(point.claimId());
-                    player.sendMessage(MessageUtils.parse(player, "<gold>=== Чёрный список точки (" + list.size() + ") ===</gold>"));
-                    if (list.isEmpty()) player.sendMessage(MessageUtils.parse(player, "<gray>Список пуст.</gray>"));
+                    msg(player, "cmd-blacklist-header", "count", String.valueOf(list.size()));
+                    if (list.isEmpty()) msg(player, "cmd-blacklist-empty");
                     for (BlacklistEntry be : list) {
                         OfflinePlayer op = Bukkit.getOfflinePlayer(be.playerUuid());
                         String name = op.getName() != null ? op.getName() : be.playerUuid().toString().substring(0, 8);
-                        player.sendMessage(MessageUtils.parse(player, "<red>• " + name + "</red> <gray>(" + (be.reason() != null ? be.reason() : "без причины") + ")</gray>"));
+                        String reason = be.reason() != null && !be.reason().isBlank() ? be.reason()
+                                : plugin.getMarketMessages().raw("gui-blacklist-no-reason");
+                        msg(player, "cmd-blacklist-line", "player", name, "reason", reason);
                     }
                 } catch (Exception e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при чтении чёрного списка.</red>"));
+                    msg(player, "db-error");
                 }
             }
             case "add" -> {
                 if (args.length < 3) {
-                    player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint blacklist add <игрок> [причина]</yellow>"));
+                    msg(player, "cmd-usage-blacklist-add");
                     return;
                 }
                 OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
                 if (target.getUniqueId().equals(player.getUniqueId())) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Нельзя внести себя в чёрный список!</red>"));
+                    msg(player, "blacklist-self");
                     return;
                 }
                 if (!target.isOnline() && !target.hasPlayedBefore()) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Игрок с ником " + args[2] + " на сервере не играл.</red>"));
+                    msg(player, "cmd-player-unknown", "player", args[2]);
                     return;
                 }
                 String reason = args.length > 3 ? String.join(" ", java.util.Arrays.copyOfRange(args, 3, args.length)) : null;
                 try {
                     if (plugin.getMarketRepository().addBlacklist(point.claimId(), target.getUniqueId(), reason,
                             plugin.getMarketConfig().blacklistMaxEntries())) {
-                        player.sendMessage(MessageUtils.parse(player, "<green>Игрок " + (target.getName() != null ? target.getName() : args[2]) + " добавлен в чёрный список точки.</green>"));
+                        msg(player, "blacklist-added", "player", target.getName() != null ? target.getName() : args[2]);
                     } else {
-                        player.sendMessage(MessageUtils.parse(player, "<red>Чёрный список заполнен.</red>"));
+                        msg(player, "blacklist-full");
                     }
                 } catch (Exception e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при добавлении в чёрный список.</red>"));
+                    msg(player, "db-error");
                 }
             }
             case "remove" -> {
                 if (args.length < 3) {
-                    player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint blacklist remove <игрок></yellow>"));
+                    msg(player, "cmd-usage-blacklist-remove");
                     return;
                 }
                 OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
                 try {
                     plugin.getMarketRepository().removeBlacklist(point.claimId(), target.getUniqueId());
-                    player.sendMessage(MessageUtils.parse(player, "<green>Игрок " + (target.getName() != null ? target.getName() : args[2]) + " удалён из чёрного списка точки.</green>"));
+                    msg(player, "blacklist-removed", "player", target.getName() != null ? target.getName() : args[2]);
                 } catch (Exception e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при удалении из чёрного списка.</red>"));
+                    msg(player, "db-error");
                 }
             }
-            default -> player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint blacklist <add|remove|list></yellow>"));
+            default -> msg(player, "cmd-usage-blacklist");
         }
     }
 
     private void handleDiscount(Player player, TradePointManager manager, String[] args) {
-        TradePoint point = getOwnedPoint(player, manager);
+        TradePoint point = ownedPoint(player, manager);
         if (point == null) return;
-
         if (args.length < 2) {
-            player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint discount <set|remove> <игрок> [процент] [дни]</yellow>"));
+            msg(player, "cmd-usage-discount");
             return;
         }
-
-        String action = args[1].toLowerCase(Locale.ROOT);
-        switch (action) {
+        switch (args[1].toLowerCase(Locale.ROOT)) {
             case "set" -> {
+                int max = plugin.getMarketConfig().discountMaxPercent();
                 if (args.length < 4) {
-                    player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint discount set <игрок> <процент (1-50)> [дни]</yellow>"));
+                    msg(player, "cmd-usage-discount-set", "max", String.valueOf(max));
                     return;
                 }
                 OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
                 int percent;
+                int days = 0;
                 try {
                     percent = Integer.parseInt(args[3]);
+                    if (args.length > 4) days = Math.max(0, Integer.parseInt(args[4]));
                 } catch (NumberFormatException e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Неверный процент!</red>"));
+                    msg(player, "prompt-invalid");
                     return;
                 }
-                int max = plugin.getMarketConfig().discountMaxPercent();
                 if (percent < 1 || percent > max) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Скидка должна быть от 1 до " + max + "%!</red>"));
+                    msg(player, "cmd-discount-range", "max", String.valueOf(max));
                     return;
                 }
-                int days = args.length > 4 ? Math.max(0, Integer.parseInt(args[4])) : 0;
                 Long expiresAt = days > 0 ? System.currentTimeMillis() + (days * 86_400_000L) : null;
                 try {
                     plugin.getMarketRepository().setDiscount(point.claimId(), target.getUniqueId(), percent, expiresAt);
-                    player.sendMessage(MessageUtils.parse(player, "<green>Скидка " + percent + "% установлена для игрока " + (target.getName() != null ? target.getName() : args[2]) + "!</green>"));
+                    msg(player, "discount-given", "percent", String.valueOf(percent),
+                            "player", target.getName() != null ? target.getName() : args[2]);
                 } catch (Exception e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при сохранении скидки.</red>"));
+                    msg(player, "db-error");
                 }
             }
             case "remove" -> {
                 if (args.length < 3) {
-                    player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint discount remove <игрок></yellow>"));
+                    msg(player, "cmd-usage-discount-remove");
                     return;
                 }
                 OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
                 try {
                     plugin.getMarketRepository().removeDiscount(point.claimId(), target.getUniqueId());
-                    player.sendMessage(MessageUtils.parse(player, "<green>Скидка игрока " + (target.getName() != null ? target.getName() : args[2]) + " удалена.</green>"));
+                    msg(player, "discount-removed", "player", target.getName() != null ? target.getName() : args[2]);
                 } catch (Exception e) {
-                    player.sendMessage(MessageUtils.parse(player, "<red>Ошибка при удалении скидки.</red>"));
+                    msg(player, "db-error");
                 }
             }
-            default -> player.sendMessage(MessageUtils.parse(player, "<yellow>Использование: /tradepoint discount <set|remove></yellow>"));
+            default -> msg(player, "cmd-usage-discount");
         }
     }
 
     private void handleMode(Player player, TradePointManager manager, String[] args) {
-        TradePoint point = getOwnedPoint(player, manager);
+        TradePoint point = ownedPoint(player, manager);
         if (point == null) return;
-
         if (args.length < 2) {
-            player.sendMessage(MessageUtils.parse(player, "<gray>Текущий режим торговли: <white>" + point.tradingMode() + "</white></gray>"));
-            player.sendMessage(MessageUtils.parse(player, "<gray>Доступные режимы: <white>BOTH, SELL_ONLY, BUY_ONLY</white></gray>"));
+            msg(player, "cmd-mode-current", "mode", plugin.getMarketMessages().raw("gui-mode-" + point.tradingMode().name().toLowerCase(Locale.ROOT)));
+            msg(player, "cmd-mode-list");
             return;
         }
-
         try {
             TradingMode mode = TradingMode.valueOf(args[1].toUpperCase(Locale.ROOT));
             point.tradingMode(mode);
             manager.save(point);
             manager.updateNpc(point);
             manager.refreshViewers(point.claimId());
-            player.sendMessage(MessageUtils.parse(player, "<green>Режим торговли установлен на: " + mode + "</green>"));
+            msg(player, "cmd-mode-set", "mode", plugin.getMarketMessages().raw("gui-mode-" + mode.name().toLowerCase(Locale.ROOT)));
         } catch (IllegalArgumentException e) {
-            player.sendMessage(MessageUtils.parse(player, "<red>Неизвестный режим торговли! Допустимо: BOTH, SELL_ONLY, BUY_ONLY</red>"));
+            msg(player, "cmd-mode-unknown");
         }
     }
 
     private void sendHelp(Player player) {
-        player.sendMessage(MessageUtils.parse(player, "<gold>=== Управление торговой точкой ===</gold>"));
-        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint returns</yellow> <gray>— забрать возвраты товаров и монет</gray>"));
-        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint transfer <игрок></yellow> <gray>— передать точку другому игроку</gray>"));
-        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint blacklist <add|remove|list></yellow> <gray>— чёрный список точки</gray>"));
-        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint discount <set|remove></yellow> <gray>— персональные скидки</gray>"));
-        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint mode [режим]</yellow> <gray>— режим торговли (BOTH, SELL_ONLY, BUY_ONLY)</gray>"));
-        player.sendMessage(MessageUtils.parse(player, "<gold>====================================</gold>"));
+        for (String line : plugin.getMarketMessages().lines("cmd-help")) {
+            player.sendMessage(dev.lovelace.loveshops.utils.MessageUtils.parse(player, line));
+        }
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        List<String> online = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
         if (args.length == 1) {
             return StringUtil.copyPartialMatches(args[0], SUBS, new ArrayList<>());
         }
+        String sub = args[0].toLowerCase(Locale.ROOT);
         if (args.length == 2) {
-            String sub = args[0].toLowerCase(Locale.ROOT);
             return switch (sub) {
-                case "transfer" -> StringUtil.copyPartialMatches(args[1], Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), new ArrayList<>());
+                case "transfer" -> StringUtil.copyPartialMatches(args[1], online, new ArrayList<>());
                 case "blacklist" -> StringUtil.copyPartialMatches(args[1], BLACKLIST_SUBS, new ArrayList<>());
                 case "discount" -> StringUtil.copyPartialMatches(args[1], DISCOUNT_SUBS, new ArrayList<>());
                 case "mode" -> StringUtil.copyPartialMatches(args[1], MODE_SUBS, new ArrayList<>());
                 default -> List.of();
             };
         }
-        if (args.length == 3) {
-            String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("blacklist") && (args[1].equalsIgnoreCase("add") || args[1].equalsIgnoreCase("remove"))) {
-                return StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), new ArrayList<>());
-            }
-            if (sub.equals("discount") && (args[1].equalsIgnoreCase("set") || args[1].equalsIgnoreCase("remove"))) {
-                return StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), new ArrayList<>());
-            }
+        if (args.length == 3 && (sub.equals("blacklist") || sub.equals("discount"))) {
+            return StringUtil.copyPartialMatches(args[2], online, new ArrayList<>());
         }
-        if (args.length == 4 && args[0].equalsIgnoreCase("discount") && args[1].equalsIgnoreCase("set")) {
+        if (args.length == 4 && sub.equals("discount") && args[1].equalsIgnoreCase("set")) {
             return StringUtil.copyPartialMatches(args[3], List.of("5", "10", "15", "20", "25", "50"), new ArrayList<>());
         }
         return List.of();

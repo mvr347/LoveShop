@@ -22,6 +22,9 @@ public final class MarketModule {
     private StallNpcService npcs;
     private ReputationGate gate;
     private ChatPromptService prompts;
+    private dev.lovelace.loveshops.market.feudal.FeudalService feudal;
+    private FleaTraderService flea;
+    private dev.lovelace.loveshops.market.wizard.WizardService wizard;
     private org.bukkit.scheduler.BukkitTask reconcileTask;
     private MarketGuiListener guiListener;
 
@@ -33,6 +36,9 @@ public final class MarketModule {
     public TradePointManager manager() { return manager; }
     public StallNpcService npcs() { return npcs; }
     public ChatPromptService prompts() { return prompts; }
+    public dev.lovelace.loveshops.market.feudal.FeudalService feudal() { return feudal; }
+    public FleaTraderService flea() { return flea; }
+    public dev.lovelace.loveshops.market.wizard.WizardService wizard() { return wizard; }
     public StallTradeService trade() { return trade; }
     public RatingService ratings() { return ratings; }
     public StallUpgradeService upgrades() { return upgrades; }
@@ -70,9 +76,14 @@ public final class MarketModule {
             this.ratings = new RatingService(plugin, repo);
             this.upgrades = new StallUpgradeService(plugin, repo);
             this.prompts = new ChatPromptService(plugin);
+            this.feudal = new dev.lovelace.loveshops.market.feudal.FeudalService(plugin);
+            // Stub: registers nothing and spawns no NPC while market.flea.enabled is false.
+            this.flea = new FleaTraderService(plugin);
+            this.wizard = new dev.lovelace.loveshops.market.wizard.WizardService(plugin);
             this.guiListener = new MarketGuiListener(plugin);
             Bukkit.getPluginManager().registerEvents(prompts, plugin);
             Bukkit.getPluginManager().registerEvents(guiListener, plugin);
+            Bukkit.getPluginManager().registerEvents(wizard, plugin);
             manager.enable();
             // Finish what a crash left half-way, then keep an eye on trades that got stuck.
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -96,6 +107,13 @@ public final class MarketModule {
         if (reconcileTask != null) {
             reconcileTask.cancel();
             reconcileTask = null;
+        }
+        feudal = null;
+        flea = null;
+        if (wizard != null) {
+            wizard.shutdown();
+            HandlerList.unregisterAll(wizard);
+            wizard = null;
         }
         trade = null;
         ratings = null;
