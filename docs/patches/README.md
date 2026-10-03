@@ -1,26 +1,24 @@
-# Caravan patches + Git Database API push
+# Patches
 
-## Recommended (full sources on remote, no API size issues)
-
-```bash
-git fetch origin && git checkout feature/caravan-commission-rework && git pull
-bash docs/patches/apply-all.sh          # patch local working tree
-export GH_TOKEN=ghp_xxx                 # repo scope
-python3 scripts/git-database-push-caravan.py   # blobs→tree→commit→ref
-```
-
-Uses GitHub **Git Database API** (not Contents API): base64 blobs, stable with UTF-8/Cyrillic, up to 100MB per blob.
-
-## Alternative: only git apply + normal push
+## Полный набор по ТЗ (караван + комиссионер)
 
 ```bash
-bash docs/patches/apply-all.sh
-git add -A && git commit -m "feat(caravan): deposit gate, empty leave, force start, heads"
+git checkout feature/caravan-commission-rework && git pull
+# если base ещё без forceStart — сначала старые патчи:
+# bash docs/patches/apply-all.sh
+bash docs/patches/apply-tz-remaining.sh
+git add -A
+git commit -m "feat: bossbar, commission PriceGui, crate quality"
 git push
 ```
 
-## Verify on remote after push
+Или после apply: `python3 scripts/git-database-push-caravan.py` (нужен GH_TOKEN).
 
-```bash
-curl -sL "https://raw.githubusercontent.com/mvr347/LoveShop/feature/caravan-commission-rework/src/main/java/dev/lovelace/loveshops/managers/LostCaravanManager.java" | grep -c forceStart
-```
+### tz-remaining включает
+- BossBar отсчёт для зарегистрированных
+- GUI регистрации: время до торгов
+- Комиссионер: PriceGui (Shift=монета, ЛКМ/ПКМ ±) + drag на «Выставить»
+- Ящики: bad/normal/good
+- CoinFormat `<white>xN`
+- Мягкая чистка префиксов lang
+- docs/BARAHOLKA_PLAN.md (барахолка — следующий PR)
