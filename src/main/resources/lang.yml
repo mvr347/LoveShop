@@ -508,9 +508,6 @@ market:
 
   # --- Цена лота ---
   gui-price-title: "<dark_aqua>Установка цены лота</dark_aqua>"
-  gui-price-lot-lore:
-    - ""
-    - "<gray>Выставляется: <yellow>{amount}</yellow> шт.</gray>"
   gui-price-btn: "<gold>Цена за штуку</gold>"
   gui-price-btn-top:
     - ""
@@ -518,23 +515,17 @@ market:
   gui-price-btn-bottom:
     - ""
     - "<gray>Номинал: </gray>{coin}"
-    - "<yellow>Shift</yellow> <gray>— сменить номинал</gray>"
-    - "<green>ЛКМ</green> <gray>— добавить монету</gray>"
-    - "<red>ПКМ</red> <gray>— убрать монету</gray>"
     - ""
-    - "<gray>Минимум:</gray> {min}"
-    - "<gray>Максимум:</gray> {max}"
-  gui-price-amount: "<yellow>Количество</yellow>"
-  gui-price-amount-lore:
+    - "{hint}"
     - ""
-    - "<gray>Выставить: <white>{amount}</white> из <white>{max}</white></gray>"
-    - ""
-    - "<green>ЛКМ </green><gray>— +1</gray> <dark_gray>(Shift: +8)</dark_gray>"
-    - "<red>ПКМ </red><gray>— −1</gray> <dark_gray>(Shift: −8)</dark_gray>"
+  # Один сплошной серый ряд вместо пары «Минимум/Максимум»; {min} — глифы монет.
+  gui-price-min: "Минимальная цена за лот {min}"
   gui-price-confirm: "<green>Подтвердить</green>"
   gui-price-confirm-top:
     - ""
-    - "<gray>Выставить по цене за штуку:</gray>"
+    - "<gray>Цена за единицу:</gray>"
+  # Показывается только при количестве больше 1.
+  gui-price-confirm-total: "<gray>Итоговая цена ({amount} ед.):</gray>"
   gui-price-confirm-bottom:
     - ""
     - "<yellow>ЛКМ </yellow><gray>— подтвердить</gray>"
@@ -545,11 +536,6 @@ market:
     - "{reason}"
   gui-price-reason-unset: "<gray>Выберите цену кнопкой «Цена за штуку».</gray>"
   gui-price-reason-low: "<gray>Цена ниже минимальной: {min}</gray>"
-  gui-price-info: "<gold>Итого за лот</gold>"
-  gui-price-info-top:
-    - ""
-    - "<gray>Количество: <white>{amount}</white> шт.</gray>"
-    - "<gray>Сумма всех штук:</gray>"
 
   # --- Скидки ---
   gui-discount-title: "<gold>Персональные скидки</gold>"

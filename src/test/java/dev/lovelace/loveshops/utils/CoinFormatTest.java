@@ -48,4 +48,11 @@ class CoinFormatTest {
         String formatted = CoinFormat.formatGlyphs(MOCK_ECO, 1255);
         assertEquals("%img_netherite_coin% &f x1  %img_diamond_coin% &f x2  %img_gold_coin% &f x1  %img_copper_coin% &f x5", formatted);
     }
+
+    @Test
+    void testGrayVariantOnlyChangesCountColor() {
+        assertEquals("%img_copper_coin% &7 x1", CoinFormat.formatGlyphsGray(MOCK_ECO, 1));
+        assertEquals("%img_diamond_coin% &7 x2  %img_gold_coin% &7 x1", CoinFormat.formatGlyphsGray(MOCK_ECO, 250));
+        assertEquals("%img_copper_coin% &7 x0", CoinFormat.formatGlyphsGray(MOCK_ECO, 0));
+    }
 }
