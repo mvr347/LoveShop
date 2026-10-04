@@ -138,14 +138,22 @@ public class CommissionAgentGui implements InventoryHolder {
                 String sellerName = Bukkit.getOfflinePlayer(lot.sellerUuid()).getName();
                 if (sellerName == null) sellerName = "Игрок";
 
-                lore.add(MessageUtils.parse("<gray>Продавец: <gold>" + sellerName + "</gold></gray>"));
-                lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.price())));
+                lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Продавец: <gold>" + sellerName + "</gold></gray>"));
+                int lotAmount = Math.max(1, lot.item().getAmount());
+                if (lotAmount > 1 && lot.price() % lotAmount == 0) {
+                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Цена за единицу:</gray>"));
+                    for (String line : CoinFormat.glyphLineStrings(eco, lot.price() / lotAmount)) lore.add(MessageUtils.parse(line));
+                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Итоговая цена (" + lotAmount + " ед.):</gray>"));
+                } else {
+                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Цена за лот:</gray>"));
+                }
+                for (String line : CoinFormat.glyphLineStrings(eco, lot.price())) lore.add(MessageUtils.parse(line));
                 lore.add(Component.empty());
 
                 if (player.getUniqueId().equals(lot.sellerUuid())) {
-                    lore.add(MessageUtils.parse("<yellow>(Ваш лот) Нажмите для снятия</yellow>"));
+                    lore.add(MessageUtils.parse("<yellow>Ваш лот</yellow> <dark_gray>·</dark_gray> <green>ЛКМ</green> <gray>— снять</gray>"));
                 } else {
-                    lore.add(MessageUtils.parse("<green>ЛКМ — купить предмет</green>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— купить предмет</gray>"));
                 }
 
                 meta.lore(lore);
@@ -195,7 +203,7 @@ public class CommissionAgentGui implements InventoryHolder {
                     lore.add(MessageUtils.parse("<red>🔥 Горячее предложение</red>"));
                 }
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— снять лот и забрать предмет</gray>"));
+                lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— снять лот и забрать предмет</gray>"));
                 myMeta.lore(lore);
                 myLotBtn.setItemMeta(myMeta);
             }

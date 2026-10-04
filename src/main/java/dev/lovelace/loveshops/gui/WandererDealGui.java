@@ -66,7 +66,7 @@ public class WandererDealGui {
 
         // Slot 26: Close button ALWAYS in corner for 27-slot menu
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
 
         long cost = plugin.getWandererManager().dealBaseCost();
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
@@ -84,7 +84,7 @@ public class WandererDealGui {
                 "<gray>Стоимость аванса: </gray>" + CoinFormat.formatGlyphs(cost),
                 "<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>",
                 "",
-                "<green>ЛКМ </green><gray>— договориться и отправить Странника</gray>"
+                "<green>ЛКМ</green> <gray>— договориться и отправить Странника</gray>"
             ));
         inv.setItem(SLOT_STANDARD_DEAL, dealBtn);
 
@@ -127,8 +127,8 @@ public class WandererDealGui {
             lore.add(MessageUtils.parse("<gray>Стоимость заказа: </gray>" + CoinFormat.formatGlyphs(personalCost)));
             lore.add(MessageUtils.parse("<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>"));
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<yellow>ЛКМ </yellow><gray>— сменить категорию</gray>"));
-            lore.add(MessageUtils.parse("<green>ПКМ </green><gray>— заказать текущую категорию</gray>"));
+            lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— сменить категорию</gray>"));
+            lore.add(MessageUtils.parse("<red>ПКМ</red> <gray>— заказать текущую категорию</gray>"));
             meta.lore(lore);
             meta.getPersistentDataContainer().set(
                 dev.lovelace.loveshops.utils.Keys.of(plugin, CATEGORY_INDEX_KEY), PersistentDataType.INTEGER, category.ordinal());

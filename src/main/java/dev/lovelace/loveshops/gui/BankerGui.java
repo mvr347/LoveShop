@@ -75,7 +75,7 @@ public class BankerGui {
             inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>",
                     List.of("", "<gray>Выход из меню</gray>",
                             "<gray>Несданные монеты вернутся вам.</gray>",
-                            "<red>ЛКМ </red><gray>— закрыть</gray>")));
+                            "<green>ЛКМ</green> <gray>— закрыть</gray>")));
             renderContent(inv, economy, session);
             // The flag swallows the InventoryCloseEvent Bukkit fires for the banker view this call replaces.
             // When no banker view is open that event never comes, and an unconditional flag ate the player's
@@ -184,18 +184,18 @@ public class BankerGui {
                     lore.add("");
                 }
             }
-            lore.add("<yellow>⚡ ЛКМ </yellow><gray>— показать правила банкира</gray>");
+            lore.add("<green>ЛКМ</green> <gray>— показать правила банкира</gray>");
         } else {
             title = "<gold>Как работает банкир</gold>";
             lore.add("<gray>• <yellow>Внесение:</yellow> положите монеты в слот <gold>«Ваша валюта»</gold></gray>");
             lore.add("<gray>• <yellow>Выбор:</yellow> справа выберите желаемый номинал</gray>");
-            lore.add("<gray>• <green>ЛКМ </green><gray>— получить <aqua>1 монету</aqua></gray></gray>");
-            lore.add("<gray>• <green>Shift+ЛКМ </green><gray>— получить <gold>максимум</gold></gray></gray>");
+            lore.add("<gray>• </gray><green>ЛКМ</green> <gray>— получить <aqua>1 монету</aqua></gray>");
+            lore.add("<gray>• <yellow>Shift</yellow><dark_gray>+</dark_gray><green>ЛКМ</green> <gray>— получить <gold>максимум</gold></gray></gray>");
             lore.add("<gray>• <yellow>Возврат:</yellow> клик по слоту валюты вернёт всё назад</gray>");
             lore.add("");
             lore.add("<gray>Банковский сбор: <gold>" + feePercent + "%" + (personal ? " <dark_gray>(личный)</dark_gray>" : "") + "</gold></gray>");
             lore.add("");
-            lore.add("<yellow>⚡ ЛКМ </yellow><gray>— посмотреть курс размена монет</gray>");
+            lore.add("<green>ЛКМ</green> <gray>— посмотреть курс размена монет</gray>");
         }
         ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, title, lore);
         ItemMeta meta = item.getItemMeta();
@@ -352,8 +352,8 @@ public class BankerGui {
                 lore.add(MessageUtils.parse(player, "<dark_gray>Банковский сбор: " + feePercent + "%</dark_gray>"));
             }
             lore.add(Component.empty());
-            lore.add(MessageUtils.parse(player, "<green>ЛКМ </green><gray>— взять 1 шт.</gray>"));
-            lore.add(MessageUtils.parse(player, "<green>Shift+ЛКМ </green><gray>— взять максимум</gray>"));
+            lore.add(MessageUtils.parse(player, "<green>ЛКМ</green> <gray>— взять 1 шт.</gray>"));
+            lore.add(MessageUtils.parse(player, "<yellow>Shift</yellow><dark_gray>+</dark_gray><green>ЛКМ</green> <gray>— взять максимум</gray>"));
             meta.lore(lore);
 
             meta.getPersistentDataContainer().set(denomKey(), PersistentDataType.LONG, unit);
