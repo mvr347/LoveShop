@@ -24,13 +24,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Lot price menu (27 slots, gui_gen v2.1).
+ * Lot price menu (27 slots).
  * <ul>
- *   <li>Header controls (slots 2, 4, 6): the lot (a stack: click changes the amount), the price button
- *       and Confirm, which stays inactive until a valid price is set.</li>
+ *   <li>Work zone: the lot (a stack: click changes the amount) at 11, the price button at 13 and Confirm at 15,
+ *       which stays inactive until a valid price is set.</li>
  *   <li>Price button: the price as a list of coin glyphs; <b>Shift</b> switches the active coin,
- *       <b>left click</b> adds one of it, <b>right click</b> takes one away.</li>
- *   <li>Work zone: empty (content only; there is none to show).</li>
+ *       <b>left click</b> adds one of it, <b>right click</b> takes one away. The limits of the price are
+ *       enforced but never shown: no minimum or maximum text anywhere in this menu.</li>
  *   <li>Footer: Back (if the caller can restore the previous state) and Close. Leaving by any way
  *       except Confirm (Close, Esc) hands the item back through {@code onCancel}.</li>
  * </ul>
@@ -104,10 +104,9 @@ public final class PriceGui extends MarketGui {
     public void render() {
         frame();
 
-        int[] slots = MarketLayout.controlSlots(3);
-        button(slots[0], lotItem(), this::clickAmount);
-        button(slots[1], priceButton(), this::clickPrice);
-        button(slots[2], confirmButton(), this::clickConfirm);
+        button(11, lotItem(), this::clickAmount);
+        button(13, priceButton(), this::clickPrice);
+        button(15, confirmButton(), this::clickConfirm);
 
         if (onCancel != null) {
             button(MarketLayout.backSlot(SIZE), tile(HeadTextures.BUTTON_BACK, "gui-back", "gui-back-lore"), e -> {
@@ -154,8 +153,6 @@ public final class PriceGui extends MarketGui {
         lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
         String coin = coinGlyph(input.activeIndex());
         lore.addAll(lines("gui-price-btn-bottom", "coin", coin, "hint", Hints.coinPicker()));
-        // One solid-gray line instead of the min/max pair: the floor is what a lot can never go below.
-        lore.add("&7" + t("gui-price-min", "min", CoinFormat.formatGlyphsGray(eco, input.min())));
         return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
     }
 
@@ -172,8 +169,7 @@ public final class PriceGui extends MarketGui {
             lore.addAll(lines("gui-price-confirm-bottom"));
             return head(HeadTextures.HEAD_CONFIRM, t("gui-price-confirm"), lore);
         }
-        String reason = input.price() <= 0 ? t("gui-price-reason-unset")
-                : t("gui-price-reason-low", "min", plugin.getMarketStyle().money(input.min()));
+        String reason = input.price() <= 0 ? t("gui-price-reason-unset") : t("gui-price-reason-low");
         return head(HeadTextures.HEAD_DELETE_NO, t("gui-price-confirm-off"), lines("gui-price-confirm-off-lore", "reason", reason));
     }
 
