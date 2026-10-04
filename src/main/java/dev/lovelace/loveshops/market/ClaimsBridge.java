@@ -205,6 +205,21 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
     }
 
     @Override
+    public RentResult extendDays(org.bukkit.entity.Player player, UUID claimId, int days) {
+        LoveClaimsAPI api = api();
+        if (api == null) return new RentResult(RentStatus.NOT_FOUND, null, 0L);
+        return api.getClaimById(claimId).map(c -> convert(api.extendTradePointDays(player, c, days)))
+                .orElse(new RentResult(RentStatus.NOT_FOUND, null, 0L));
+    }
+
+    @Override
+    public long dayCost(UUID claimId) {
+        LoveClaimsAPI api = api();
+        if (api == null) return 0L;
+        return api.getClaimById(claimId).map(c -> api.getTradePointDayCost(c)).orElse(0L);
+    }
+
+    @Override
     public long rentCost(UUID claimId, int periods) {
         LoveClaimsAPI api = api();
         if (api == null) return 0L;

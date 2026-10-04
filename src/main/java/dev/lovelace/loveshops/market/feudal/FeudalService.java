@@ -95,7 +95,7 @@ public final class FeudalService {
     /** A right click on a Citizens NPC: opens the landlord menu when it is one. */
     public boolean handleClick(Player player, NPC npc) {
         if (!isFeudal(npc)) return false;
-        new FeudalGui(plugin, player).open();
+        new FeudalListGui(plugin, player).open();
         return true;
     }
 }

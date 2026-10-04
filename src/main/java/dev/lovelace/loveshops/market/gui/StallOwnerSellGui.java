@@ -132,11 +132,26 @@ public final class StallOwnerSellGui extends MarketGui {
         }
     }
 
-    /** An item dropped on a free shelf: open the price menu for it. */
+    /** An item dropped on a shelf: if it matches an existing listing, add stock; if free shelf, open the price menu for it. */
     @Override
     public boolean acceptCursor(int topSlot, ItemStack cursor) {
         Integer shelf = freeShelfAt.get(topSlot);
-        if (shelf == null) return false;
+        if (shelf == null) {
+            StallListing existing = listingAt.get(topSlot);
+            if (existing != null && existing.template().isSimilar(cursor)) {
+                ListingResult res = plugin.getTradePointManager().addStock(viewer, point, existing.id(), cursor);
+                if (res == ListingResult.OK) {
+                    plugin.getMarketMessages().send(viewer, "listing-stock-added");
+                    viewer.setItemOnCursor(null);
+                    render();
+                    return true;
+                } else {
+                    ListingFlow.report(plugin, viewer, res);
+                    return false;
+                }
+            }
+            return false;
+        }
         ListingResult check = plugin.getTradePointManager().previewItem(viewer, point, cursor);
         if (check != ListingResult.OK) {
             ListingFlow.report(plugin, viewer, check);
@@ -171,8 +186,10 @@ public final class StallOwnerSellGui extends MarketGui {
 
     /** Opens the price menu for a stack that is no longer anywhere else (cursor emptied / taken from the inventory). */
     private void startListing(int shelf, ItemStack item) {
-        ListingFlow.sell(plugin, viewer, point, shelf, item.clone(), this::giveBack,
-                () -> new StallOwnerSellGui(plugin, viewer, point).open());
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            ListingFlow.sell(plugin, viewer, point, shelf, item.clone(), this::giveBack,
+                    () -> new StallOwnerSellGui(plugin, viewer, point).open());
+        });
     }
 
     private void editPrice(StallListing listing) {

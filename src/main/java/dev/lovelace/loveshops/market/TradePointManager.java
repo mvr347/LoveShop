@@ -1006,6 +1006,29 @@ public final class TradePointManager {
         return ListingResult.OK;
     }
 
+    public ListingResult addStock(Player owner, TradePoint p, long listingId, ItemStack items) {
+        if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
+        if (items == null || items.getType().isAir()) return ListingResult.NO_ITEM;
+        try {
+            ListingResult result = repo.inTransaction(conn -> {
+                StallListing l = repo.listing(conn, listingId);
+                if (l == null || !l.pointId().equals(p.claimId()) || l.type() != ListingType.SELL) return ListingResult.LISTING_GONE;
+                if (!l.matches(items)) return ListingResult.NO_ITEM;
+                long total = (long) l.stock() + items.getAmount();
+                if (total > Integer.MAX_VALUE) return ListingResult.NO_SPACE;
+                repo.updateListingStock(conn, listingId, (int) total);
+                return ListingResult.OK;
+            });
+            if (result == ListingResult.OK) {
+                refreshViewers(p.claimId());
+            }
+            return result;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Товар не добавлен: " + e.getMessage());
+            return ListingResult.DB_ERROR;
+        }
+    }
+
     public ListingResult changePrice(Player owner, TradePoint p, long listingId, long unitPrice) {
         if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
         try {

@@ -38,7 +38,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
     private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "tp", "list");
-    private static final List<String> NPC_TYPES = List.of("warmerchant", "wanderer", "banker", "caravaner", "commissioner", "lostcaravan");
+    private static final List<String> NPC_TYPES = List.of("warmerchant", "wanderer", "banker", "caravaner", "commissioner", "lostcaravan", "feudal");
     private static final List<String> ITEM_ACTIONS = List.of("allow", "deny", "price");
     private static final List<String> EVENT_TYPES = List.of("daily", "lost", "wanderer");
     private static final List<String> WANDERER_ACTIONS = List.of("start", "stop", "reset", "status");
@@ -138,7 +138,16 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         String type = args[2].toLowerCase(Locale.ROOT);
-        if (type.equals("seller") || type.equals("flea") || type.equals("auctioneer")) {
+        if (type.equals("feudal") || type.equals("seller")) {
+            var feudal = plugin.getFeudalService();
+            if (feudal != null && feudal.create(player.getLocation())) {
+                player.sendMessage(MessageUtils.parse("<green>Феодал успешно создан!</green>"));
+            } else {
+                player.sendMessage(MessageUtils.parse("<red>Не удалось создать Феодала (проверьте Citizens или логи).</red>"));
+            }
+            return;
+        }
+        if (type.equals("flea") || type.equals("auctioneer")) {
             player.sendMessage(MessageUtils.parse("<red>Этот тип NPC (" + type + ") упразднён и больше не поддерживается!</red>"));
             return;
         }
