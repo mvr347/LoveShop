@@ -5,6 +5,7 @@ import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
+import dev.lovelace.loveshops.utils.Hints;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -23,15 +24,15 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Lot price menu (27 slots, gui_gen v2.1), laid out like the LoveDuels stake picker.
+ * Lot price menu (27 slots, gui_gen v2.1).
  * <ul>
- *   <li>Slot 0: the lot itself.</li>
- *   <li>Header controls: amount (only for a stack), the price button and Confirm, which stays
- *       inactive until a valid price is set.</li>
+ *   <li>Header controls (slots 2, 4, 6): the lot (a stack: click changes the amount), the price button
+ *       and Confirm, which stays inactive until a valid price is set.</li>
  *   <li>Price button: the price as a list of coin glyphs; <b>Shift</b> switches the active coin,
  *       <b>left click</b> adds one of it, <b>right click</b> takes one away.</li>
- *   <li>Footer: Close in the last slot. Leaving by any way except Confirm (Close, Esc) hands the
- *       item back through {@code onCancel}.</li>
+ *   <li>Work zone: empty (content only; there is none to show).</li>
+ *   <li>Footer: Back (if the caller can restore the previous state) and Close. Leaving by any way
+ *       except Confirm (Close, Esc) hands the item back through {@code onCancel}.</li>
  * </ul>
  */
 public final class PriceGui extends MarketGui {
@@ -103,18 +104,19 @@ public final class PriceGui extends MarketGui {
     public void render() {
         frame();
 
-        button(11, lotItem(), this::clickAmount);
-        button(13, priceButton(), this::clickPrice);
-        button(15, confirmButton(), this::clickConfirm);
+        int[] slots = MarketLayout.controlSlots(3);
+        button(slots[0], lotItem(), this::clickAmount);
+        button(slots[1], priceButton(), this::clickPrice);
+        button(slots[2], confirmButton(), this::clickConfirm);
 
         if (onCancel != null) {
-            button(25, tile(HeadTextures.BUTTON_BACK, "gui-back", "gui-back-lore"), e -> {
+            button(MarketLayout.backSlot(SIZE), tile(HeadTextures.BUTTON_BACK, "gui-back", "gui-back-lore"), e -> {
                 finished = true;
                 viewer.closeInventory();
                 onCancel.run();
             });
         }
-        button(26, tile(HeadTextures.BUTTON_CLOSE, "gui-close", "gui-close-lore"), e -> viewer.closeInventory());
+        button(MarketLayout.closeSlot(SIZE), tile(HeadTextures.BUTTON_CLOSE, "gui-close", "gui-close-lore"), e -> viewer.closeInventory());
 
         refreshClient();
     }
@@ -128,13 +130,17 @@ public final class PriceGui extends MarketGui {
         if (meta != null) {
             List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
             lore.add(Component.empty());
+            lore.add(MessageUtils.parse(viewer, "<dark_gray>▪</dark_gray> <gray>Количество: <white>" + amount
+                    + "</white>" + (maxAmount > 1 ? " <dark_gray>из " + maxAmount + "</dark_gray>" : " шт.") + "</gray>"));
+            if (input.price() > 0) {
+                lore.add(MessageUtils.parse(viewer, "<dark_gray>▪</dark_gray> <gray>Цена за единицу:</gray>"));
+                for (String line : CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), input.price())) {
+                    lore.add(MessageUtils.parse(viewer, line));
+                }
+            }
             if (maxAmount > 1) {
-                lore.add(MessageUtils.parse(viewer, "<gray>Выставить: <white>" + amount + "</white> из <white>" + maxAmount + "</white></gray>"));
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse(viewer, "<green>ЛКМ </green><gray>— +1</gray> <dark_gray>(Shift: +8)</dark_gray>"));
-                lore.add(MessageUtils.parse(viewer, "<red>ПКМ </red><gray>— −1</gray> <dark_gray>(Shift: −8)</dark_gray>"));
-            } else {
-                lore.add(MessageUtils.parse(viewer, "<gray>Количество: <white>" + amount + "</white> шт.</gray>"));
+                lore.add(MessageUtils.parse(viewer, Hints.amountStepper(8)));
             }
             meta.lore(lore);
             item.setItemMeta(meta);
@@ -147,21 +153,21 @@ public final class PriceGui extends MarketGui {
         List<String> lore = new ArrayList<>(lines("gui-price-btn-top"));
         lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
         String coin = coinGlyph(input.activeIndex());
-        lore.addAll(lines("gui-price-btn-bottom",
-                "coin", coin,
-                "min", plugin.getMarketStyle().money(input.min()),
-                "max", plugin.getMarketStyle().money(input.max())));
-        lore.add("&8Минимальная цена за лот %img_copper_coin% &f x1");
+        lore.addAll(lines("gui-price-btn-bottom", "coin", coin, "hint", Hints.coinPicker()));
+        // One solid-gray line instead of the min/max pair: the floor is what a lot can never go below.
+        lore.add("&7" + t("gui-price-min", "min", CoinFormat.formatGlyphsGray(eco, input.min())));
         return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
     }
 
     private ItemStack confirmButton() {
         if (input.valid()) {
+            LoveEconomy eco = plugin.getEconomy().orElse(null);
             List<String> lore = new ArrayList<>(lines("gui-price-confirm-top"));
-            long total = input.price() * (long) (editsOnlyPrice ? 1 : amount);
-            lore.addAll(CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), total));
+            lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
             if (!editsOnlyPrice && amount > 1) {
-                lore.add("<dark_gray>(" + amount + " шт. × " + input.price() + ")</dark_gray>");
+                lore.add("");
+                lore.add(t("gui-price-confirm-total", "amount", String.valueOf(amount)));
+                lore.addAll(CoinFormat.glyphLineStrings(eco, input.price() * (long) amount));
             }
             lore.addAll(lines("gui-price-confirm-bottom"));
             return head(HeadTextures.HEAD_CONFIRM, t("gui-price-confirm"), lore);

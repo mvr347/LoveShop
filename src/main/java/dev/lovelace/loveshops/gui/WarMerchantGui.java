@@ -50,7 +50,7 @@ public class WarMerchantGui {
 
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
         inv.setItem(26, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+                List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
 
         int[] contentSlots = new int[]{10, 11, 12, 13, 14, 15, 16};
         List<WarMerchantManager.MerchantItem> items = plugin.getWarMerchantManager().getItems();
@@ -65,7 +65,7 @@ public class WarMerchantGui {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Component.empty());
                 lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(merchantItem.price())));
-                lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— купить товар</gray>"));
+                lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— купить товар</gray>"));
                 meta.lore(lore);
                 // Индекс в каноническом списке config.yml - клик-обработчик пересчитывает
                 // цену/товар по нему заново, а не доверяет лору отображаемого предмета.

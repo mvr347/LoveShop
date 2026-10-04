@@ -49,7 +49,7 @@ public class WandererWaitingGui {
 
         // Slot 26: Close button
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
 
         long remaining = deal != null ? deal.remainingSeconds() : 0;
         String remainingText = TimeUtils.formatRemainingTime(remaining);

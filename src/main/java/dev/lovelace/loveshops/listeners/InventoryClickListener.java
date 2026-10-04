@@ -518,6 +518,30 @@ public class InventoryClickListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onCaravanClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (event.getView().title() == null) return;
+        String titleText = serializer.serialize(event.getView().title());
+        boolean daily = titleText.contains(dev.lovelace.loveshops.gui.DailyCaravanGui.TITLE);
+        boolean lost = titleText.contains(dev.lovelace.loveshops.gui.LostCaravanEntryGui.TITLE)
+                || titleText.contains(dev.lovelace.loveshops.gui.LostCaravanAuctionGui.TITLE)
+                || titleText.contains(dev.lovelace.loveshops.gui.LostCaravanInstantGui.TITLE);
+        if (!daily && !lost) return;
+        // The close event also fires when one caravan menu replaces another: say goodbye only if nothing follows.
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) return;
+            String next = serializer.serialize(player.getOpenInventory().title());
+            boolean stillInCaravan = next.contains(dev.lovelace.loveshops.gui.DailyCaravanGui.TITLE)
+                    || next.contains(dev.lovelace.loveshops.gui.LostCaravanEntryGui.TITLE)
+                    || next.contains(dev.lovelace.loveshops.gui.LostCaravanAuctionGui.TITLE)
+                    || next.contains(dev.lovelace.loveshops.gui.LostCaravanInstantGui.TITLE);
+            if (stillInCaravan) return;
+            if (daily) plugin.getNpcDialogueManager().sayCaravanerClose(player);
+            else plugin.getNpcDialogueManager().sayLostCaravanClose(player);
+        });
+    }
+
     /** Shared by the standard deal button and the cycling category button's ПКМ confirm. */
     private void startWandererDeal(Player player, dev.lovelace.loveshops.models.WandererRequestCategory requestedCategory) {
         plugin.getWandererManager().startDeal(player, requestedCategory).thenAccept(success -> {

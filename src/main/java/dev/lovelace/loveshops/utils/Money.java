@@ -59,7 +59,14 @@ public final class Money {
         return MoneyParser.parse(trimmed, dens);
     }
 
-    /** Value of one item from LoveCore's recipe-based price model; empty while the model is not ready or does not know it. */
+    /** Materials already reported as "no model price", so the log is not flooded on every lookup. */
+    private static final java.util.Set<Material> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static volatile boolean warnedNotReady;
+
+    /**
+     * Value of one item from LoveCore's recipe-based price model; empty while the model is not ready or does not know it.
+     * The fallback to flat config prices used to be silent, so a stale price could hide for weeks: it is logged once now.
+     */
     public static OptionalLong modelValue(Material material) {
         if (material == null) return OptionalLong.empty();
         try {
@@ -67,11 +74,23 @@ public final class Money {
             if (oracle.isPresent() && oracle.get().ready()) {
                 OptionalLong value = oracle.get().value(material);
                 if (value.isPresent() && value.getAsLong() > 0) return value;
+                if (WARNED.add(material)) {
+                    log("LoveCore price model has no price for " + material.name()
+                            + ": the flat price from config.yml is used (set one with /lovecoreadmin economy setprice).");
+                }
+            } else if (!warnedNotReady) {
+                warnedNotReady = true;
+                log("LoveCore price model is not ready: flat prices from config.yml are used until it is built.");
             }
         } catch (Throwable t) {
             // LoveCore price API unavailable
         }
         return OptionalLong.empty();
+    }
+
+    private static void log(String message) {
+        var plugin = dev.lovelace.loveshops.LoveShops.getInstance();
+        if (plugin != null) plugin.getLogger().warning(message);
     }
 
     /**

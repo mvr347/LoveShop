@@ -111,7 +111,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
                     lore.add(Component.empty());
                     lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.startingPrice())));
                     lore.add(Component.empty());
-                    lore.add(MessageUtils.parse("<green>ЛКМ — купить ящик</green>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— купить ящик</gray>"));
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
                     displayItem.setItemMeta(meta);

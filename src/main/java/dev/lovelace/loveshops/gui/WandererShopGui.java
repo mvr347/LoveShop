@@ -88,12 +88,12 @@ public class WandererShopGui {
                 "<gray>Завершает текущую партию товаров,</gray>",
                 "<gray>позволяя заключить новый договор.</gray>",
                 "",
-                "<yellow>ЛКМ </yellow><gray>— завершить заказ</gray>"
+                "<green>ЛКМ</green> <gray>— завершить заказ</gray>"
             )));
 
         // Slot 53: Close button ALWAYS
         inv.setItem(53, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<red>ЛКМ </red><gray>— закрыть</gray>")));
+            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
 
         // Populate content slots
         if (deal != null && deal.items() != null) {
@@ -124,7 +124,7 @@ public class WandererShopGui {
                             List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                             lore.add(Component.empty());
                             lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(item.price())));
-                            lore.add(MessageUtils.parse("<green>ЛКМ </green><gray>— приобрести предмет</gray>"));
+                            lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— приобрести предмет</gray>"));
                             meta.lore(lore);
                             display.setItemMeta(meta);
                         }

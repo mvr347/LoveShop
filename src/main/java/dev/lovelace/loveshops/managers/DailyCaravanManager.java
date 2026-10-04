@@ -764,6 +764,7 @@ public class DailyCaravanManager {
             MessageUtils.sendMessage(player, "<red>Караванщик сейчас не в городе!</red>");
             return;
         }
+        plugin.getNpcDialogueManager().sayCaravanerGreeting(player);
         new DailyCaravanGui(plugin, player, this).open();
     }
 }

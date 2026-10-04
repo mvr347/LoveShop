@@ -50,16 +50,22 @@ public final class CaravanEffects {
         }
     }
 
+    /** A leading "[Topic]" tag of the old caravan messages: turned into a plain "Topic:" under the herald prefix. */
+    private static final java.util.regex.Pattern LEGACY_TAG = java.util.regex.Pattern.compile(
+            "^<(gold|red|yellow|gray)>(?:<bold>)?(?:⚔ )?\\[([^\\]]+)\\](?:</bold>)?</\\1>\\s*");
+
     /**
-     * Глобальное оповещение с префиксом каравана.
+     * Глобальное оповещение: идёт через глашатая (LoveTweaks), чтобы все объявления сервера выглядели одинаково.
      */
     public static void broadcast(String message) {
         if (message == null || message.isBlank()) return;
-        Bukkit.broadcast(MessageUtils.parse(message));
+        String body = LEGACY_TAG.matcher(message).replaceFirst("<gold>$2</gold><dark_gray>:</dark_gray> ");
+        broadcast(MessageUtils.parse(body));
     }
 
     public static void broadcast(Component component) {
         if (component == null) return;
-        Bukkit.broadcast(component);
+        dev.lovelace.loveshops.integration.HeraldBridge.announce(
+                dev.lovelace.loveshops.LoveShops.getInstance().getLogger(), component);
     }
 }
