@@ -518,8 +518,6 @@ market:
     - ""
     - "{hint}"
     - ""
-  # Один сплошной серый ряд вместо пары «Минимум/Максимум»; {min} — глифы монет.
-  gui-price-min: "Минимальная цена за лот {min}"
   gui-price-confirm: "<green>Подтвердить</green>"
   gui-price-confirm-top:
     - ""
@@ -535,7 +533,7 @@ market:
     - "<red>Цена не задана.</red>"
     - "{reason}"
   gui-price-reason-unset: "<gray>Выберите цену кнопкой «Цена за штуку».</gray>"
-  gui-price-reason-low: "<gray>Цена ниже минимальной: {min}</gray>"
+  gui-price-reason-low: "<gray>Цена слишком низкая.</gray>"
 
   # --- Скидки ---
   gui-discount-title: "<gold>Персональные скидки</gold>"

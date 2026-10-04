@@ -13,6 +13,9 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.List;
+import java.util.Set;
+
 /**
  * Every click and drag in a market menu is cancelled, in the top inventory AND in the player's own
  * one (shift-click, number keys, double-click gathering all move items across the two); only the
@@ -47,19 +50,19 @@ public final class MarketGuiListener implements Listener {
     }
 
     /**
-     * "Dragging" an item with the mouse: pressing, moving and releasing is a drag event even over a
-     * single slot, not a click, so it has to be treated as a drop on that slot. A drag over several
-     * slots is only cancelled (the menu cannot split a stack).
+     * "Dragging" an item with the mouse. A drag from the player's inventory into the menu always covers
+     * several slots (the emptied source slot of the inventory, usually some in between and the target), so
+     * the menu slots it touched are tried in order and the first one that takes the item wins - the same
+     * way the older caravan menus treat a drag. A drag that touched no menu slot is only cancelled
+     * (the menu cannot split a stack).
      */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDrag(InventoryDragEvent event) {
         if (!(event.getView().getTopInventory().getHolder() instanceof MarketGui gui)) return;
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        int topSize = event.getView().getTopInventory().getSize();
-        if (event.getRawSlots().size() != 1) return;
-        int slot = event.getRawSlots().iterator().next();
-        if (slot >= topSize) return;
+        List<Integer> targets = dragTargets(event.getRawSlots(), event.getView().getTopInventory().getSize());
+        if (targets.isEmpty()) return;
         ItemStack cursor = event.getOldCursor();
         if (cursor.getType().isAir()) return;
         ItemStack offered = cursor.clone();
@@ -70,11 +73,19 @@ public final class MarketGuiListener implements Listener {
             if (!(player.getOpenInventory().getTopInventory().getHolder() == gui)) return;
             ItemStack onCursor = player.getItemOnCursor();
             if (!onCursor.isSimilar(offered) || onCursor.getAmount() != offered.getAmount()) return;
-            if (gui.acceptCursor(slot, offered)) {
-                player.setItemOnCursor(null);
-                player.updateInventory();
+            for (int slot : targets) {
+                if (gui.acceptCursor(slot, offered.clone())) {
+                    player.setItemOnCursor(null);
+                    player.updateInventory();
+                    return;
+                }
             }
         });
+    }
+
+    /** The menu (top inventory) slots a drag touched, lowest first; slots of the player's own inventory are dropped. */
+    static List<Integer> dragTargets(Set<Integer> rawSlots, int topSize) {
+        return rawSlots.stream().filter(slot -> slot >= 0 && slot < topSize).sorted().toList();
     }
 
     @EventHandler

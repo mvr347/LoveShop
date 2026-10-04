@@ -43,11 +43,6 @@ public final class CoinFormat {
         return formatGlyphs(eco, amount, "&f");
     }
 
-    /** Like {@link #formatGlyphs(LoveEconomy, long)}, but the counts are gray: for a solid-gray line of lore. */
-    public static String formatGlyphsGray(LoveEconomy eco, long amount) {
-        return formatGlyphs(eco, amount, "&7");
-    }
-
     private static String formatGlyphs(LoveEconomy eco, long amount, String countColor) {
         if (eco == null) return "%img_copper_coin% " + countColor + " x0";
         List<Denomination> dens = new ArrayList<>(eco.denominations());
