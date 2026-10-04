@@ -68,7 +68,7 @@ public final class MarketConfig {
     public String feudalSkin() { return getString("npc.feudal-skin", ""); }
 
     /** Share (percent) of the unspent rent given back when a tenant returns the point to the landlord. */
-    public int feudalRefundPercent() { return Math.max(0, Math.min(100, getInt("feudal.refund-percent", 50))); }
+    public int feudalRefundPercent() { return Math.max(0, Math.min(100, getInt("feudal.refund-percent", 75))); }
 
     // ----- rent reminders -----
     public boolean rentRemindersEnabled() { return getBool("rent.reminders-enabled", true); }

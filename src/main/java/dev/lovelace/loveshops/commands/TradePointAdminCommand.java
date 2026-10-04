@@ -39,7 +39,7 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
 
     private static final List<String> SUBS = List.of("npc", "create", "wizard", "delete", "owner", "lvl", "price", "list", "info", "reconcile");
     private static final List<String> NPC_ACTIONS = List.of("create", "remove", "tp");
-    private static final List<String> NPC_TYPES = List.of("taxer", "seller", "stall");
+    private static final List<String> NPC_TYPES = List.of("taxer", "seller", "feudal", "stall");
     private static final List<String> WIZARD_ACTIONS = List.of("set", "back", "skip", "finish", "cancel", "status");
 
     private final LoveShops plugin;
@@ -124,7 +124,7 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
                     default -> teleportTo(admin, claims.taxerLocation().orElse(null), type);
                 }
             }
-            case "seller" -> {
+            case "seller", "feudal" -> {
                 if (feudal == null) {
                     msg(sender, "tpa-npc-failed", "type", type);
                     return;

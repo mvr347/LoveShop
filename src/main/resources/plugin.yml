@@ -27,6 +27,11 @@ commands:
     description: Управление торговой точкой игрока
     aliases: [point, точка, торговаяточка]
     usage: /tradepoint <tp|returns|transfer|blacklist|discount|mode>
+  tradepointadmin:
+    description: Административное управление торговыми точками
+    aliases: [tpadmin, tpa]
+    permission: loveshops.admin.point
+    usage: /tradepointadmin <npc|create|wizard|delete|owner|lvl|price|list|info|reconcile>
 
 permissions:
   loveshops.tp.any:

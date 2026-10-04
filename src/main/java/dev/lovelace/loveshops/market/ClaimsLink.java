@@ -76,6 +76,12 @@ public interface ClaimsLink {
     /** The tenant prepays {@code periods} more periods. */
     RentResult extend(org.bukkit.entity.Player player, UUID claimId, int periods);
 
+    /** The tenant prepays {@code days} days of rent. */
+    RentResult extendDays(org.bukkit.entity.Player player, UUID claimId, int days);
+
+    /** Daily cost of renting the point. */
+    long dayCost(UUID claimId);
+
     /** Price of renting a free point for {@code periods} periods. */
     long rentCost(UUID claimId, int periods);
 

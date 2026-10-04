@@ -32,21 +32,39 @@ public final class MarketGuiListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onClick(InventoryClickEvent event) {
         if (!(event.getView().getTopInventory().getHolder() instanceof MarketGui gui)) return;
-        event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getClickedInventory() == null) return;
+
         if (event.getClickedInventory() == event.getView().getTopInventory()) {
+            event.setCancelled(true);
             // An item on the cursor dropped on a slot: let the menu take it (shelf, storage, price).
             ItemStack cursor = event.getCursor();
             if (cursor != null && !cursor.getType().isAir()
                     && gui.acceptCursor(event.getRawSlot(), cursor.clone())) {
                 player.setItemOnCursor(null);
+                player.updateInventory();
                 return;
             }
             gui.handleClick(event);
         } else if (event.getClickedInventory() == event.getView().getBottomInventory()) {
-            gui.handleBottomClick(event);
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+                gui.handleBottomClick(event);
+            } else if (!isPlainBottomClick(event)) {
+                event.setCancelled(true);
+            }
+            // Plain bottom click (picking up / putting down in own inventory) is NOT cancelled,
+            // allowing the item to get onto the cursor to be dropped on the showcase menu.
         }
+    }
+
+    private static boolean isPlainBottomClick(InventoryClickEvent event) {
+        if (event.getRawSlot() < 0) return false;
+        return switch (event.getAction()) {
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME, PLACE_ALL, PLACE_ONE, PLACE_SOME,
+                 SWAP_WITH_CURSOR, HOTBAR_SWAP, NOTHING -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -63,18 +81,13 @@ public final class MarketGuiListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         List<Integer> targets = dragTargets(event.getRawSlots(), event.getView().getTopInventory().getSize());
         if (targets.isEmpty()) return;
-        ItemStack cursor = event.getOldCursor();
-        if (cursor.getType().isAir()) return;
-        ItemStack offered = cursor.clone();
-        // The cursor of a cancelled drag is restored by the client/server after this tick, so it is
-        // cleared on the next one - but only if it still holds what was dragged (no duplication).
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
             if (!(player.getOpenInventory().getTopInventory().getHolder() == gui)) return;
             ItemStack onCursor = player.getItemOnCursor();
-            if (!onCursor.isSimilar(offered) || onCursor.getAmount() != offered.getAmount()) return;
+            if (onCursor == null || onCursor.getType().isAir()) return;
             for (int slot : targets) {
-                if (gui.acceptCursor(slot, offered.clone())) {
+                if (gui.acceptCursor(slot, onCursor.clone())) {
                     player.setItemOnCursor(null);
                     player.updateInventory();
                     return;

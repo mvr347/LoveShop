@@ -40,23 +40,45 @@ public final class FeudalListGui extends MarketGui {
         List<TradePoint> points = manager.all().stream()
                 .sorted(Comparator.comparing(manager::nameOf, String.CASE_INSENSITIVE_ORDER)).toList();
 
+        // 0 слот: кнопка с описанием
         inventory.setItem(0, tile(HeadTextures.TAB_SELLER, "gui-feudal-list-head", "gui-feudal-list-head-lore",
                 "total", String.valueOf(points.size())));
 
-        if (points.isEmpty()) emptyCard("gui-feudal-empty-lore");
-        int[] content = MarketLayout.contentSlots(SIZE);
-        int start = pager((int) Math.ceil((double) points.size() / content.length)) * content.length;
-        for (int i = 0; i < content.length && start + i < points.size(); i++) {
-            TradePoint point = points.get(start + i);
-            button(content[i], pointTile(point), e -> {
-                if (point.hasOwner()) {
-                    plugin.getMarketMessages().send(viewer, "feudal-taken", "id", manager.nameOf(point));
-                } else {
-                    new FeudalRentGui(plugin, viewer, point).open();
-                }
-            });
+        if (points.isEmpty()) {
+            inventory.setItem(MarketLayout.centerSlot(SIZE),
+                    tile(HeadTextures.MARKET_CLOSED, "gui-feudal-no-slots", "gui-feudal-no-slots-lore"));
+        } else {
+            int[] content = MarketLayout.contentSlots(SIZE);
+            int start = pager((int) Math.ceil((double) points.size() / content.length)) * content.length;
+            for (int i = 0; i < content.length && start + i < points.size(); i++) {
+                TradePoint point = points.get(start + i);
+                button(content[i], pointTile(point), e -> {
+                    if (point.hasOwner()) {
+                        plugin.getMarketMessages().send(viewer, "feudal-taken", "id", manager.nameOf(point));
+                    } else {
+                        new FeudalRentGui(plugin, viewer, point).open();
+                    }
+                });
+            }
         }
-        footer(() -> new FeudalGui(plugin, viewer).open());
+
+        // В 52 слоте Управление арендой
+        java.util.Optional<TradePoint> mine = manager.byOwner(viewer.getUniqueId());
+        ItemStack manageTile = mine.isPresent()
+                ? tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-manage", "gui-feudal-manage-lore", "id", manager.nameOf(mine.get()))
+                : tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-manage", "gui-feudal-manage-none-lore");
+        button(52, manageTile, e -> {
+            java.util.Optional<TradePoint> p = manager.byOwner(viewer.getUniqueId());
+            if (p.isPresent()) {
+                new FeudalMyPointGui(plugin, viewer, p.get()).open();
+            } else {
+                plugin.getMarketMessages().send(viewer, "feudal-no-point-owned");
+            }
+        });
+
+        // 53 слот — закрыть
+        button(53, tile(HeadTextures.BUTTON_CLOSE, "gui-close", "gui-close-lore"), e -> viewer.closeInventory());
+
         refreshClient();
     }
 

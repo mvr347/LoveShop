@@ -2,10 +2,10 @@ package dev.lovelace.loveshops.market.feudal;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.ClaimsLink;
+import dev.lovelace.loveshops.market.GuardService;
 import dev.lovelace.loveshops.market.RefundMath;
 import dev.lovelace.loveshops.market.gui.MarketGui;
 import dev.lovelace.loveshops.market.gui.StallConfirmGui;
-import dev.lovelace.loveshops.market.gui.StallGuardGui;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
@@ -13,13 +13,18 @@ import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
- * "My point" at the landlord (27 slots, gui_gen v2.1): prolong the rent, hire the guard, hand the
- * point back for a part of the unspent rent.
+ * "Управление арендой" (27 slots, gui_gen v2.1):
+ * - Slot 0: Info tile
+ * - Slot 2: Аренда (LMB +1 day, Shift+LMB +7 days; shows remaining time, 1d price, 7d price; overdue texture & warning with +40% penalty)
+ * - Slot 4: Стража (LMB +1 day, Shift+LMB +7 days; shows remaining time, 1d price, 7d price; inactive texture when unpaid)
+ * - Slot 6: Продать торговую точку феодалу (75% refund of prepaid days + all resources to returns)
+ * - Footer: Slot 25 Back (to FeudalListGui), Slot 26 Close
  */
 public final class FeudalMyPointGui extends MarketGui {
 
@@ -50,29 +55,62 @@ public final class FeudalMyPointGui extends MarketGui {
         frame();
         var manager = plugin.getTradePointManager();
         long left = manager.rentEnd(point) - System.currentTimeMillis();
+        boolean inGrace = claims().inGrace(point.claimId()) || left <= 0;
         String time = left > 0 ? duration(left) : t("gui-feudal-overdue");
-        int canAdd = claims().maxExtendPeriods(point.claimId());
-        long weekDays = Math.max(1L, claims().periodMillis() / 86_400_000L);
-
-        inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-feudal-mine-head", "gui-feudal-mine-head-lore",
-                "id", manager.nameOf(point), "time", time));
 
         String guardStatus = switch (point.guardState()) {
             case ACTIVE -> t("gui-guard-active", "time", duration(point.guardPaidUntil() - System.currentTimeMillis()));
             case UNPAID -> t("gui-guard-unpaid");
             case NONE -> t("gui-guard-none");
         };
+
+        // 0 слот — информация
+        inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-feudal-mine-head", "gui-feudal-mine-head-lore",
+                "id", manager.nameOf(point), "time", time, "guard", guardStatus));
+
+        // 1. Аренда: ЛКМ +1 день, Shift+ЛКМ +7 дней
+        long dayCost = claims().dayCost(point.claimId());
+        if (dayCost <= 0) dayCost = Math.max(1L, claims().renewCost(point.claimId()) / 7L);
+        if (inGrace) {
+            dayCost += (long) Math.ceil(dayCost * 0.40);
+        }
+        long weekCost = dayCost * 7;
+        String costDayStr = plugin.getMarketStyle().money(dayCost);
+        String costWeekStr = plugin.getMarketStyle().money(weekCost);
+
+        String rentTexture = inGrace ? HeadTextures.FEUDAL_RENT_OVERDUE : HeadTextures.FEUDAL_RENT_NORMAL;
+        ItemStack rentItem = inGrace
+                ? tile(rentTexture, "gui-feudal-rent-overdue-btn", "gui-feudal-rent-overdue-lore",
+                "time", time, "cost_day", costDayStr, "cost_week", costWeekStr)
+                : tile(rentTexture, "gui-feudal-rent-btn", "gui-feudal-rent-btn-lore",
+                "time", time, "cost_day", costDayStr, "cost_week", costWeekStr);
+
+        // 2. Стража: ЛКМ +1 день, Shift+ЛКМ +7 дней
+        boolean guardActive = point.guardState() == GuardState.ACTIVE && point.guardPaidUntil() > System.currentTimeMillis();
+        long guardLeft = point.guardPaidUntil() - System.currentTimeMillis();
+        String guardTime = guardActive ? duration(guardLeft) : t("gui-guard-unpaid");
+        long guardDayCost = plugin.getMarketConfig().guardCostPerDay();
+        long guardWeekCost = guardDayCost * 7;
+        String guardDayStr = plugin.getMarketStyle().money(guardDayCost);
+        String guardWeekStr = plugin.getMarketStyle().money(guardWeekCost);
+
+        String guardTexture = guardActive ? HeadTextures.FEUDAL_GUARD_ACTIVE : HeadTextures.FEUDAL_GUARD_INACTIVE;
+        ItemStack guardItem = tile(guardTexture, "gui-feudal-guard-btn", "gui-feudal-guard-btn-lore",
+                "time", guardTime, "cost_day", guardDayStr, "cost_week", guardWeekStr, "status", guardStatus);
+
+        // 3. Продать торговую точку феодалу (75% возврат + ресурсы)
+        long refund = refund();
+        int percent = plugin.getMarketConfig().feudalRefundPercent();
+        ItemStack sellItem = tile(HeadTextures.MARKET_CLOSED, "gui-feudal-sell-point", "gui-feudal-sell-point-lore",
+                "refund", plugin.getMarketStyle().money(refund), "percent", String.valueOf(percent));
+
         controls(List.of(
-                new Control(tile(HeadTextures.BUTTON_PLUS, "gui-feudal-extend", "gui-feudal-extend-lore",
-                        "cost", plugin.getMarketStyle().money(claims().rentCost(point.claimId(), 1)),
-                        "days", String.valueOf(weekDays), "available", String.valueOf(canAdd)), this::extend),
-                new Control(tile(HeadTextures.MARKET_OPEN, "gui-feudal-guard", "gui-feudal-guard-lore", "status", guardStatus),
-                        e -> new StallGuardGui(plugin, viewer, point, () -> new FeudalMyPointGui(plugin, viewer, point).open()).open()),
-                new Control(tile(HeadTextures.MARKET_CLOSED, "gui-feudal-return", "gui-feudal-return-lore",
-                        "refund", plugin.getMarketStyle().money(refund()), "percent", String.valueOf(plugin.getMarketConfig().feudalRefundPercent())),
-                        e -> confirmReturn())
+                new Control(rentItem, this::extendRent),
+                new Control(guardItem, this::extendGuard),
+                new Control(sellItem, e -> confirmReturn())
         ));
-        footer(() -> new FeudalGui(plugin, viewer).open());
+
+        footer(() -> new FeudalListGui(plugin, viewer).open());
         refreshClient();
     }
 
@@ -82,16 +120,11 @@ public final class FeudalMyPointGui extends MarketGui {
         return RefundMath.refund(price, left, claims().periodMillis(), plugin.getMarketConfig().feudalRefundPercent());
     }
 
-    private void extend(InventoryClickEvent event) {
-        int available = claims().maxExtendPeriods(point.claimId());
-        if (available < 1) {
-            plugin.getMarketMessages().send(viewer, "feudal-prepaid-max");
-            return;
-        }
-        int periods = event.getClick().isShiftClick() ? available : 1;
-        ClaimsLink.RentResult res = claims().extend(viewer, point.claimId(), periods);
+    private void extendRent(InventoryClickEvent event) {
+        int days = event.getClick().isShiftClick() ? 7 : 1;
+        ClaimsLink.RentResult res = claims().extendDays(viewer, point.claimId(), days);
         switch (res.status()) {
-            case OK -> plugin.getMarketMessages().send(viewer, "feudal-extended", "weeks", String.valueOf(periods),
+            case OK -> plugin.getMarketMessages().send(viewer, "feudal-extended-days", "days", String.valueOf(days),
                     "cost", plugin.getMarketStyle().money(res.cost()));
             case NO_FUNDS -> plugin.getMarketMessages().send(viewer, "feudal-no-funds", "cost", plugin.getMarketStyle().money(res.cost()));
             case NO_ECONOMY -> plugin.getMarketMessages().send(viewer, "economy-down");
@@ -101,11 +134,25 @@ public final class FeudalMyPointGui extends MarketGui {
         render();
     }
 
+    private void extendGuard(InventoryClickEvent event) {
+        int days = event.getClick().isShiftClick() ? 7 : 1;
+        GuardService.Result res = plugin.getGuardService().hire(viewer, point, days);
+        var msg = plugin.getMarketMessages();
+        switch (res) {
+            case OK -> msg.send(viewer, "guard-hired");
+            case NO_MONEY -> msg.send(viewer, "guard-no-money");
+            case DISABLED -> msg.send(viewer, "guard-disabled");
+            case NOT_OWNER -> msg.send(viewer, "not-owner");
+            default -> msg.send(viewer, "listing-error");
+        }
+        render();
+    }
+
     private void confirmReturn() {
         long refund = refund();
-        List<String> summary = lines("gui-feudal-return-summary", "id", plugin.getTradePointManager().nameOf(point),
+        List<String> summary = lines("gui-feudal-sell-summary", "id", plugin.getTradePointManager().nameOf(point),
                 "refund", plugin.getMarketStyle().money(refund), "percent", String.valueOf(plugin.getMarketConfig().feudalRefundPercent()));
-        new StallConfirmGui(plugin, viewer, point.claimId(), t("gui-feudal-return-title"), summary,
+        new StallConfirmGui(plugin, viewer, point.claimId(), t("gui-feudal-sell-title"), summary,
                 () -> giveBack(refund), () -> new FeudalMyPointGui(plugin, viewer, point).open()).open();
     }
 
@@ -121,5 +168,6 @@ public final class FeudalMyPointGui extends MarketGui {
         manager.refundToReturns(viewer.getUniqueId(), refund, "refund-landlord");
         plugin.getMarketMessages().send(viewer, "feudal-returned", "id", manager.nameOf(point),
                 "refund", plugin.getMarketStyle().money(refund));
+        viewer.closeInventory();
     }
 }

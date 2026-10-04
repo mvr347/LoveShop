@@ -130,11 +130,13 @@ public final class LoveShops extends JavaPlugin {
             }
         }
 
-        var tpaCommand = getCommand("tradepointadmin");
-        if (tpaCommand != null) {
-            var tpaCmd = new dev.lovelace.loveshops.commands.TradePointAdminCommand(this);
-            tpaCommand.setExecutor(tpaCmd);
-            tpaCommand.setTabCompleter(tpaCmd);
+        var tpaCmd = new dev.lovelace.loveshops.commands.TradePointAdminCommand(this);
+        for (String cmdName : java.util.List.of("tradepointadmin", "tpadmin", "tpa")) {
+            var cmd = getCommand(cmdName);
+            if (cmd != null) {
+                cmd.setExecutor(tpaCmd);
+                cmd.setTabCompleter(tpaCmd);
+            }
         }
 
         // 5. Register Listeners
