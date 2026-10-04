@@ -1275,6 +1275,7 @@ public class LostCaravanManager {
         }
 
         if ("ANNOUNCED".equalsIgnoreCase(currentSession.status())) {
+            plugin.getNpcDialogueManager().sayLostCaravanGreeting(player);
             new LostCaravanEntryGui(plugin, player, this).open();
             return;
         }
@@ -1284,6 +1285,7 @@ public class LostCaravanManager {
                 MessageUtils.sendMessage(player, "<gray>Вы не вносили залог. Меню лотов доступно только участникам.</gray>");
                 return;
             }
+            plugin.getNpcDialogueManager().sayLostCaravanGreeting(player);
             if ("AUCTION".equalsIgnoreCase(currentSession.mode())) {
                 new LostCaravanAuctionGui(plugin, player, this).open();
             } else {

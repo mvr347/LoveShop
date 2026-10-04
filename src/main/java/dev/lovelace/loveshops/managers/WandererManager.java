@@ -191,7 +191,7 @@ public class WandererManager {
                 // wanderer.messages.departure-enabled.
                 if (plugin.getConfig().getBoolean("wanderer.messages.departure-enabled", false)) {
                     for (String msg : plugin.getConfig().getStringList("wanderer.messages.departure")) {
-                        Bukkit.broadcast(MessageUtils.parse(msg));
+                        dev.lovelace.loveshops.utils.CaravanEffects.broadcast(msg);
                     }
                 }
                 for (var npc : plugin.getNpcManager().getNpcsByType("wanderer")) {

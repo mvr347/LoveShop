@@ -92,8 +92,11 @@ public class CitizensListener implements Listener {
             var dialogue = plugin.getNpcDialogueManager();
             var mood = dialogue.moodOf(player.getUniqueId());
             if (dialogue.tryReject(player, mood)) {
-                if (npcData.type().equalsIgnoreCase("banker")) {
-                    dialogue.sayBankerDismiss(player);
+                switch (npcData.type().toLowerCase()) {
+                    case "banker" -> dialogue.sayBankerDismiss(player);
+                    case "caravaner" -> dialogue.sayCaravanerDismiss(player);
+                    case "lostcaravan" -> dialogue.sayLostCaravanDismiss(player);
+                    default -> { }
                 }
                 return;
             }

@@ -149,6 +149,50 @@ public class NpcDialogueManager {
         ));
     }
 
+    public void sayCaravanerGreeting(Player player) {
+        say(player, "caravan.daily.dialogues.greeting", List.of(
+                "<gold>[Караванщик]</gold> <gray>Здравствуй, путник! Ящики открыты — клади то, что нужно, и получай монеты.</gray>",
+                "<gold>[Караванщик]</gold> <gray>Дороги длинные, а склады пустые. Если есть чем поделиться — я хорошо плачу.</gray>",
+                "<gold>[Караванщик]</gold> <gray>Подходи, не стесняйся. Смотри на ящики: там написано, что и по какой цене беру.</gray>"
+        ));
+    }
+
+    public void sayCaravanerDismiss(Player player) {
+        say(player, "caravan.daily.dialogues.dismiss", List.of(
+                "<red>[Караванщик]</red> <gray>С тобой торговать не стану. Слухи о тебе идут впереди обоза.</gray>",
+                "<red>[Караванщик]</red> <gray>Проходи мимо. Мой груз не для таких, как ты.</gray>"
+        ));
+    }
+
+    public void sayCaravanerClose(Player player) {
+        say(player, "caravan.daily.dialogues.close", List.of(
+                "<gold>[Караванщик]</gold> <gray>Хорошая сделка! Заходи ещё, пока мы не тронулись в путь.</gray>",
+                "<gold>[Караванщик]</gold> <gray>Удачной дороги. Завтра обоз может быть уже далеко.</gray>"
+        ));
+    }
+
+    public void sayLostCaravanGreeting(Player player) {
+        say(player, "caravan.lost.dialogues.greeting", List.of(
+                "<gold>[Торговец каравана]</gold> <gray>Мы сбились с пути, зато груз цел. Желаешь заглянуть в ящики?</gray>",
+                "<gold>[Торговец каравана]</gold> <gray>Тише, не шуми. Этот обоз потерялся давно — и нашёл тебя. Подходи.</gray>",
+                "<gold>[Торговец каравана]</gold> <gray>Торги скоро начнутся. Внеси залог, и ящики станут твоими, если хватит смелости.</gray>"
+        ));
+    }
+
+    public void sayLostCaravanDismiss(Player player) {
+        say(player, "caravan.lost.dialogues.dismiss", List.of(
+                "<red>[Торговец каравана]</red> <gray>Тебе здесь не рады. Убирайся, пока я не позвал охрану.</gray>",
+                "<red>[Торговец каравана]</red> <gray>Знаю я таких. Ящики не для тебя.</gray>"
+        ));
+    }
+
+    public void sayLostCaravanClose(Player player) {
+        say(player, "caravan.lost.dialogues.close", List.of(
+                "<gold>[Торговец каравана]</gold> <gray>Что ж, ящики никуда не денутся — до конца торгов.</gray>",
+                "<gold>[Торговец каравана]</gold> <gray>Удачи на торгах. Помни: побеждает тот, кто не торопится.</gray>"
+        ));
+    }
+
     /** @return true, если фраза реально была отправлена (список в конфиге не пуст). */
     private boolean say(Player player, String configPath) {
         return say(player, configPath, List.of());
