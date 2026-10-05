@@ -34,7 +34,6 @@ market:
   stall-released: "{i_stall} <yellow>Аренда точки закончилась.</yellow> <gray>Товары и деньги из кассы ждут вас в /tradepoint returns.</gray>"
   stall-vacant: "<gray>Здесь пока никто не торгует.</gray>"
   stall-closed: "{i_closed} <gray>Торговая точка закрыта.</gray>"
-  guard-idle: "<gray>Стража молча наблюдает за порядком.</gray>"
   rent-warning: "{i_stall} <yellow>Аренда точки закончится примерно через {hours} ч.</yellow> <gray>Оставьте деньги в кассе — продление спишется само.</gray>"
   rent-grace-closed: "{i_closed} <red>Аренда просрочена: торговая точка закрыта.</red> <gray>Пополните кассу — иначе точку <red>конфискуют</red> вместе с товарами.</gray>"
   rent-grace-reopened: "{i_stall} <green>Аренда оплачена — торговая точка снова открыта.</green>"
@@ -621,7 +620,6 @@ market:
     - "<yellow>Деньги за остаток срока не возвращаются.</yellow>"
     - ""
     - "<green>ЛКМ</green> <gray>— уволить</gray>"
-  guard-fired: "<yellow>Стража уволена.</yellow>"
 
   # --- Подтверждение ---
   gui-confirm-ok: "<green>Подтвердить</green>"
