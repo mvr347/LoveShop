@@ -827,13 +827,19 @@ public final class TradePointManager {
         return item.getType().name();
     }
 
-    private ListingResult validateItemAndPrice(ItemStack item, long unitPrice) {
+    private ListingResult validateItemAndPrice(ItemStack item, long unitPrice, boolean isSell) {
         if (item == null || item.getType().isAir() || item.getAmount() <= 0) return ListingResult.NO_ITEM;
         if (plugin.getEconomy().map(e -> e.isCoin(item)).orElse(false)) return ListingResult.IS_COIN;
         if (plugin.getForbiddenManager().isForbidden(item)) return ListingResult.FORBIDDEN;
-        if (unitPrice > maxUnitPrice(item)) return ListingResult.PRICE_HIGH;
-        if (unitPrice < Math.max(1L, plugin.getMarketConfig().minPrice(materialKey(item)))) return ListingResult.PRICE_LOW;
+        long max = isSell ? plugin.getMarketConfig().priceMax() : maxUnitPrice(item);
+        if (unitPrice > max) return ListingResult.PRICE_HIGH;
+        long min = isSell ? 1L : Math.max(1L, plugin.getMarketConfig().minPrice(materialKey(item)));
+        if (unitPrice < min) return ListingResult.PRICE_LOW;
         return null;
+    }
+
+    private ListingResult validateItemAndPrice(ItemStack item, long unitPrice) {
+        return validateItemAndPrice(item, unitPrice, false);
     }
 
     /** Checks an item the owner holds against the shelf rules (not its price) before asking for a price. */
@@ -862,7 +868,7 @@ public final class TradePointManager {
         if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
         if (slot < 0 || slot >= p.sellSlots()) return ListingResult.NO_SLOT;
         ItemStack hand = owner.getInventory().getItemInMainHand();
-        ListingResult bad = validateItemAndPrice(hand, unitPrice);
+        ListingResult bad = validateItemAndPrice(hand, unitPrice, true);
         if (bad != null) return bad;
 
         ItemStack taken = hand.clone();
@@ -886,7 +892,7 @@ public final class TradePointManager {
     public ListingResult addSellListing(Player owner, TradePoint p, int slot, ItemStack item, long unitPrice) {
         if (!p.isOwner(owner.getUniqueId())) return ListingResult.NOT_OWNER;
         if (slot < 0 || slot >= p.sellSlots()) return ListingResult.NO_SLOT;
-        ListingResult bad = validateItemAndPrice(item, unitPrice);
+        ListingResult bad = validateItemAndPrice(item, unitPrice, true);
         if (bad != null) return bad;
 
         ItemStack taken = item.clone();
@@ -1035,7 +1041,7 @@ public final class TradePointManager {
             ListingResult result = repo.inTransaction(conn -> {
                 StallListing l = repo.listing(conn, listingId);
                 if (l == null || !l.pointId().equals(p.claimId())) return ListingResult.LISTING_GONE;
-                ListingResult bad = validateItemAndPrice(l.template(), unitPrice);
+                ListingResult bad = validateItemAndPrice(l.template(), unitPrice, l.type() == ListingType.SELL);
                 if (bad != null) return bad;
                 repo.updateListingPrice(conn, listingId, unitPrice);
                 return ListingResult.OK;

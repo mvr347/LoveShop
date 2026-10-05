@@ -19,6 +19,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -29,8 +30,8 @@ import java.util.function.Consumer;
  *   <li>Work zone: the lot (a stack: click changes the amount) at 11, the price button at 13 and Confirm at 15,
  *       which stays inactive until a valid price is set.</li>
  *   <li>Price button: the price as a list of coin glyphs; <b>Shift</b> switches the active coin,
- *       <b>left click</b> adds one of it, <b>right click</b> takes one away. The limits of the price are
- *       enforced but never shown: no minimum or maximum text anywhere in this menu.</li>
+ *       <b>left click</b> adds one of it, <b>right click</b> takes one away. Shows minimum price:
+ *       1 copper coin.</li>
  *   <li>Footer: Back (if the caller can restore the previous state) and Close. Leaving by any way
  *       except Confirm (Close, Esc) hands the item back through {@code onCancel}.</li>
  * </ul>
@@ -65,13 +66,11 @@ public final class PriceGui extends MarketGui {
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
 
-        String key = template.getType().name();
         List<Denomination> dens = new ArrayList<>(plugin.getEconomy().map(LoveEconomy::denominations).orElse(List.of()));
         dens.removeIf(d -> d.value() <= 0);
         dens.sort(Comparator.comparingLong(Denomination::value));
         long[] units = dens.stream().mapToLong(Denomination::value).toArray();
-        this.input = new PriceInput(units, plugin.getMarketConfig().minPrice(key),
-                plugin.getMarketConfig().maxPrice(key), initialPrice);
+        this.input = new PriceInput(units, 1L, plugin.getMarketConfig().priceMax(), initialPrice);
         this.input.startAtUnit(plugin.getMarketConfig().priceStartUnit());
     }
 
@@ -152,7 +151,13 @@ public final class PriceGui extends MarketGui {
         List<String> lore = new ArrayList<>(lines("gui-price-btn-top"));
         lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
         String coin = coinGlyph(input.activeIndex());
-        lore.addAll(lines("gui-price-btn-bottom", "coin", coin, "hint", Hints.coinPicker()));
+        String copper = copperGlyph();
+        List<String> bottom = lines("gui-price-btn-bottom", "coin", coin, "copper", copper, "hint", Hints.coinPicker());
+        lore.addAll(bottom);
+        boolean hasMin = bottom.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains("минимальная цена"));
+        if (!hasMin) {
+            lore.add("<gray>Минимальная цена </gray>" + copper + " <white>х1</white>");
+        }
         return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
     }
 
@@ -180,6 +185,20 @@ public final class PriceGui extends MarketGui {
         dens.removeIf(d -> d.value() <= 0);
         dens.sort(Comparator.comparingLong(Denomination::value));
         return index < dens.size() ? CoinFormat.getCoinGlyph(dens.get(index)) : "";
+    }
+
+    private String copperGlyph() {
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        if (eco == null) return "%img_copper_coin%";
+        List<Denomination> dens = new ArrayList<>(eco.denominations());
+        dens.removeIf(d -> d.value() <= 0);
+        for (Denomination d : dens) {
+            if (d.itemId() != null && d.itemId().toLowerCase(Locale.ROOT).contains("copper")) {
+                return CoinFormat.getCoinGlyph(d);
+            }
+        }
+        dens.sort(Comparator.comparingLong(Denomination::value));
+        return !dens.isEmpty() ? CoinFormat.getCoinGlyph(dens.get(0)) : "%img_copper_coin%";
     }
 
     // ------------------------------------------------------------------ clicks
