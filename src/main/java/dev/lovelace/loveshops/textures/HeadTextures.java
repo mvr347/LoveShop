@@ -113,9 +113,13 @@ public final class HeadTextures {
     public static final String CARAVAN_LOST_TIMER =
             HeadsConfig.get("caravan-lost-timer", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZmM4MDM5MmJhMGE0MjkxMWU1NTgwNDM3OTExZGFkNTVjODE2NDExNmExMDg5Y2YxMWRlYjY5Y2FlM2QxYmEzIn19fQ==");
     public static final String CARAVAN_LOST_CRATE =
-            HeadsConfig.get("caravan-lost-crate", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZTI0ZGJmN2E0MGNiNDcyNmNjYWRhYTNmNmYzMWRkMWQxNzRhMWE5NTg5YTY0YTc5YmYzNDIxYTZjNzc5NzUifX19");
+            HeadsConfig.get("caravan-lost-crate", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTcxMTQwNjVhM2M5NWM1ZDIyNTE4OGFkN2JmZGFhOWI4YjA4NDVkZjRlMzZjMjRiNDUzNDdmZDc0NzBhNyJ9fX0=");
     public static final String CARAVAN_LOST_SECRET =
-            HeadsConfig.get("caravan-lost-secret", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTVmZDY3ZDU2ZmZjNTNmYjM2MGExNzg3OWQ5YjUzMzhkNzMzMmQ4ZjEyOTQ5MWE1ZTE3ZThkNmU4YWVhNmMzYSJ9fX0=");
+            HeadsConfig.get("caravan-lost-secret", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvY2RmODE0NDkxMzFkY2RkMzU3ODg5OWZjZDk1OTJlMTNmNWNjYTU3YWU3NDgxZmQ2NzEwYmI2Y2E4NWQ2NWM5In19fQ==");
+    public static final String CARAVAN_CRATE_NORMAL =
+            HeadsConfig.get("caravan-crate-normal", CARAVAN_LOST_CRATE);
+    public static final String CARAVAN_CRATE_COMPLETED =
+            HeadsConfig.get("caravan-crate-completed", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2UyOGVkYzczM2YzMWFmY2I0ZWM0YWY4YWM4NzMxMDc5ZGY5YzUzNmU2YWExNGNiMjI2Njc4Mzg1YmZmMjkyZCJ9fX0=");
     public static final String COMMISSION_INFO =
             HeadsConfig.get("commission-info", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzkxZDZkNmFmNWNmMmRjZDE5MDA1NmY2YmMyNmFlZTNjMmRhNWNmYzM2OTUxNWE0MmE5NWU0NmYzNmQzN2I0In19fQ==");
     public static final String COMMISSION_LIST =

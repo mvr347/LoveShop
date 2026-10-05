@@ -57,9 +57,11 @@ public class GuiUtils {
             if (lore != null) {
                 meta.lore(lore.stream().map(MessageUtils::parse).toList());
             }
-            PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
-            profile.setProperty(new ProfileProperty("textures", base64));
-            meta.setPlayerProfile(profile);
+            try {
+                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+                profile.setProperty(new ProfileProperty("textures", base64));
+                meta.setPlayerProfile(profile);
+            } catch (Throwable ignored) {}
             item.setItemMeta(meta);
         }
         return item;
@@ -82,9 +84,11 @@ public class GuiUtils {
         if (meta != null) {
             if (name != null) meta.displayName(name);
             if (lore != null) meta.lore(lore);
-            PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
-            profile.setProperty(new ProfileProperty("textures", base64));
-            meta.setPlayerProfile(profile);
+            try {
+                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+                profile.setProperty(new ProfileProperty("textures", base64));
+                meta.setPlayerProfile(profile);
+            } catch (Throwable ignored) {}
             item.setItemMeta(meta);
         }
         return item;

@@ -109,8 +109,15 @@ public class DailyCaravanGui implements InventoryHolder {
             int targetSlot = availableSlots[slotIdx++];
 
             DailyCrateConfig cfg = manager.getCrateConfig(crate.crateKey());
-            String iconId = cfg != null ? cfg.iconId() : "CHEST";
-            ItemStack crateItem = ItemResolver.resolveItemStack(iconId, 1);
+            String texture;
+            if (crate.isClosed()) {
+                texture = HeadTextures.CARAVAN_CRATE_COMPLETED;
+            } else if (cfg != null && cfg.iconId() != null && cfg.iconId().startsWith("eyJ")) {
+                texture = cfg.iconId();
+            } else {
+                texture = HeadTextures.CARAVAN_CRATE_NORMAL;
+            }
+            ItemStack crateItem = GuiUtils.createCustomHead(texture, crate.displayName(), List.of());
             ItemMeta meta = crateItem.getItemMeta();
 
             if (meta != null) {
