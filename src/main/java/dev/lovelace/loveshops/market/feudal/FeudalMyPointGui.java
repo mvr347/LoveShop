@@ -104,7 +104,7 @@ public final class FeudalMyPointGui extends MarketGui {
         ItemStack sellItem = tile(HeadTextures.MARKET_CLOSED, "gui-feudal-sell-point", "gui-feudal-sell-point-lore",
                 "refund", plugin.getMarketStyle().money(refund), "percent", String.valueOf(percent));
 
-        controls(List.of(
+        rowButtons(9, List.of(
                 new Control(rentItem, this::extendRent),
                 new Control(guardItem, this::extendGuard),
                 new Control(sellItem, e -> confirmReturn())

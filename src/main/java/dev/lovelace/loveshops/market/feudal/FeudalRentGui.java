@@ -64,7 +64,7 @@ public final class FeudalRentGui extends MarketGui {
         confirmLore.addAll(costLines);
         confirmLore.addAll(lines("gui-feudal-rent-confirm-bottom"));
 
-        controls(List.of(
+        rowButtons(9, List.of(
                 new Control(head(HeadTextures.BUTTON_PLUS, t("gui-feudal-rent-weeks"),
                         lines("gui-feudal-rent-weeks-lore", "weeks", String.valueOf(weeks), "max", String.valueOf(max),
                                 "days", String.valueOf(weeks * periodDays))), this::clickWeeks),

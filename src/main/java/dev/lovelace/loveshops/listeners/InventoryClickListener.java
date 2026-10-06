@@ -104,12 +104,13 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
-            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_STANDARD_DEAL) {
+            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.standardDealSlot(plugin)) {
                 startWandererDeal(player, null);
                 return;
             }
 
-            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_REQUEST) {
+            if (slot == dev.lovelace.loveshops.gui.WandererDealGui.SLOT_CATEGORY_REQUEST
+                    && dev.lovelace.loveshops.gui.WandererDealGui.personalRequestEnabled(plugin)) {
                 dev.lovelace.loveshops.models.WandererRequestCategory[] categories =
                     dev.lovelace.loveshops.models.WandererRequestCategory.values();
 

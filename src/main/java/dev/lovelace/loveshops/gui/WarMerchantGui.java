@@ -44,7 +44,7 @@ public class WarMerchantGui {
         // зоне не бывает никогда, даже на позициях без контента (RULE 6), см. BuyerGui.
         ItemStack filler = GuiUtils.createFiller();
         for (int i = 0; i < 27; i++) {
-            if (i == 9 || i == 17) continue;
+            if (i >= 9 && i <= 17) continue; // work zone: content only, never glass
             inv.setItem(i, filler);
         }
 

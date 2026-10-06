@@ -64,15 +64,12 @@ public class WandererShopGui {
             inv.setItem(i, filler);
         }
 
-        // Slot 0: Player Profile Head
-        inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
-
-        // Slot 4: Info Head
+        // Slot 0: the deal's info head (theme head); header slots 1-8 stay glass.
         long expireRemaining = deal != null && deal.expiresAt() > 0 ?
             Math.max(0, deal.expiresAt() - (System.currentTimeMillis() / 1000)) : 0;
         String expireStr = TimeUtils.formatRemainingTime(expireRemaining);
 
-        inv.setItem(4, GuiUtils.createCustomHead(INFO_HEAD_BASE64, "<light_purple>Заказ Странника</light_purple>",
+        inv.setItem(0, GuiUtils.createCustomHead(INFO_HEAD_BASE64, "<light_purple>Заказ Странника</light_purple>",
             List.of(
                 "",
                 "<gray>Товары, доставленные специально для вас.</gray>",

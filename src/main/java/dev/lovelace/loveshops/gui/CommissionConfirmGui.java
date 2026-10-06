@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * Окно подтверждения (9 слотов по стандарту Исключение 1):
- * [0: Предмет лота] [1: Подтвердить ✓] [2: Стекло] [3: Отмена ✗] [4-8: Стекло]
+ * [0: Стекло] [1: Подтвердить ✓] [2,3: Стекло] [4: Предмет лота] [5,6: Стекло] [7: Отмена ✗] [8: Стекло]
  */
 public class CommissionConfirmGui implements InventoryHolder {
 
@@ -67,7 +67,7 @@ public class CommissionConfirmGui implements InventoryHolder {
 
         LoveEconomy eco = plugin.getEconomy().orElse(null);
 
-        // Слот 0: Превью предмета
+        // Слот 4: превью предмета (середина стандартного подтверждения)
         ItemStack preview = lot.item().clone();
         ItemMeta meta = preview.getItemMeta();
         if (meta != null) {
@@ -82,7 +82,7 @@ public class CommissionConfirmGui implements InventoryHolder {
             meta.lore(lore);
             preview.setItemMeta(meta);
         }
-        inventory.setItem(0, preview);
+        inventory.setItem(4, preview);
 
         // Слот 1: Подтвердить
         String confirmTitle = action == ConfirmAction.BUY ? "<green>Купить за " + CoinFormat.formatGlyphs(eco, lot.price()) + "</green>"
@@ -93,8 +93,8 @@ public class CommissionConfirmGui implements InventoryHolder {
                 List.of("", "<gray>Нажмите, чтобы подтвердить действие</gray>")
         ));
 
-        // Слот 3: Отмена
-        inventory.setItem(3, GuiUtils.createCustomHead(
+        // Слот 7: Отмена
+        inventory.setItem(7, GuiUtils.createCustomHead(
                 HeadTextures.HEAD_DELETE_NO,
                 "<red>Отмена</red>",
                 List.of("", "<gray>Вернуться назад</gray>")
@@ -103,7 +103,7 @@ public class CommissionConfirmGui implements InventoryHolder {
 
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {
         if (openInv.getHolder() instanceof CommissionConfirmGui gui) {
-            if (rawSlot == 3) {
+            if (rawSlot == 7) {
                 // Отмена
                 player.closeInventory();
                 Bukkit.getScheduler().runTask(plugin, () -> new CommissionAgentGui(plugin, player, plugin.getCommissionManager(), 0).open());

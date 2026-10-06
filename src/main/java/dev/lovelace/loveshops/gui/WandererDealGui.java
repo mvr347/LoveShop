@@ -30,17 +30,29 @@ public class WandererDealGui {
 
     // Content-row slots (9-17) used for the standard deal button + the single paid personal-
     // request button — see InventoryClickListener's WandererDealGui branch.
-    public static final int SLOT_STANDARD_DEAL = 13;
+    // gui_gen v2.1: two buttons sit at 12 and 14 of the work row; with the personal request switched off the
+    // standard deal is alone and takes the center, see standardDealSlot().
+    public static final int SLOT_STANDARD_DEAL = 14;
+    public static final int SLOT_STANDARD_DEAL_ALONE = 13;
     // 2026-09-24: was 4 separate buttons (one per category, slots 10/11/12/14) — collapsed into
     // ONE button that cycles through WandererRequestCategory on ЛКМ and confirms the currently
     // shown category on ПКМ (see buildCategoryButton()/InventoryClickListener). The selected
     // category's ordinal is stamped onto the item via CATEGORY_INDEX_KEY so the click handler
     // doesn't need any per-player state to know what's currently shown.
-    public static final int SLOT_CATEGORY_REQUEST = 11;
+    public static final int SLOT_CATEGORY_REQUEST = 12;
     public static final String CATEGORY_INDEX_KEY = "wanderer_category_index";
 
     private final LoveShops plugin;
     private final Player player;
+
+    public static boolean personalRequestEnabled(LoveShops plugin) {
+        return plugin.getConfig().getBoolean("wanderer.deal.personal-request.enabled", true);
+    }
+
+    /** Where the standard deal button is for the current config. */
+    public static int standardDealSlot(LoveShops plugin) {
+        return personalRequestEnabled(plugin) ? SLOT_STANDARD_DEAL : SLOT_STANDARD_DEAL_ALONE;
+    }
 
     public WandererDealGui(LoveShops plugin, Player player) {
         this.plugin = plugin;
@@ -86,12 +98,11 @@ public class WandererDealGui {
                 "",
                 "<green>ЛКМ</green> <gray>— договориться и отправить Странника</gray>"
             ));
-        inv.setItem(SLOT_STANDARD_DEAL, dealBtn);
+        inv.setItem(standardDealSlot(plugin), dealBtn);
 
         // Slot 11: single cycling paid personal-request button — ЛКМ cycles which category is
         // currently shown, ПКМ confirms and orders that category (see InventoryClickListener).
-        boolean personalRequestEnabled = plugin.getConfig().getBoolean("wanderer.deal.personal-request.enabled", true);
-        if (personalRequestEnabled) {
+        if (personalRequestEnabled(plugin)) {
             inv.setItem(SLOT_CATEGORY_REQUEST, buildCategoryButton(plugin, WandererRequestCategory.values()[0]));
         }
 
