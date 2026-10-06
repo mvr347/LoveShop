@@ -40,7 +40,11 @@ public final class FeudalGui extends MarketGui {
         var manager = plugin.getTradePointManager();
         Optional<TradePoint> mine = manager.byOwner(viewer.getUniqueId());
 
-        inventory.setItem(0, tile(HeadTextures.TAB_SELLER, "gui-feudal-head", "gui-feudal-head-lore"));
+        // The tenant's rent card rides on the slot-0 head, so the work row holds buttons only.
+        inventory.setItem(0, mine.isPresent()
+                ? tile(HeadTextures.BANKER_INFO, "gui-feudal-card-mine", "gui-feudal-card-mine-lore",
+                        "id", manager.nameOf(mine.get()), "time", rentLeft(mine.get()))
+                : tile(HeadTextures.TAB_SELLER, "gui-feudal-head", "gui-feudal-head-lore"));
 
         List<Control> controls = new ArrayList<>();
         controls.add(new Control(tile(HeadTextures.MARKET_OPEN, "gui-feudal-list", "gui-feudal-list-lore",
@@ -48,15 +52,9 @@ public final class FeudalGui extends MarketGui {
                 e -> new FeudalListGui(plugin, viewer).open()));
         mine.ifPresent(point -> controls.add(new Control(tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-mine", "gui-feudal-mine-lore",
                 "id", manager.nameOf(point)), e -> new FeudalMyPointGui(plugin, viewer, point).open())));
-        controls(controls);
+        // Only a couple of buttons and nothing to switch: they sit centered in the work row, the header stays glass.
+        rowButtons(9, controls);
 
-        if (mine.isEmpty()) {
-            inventory.setItem(13, tile(HeadTextures.BANKER_INFO, "gui-feudal-card-none", "gui-feudal-card-none-lore"));
-        } else {
-            TradePoint point = mine.get();
-            inventory.setItem(13, tile(HeadTextures.BANKER_INFO, "gui-feudal-card-mine", "gui-feudal-card-mine-lore",
-                    "id", manager.nameOf(point), "time", rentLeft(point)));
-        }
         footer(null);
         refreshClient();
     }

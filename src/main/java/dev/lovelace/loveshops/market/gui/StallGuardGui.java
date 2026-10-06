@@ -58,11 +58,11 @@ public final class StallGuardGui extends MarketGui {
         List<Integer> durations = plugin.getMarketConfig().guardDurations();
         long costPerDay = plugin.getMarketConfig().guardCostPerDay();
         List<Control> hire = new ArrayList<>();
-        for (int i = 0; i < Math.min(durations.size(), 6); i++) {
+        for (int i = 0; i < Math.min(durations.size(), 7); i++) {
             int days = durations.get(i);
             hire.add(new Control(hireButton(days, costPerDay * days, active), e -> hire(days)));
         }
-        if (!hire.isEmpty()) controls(hire);
+        if (!hire.isEmpty()) rowButtons(9, hire);
 
         if (active) {
             button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.MARKET_CLOSED, "gui-guard-fire", "gui-guard-fire-lore"), e -> {

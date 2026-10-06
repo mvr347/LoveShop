@@ -91,8 +91,9 @@ public final class StallOwnerBuyGui extends MarketGui {
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-buy-head", "gui-buy-head-lore",
                 "used", String.valueOf(used), "total", String.valueOf(point.buySlots()), "level", String.valueOf(point.level())));
-        controls(List.of(new Control(tile(HeadTextures.BANKER_WITHDRAW, "gui-buy-collect", "gui-buy-collect-lore"),
-                e -> collectAll())));
+        // "Collect all" is an action, not a tab: it takes the footer's extra slot, the header stays glass.
+        button(MarketLayout.extraSlot(inventory.getSize()), tile(HeadTextures.BANKER_WITHDRAW, "gui-buy-collect", "gui-buy-collect-lore"),
+                e -> collectAll());
         footer(() -> new StallTradeMenuGui(plugin, viewer, point).open());
         refreshClient();
     }

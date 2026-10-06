@@ -111,6 +111,8 @@ class MarketLayoutTest {
     @Test
     void rowSlotsCentreButtonsInColumnsOneToSeven() {
         assertArrayEquals(new int[]{13}, MarketLayout.rowSlots(9, 1));
+        assertArrayEquals(new int[]{12, 14}, MarketLayout.rowSlots(9, 2));
+        assertArrayEquals(new int[]{10, 12, 14, 16}, MarketLayout.rowSlots(9, 4));
         assertArrayEquals(new int[]{11, 13, 15}, MarketLayout.rowSlots(9, 3));
         assertArrayEquals(new int[]{19, 21, 23, 25}, MarketLayout.rowSlots(18, 4));
         for (int n = 1; n <= 7; n++) {

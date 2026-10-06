@@ -45,7 +45,7 @@ public class CommissionAgentGui implements InventoryHolder {
     public static final int SLOT_INFO = 0;
     public static final int SLOT_PREV_PAGE = 36;
     public static final int SLOT_NEXT_PAGE = 44;
-    public static final int SLOT_CREATE_LOT = 52;
+    public static final int SLOT_CREATE_LOT = 51; // footer extra slot; 52 is Back
     public static final int SLOT_CLOSE = 53;
 
     public static final int[] CONTENT_SLOTS = new int[]{
@@ -185,7 +185,7 @@ public class CommissionAgentGui implements InventoryHolder {
             inventory.setItem(i, filler);
         }
 
-        // Слот 52: «Ваш активный лот» (если выставлен) или «Выставить лот»
+        // Слот 51: «Ваш активный лот» (если выставлен) или «Выставить лот»
         Optional<CommissionLot> myLotOpt = manager.getPlayerActiveLot(player.getUniqueId());
         if (myLotOpt.isPresent()) {
             CommissionLot myLot = myLotOpt.get();
@@ -259,7 +259,7 @@ public class CommissionAgentGui implements InventoryHolder {
             return;
         }
 
-        // Слот 52: свой лот (снять) или «Выставить лот»
+        // Слот 51: свой лот (снять) или «Выставить лот»
         if (rawSlot == SLOT_CREATE_LOT) {
             Optional<CommissionLot> myLotOpt = manager.getPlayerActiveLot(player.getUniqueId());
             if (myLotOpt.isPresent()) {
