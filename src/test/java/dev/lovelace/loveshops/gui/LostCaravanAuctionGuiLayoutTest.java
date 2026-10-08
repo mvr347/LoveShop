@@ -16,12 +16,11 @@ class LostCaravanAuctionGuiLayoutTest {
 
     private static List<Integer> contentSlots() {
         List<Integer> slots = new ArrayList<>(List.of(
-                LostCaravanAuctionGui.SLOT_TIMER, LostCaravanAuctionGui.SLOT_LOT_PREVIEW, LostCaravanAuctionGui.SLOT_MY_STATUS,
-                LostCaravanAuctionGui.SLOT_LEADER, LostCaravanAuctionGui.SLOT_MIN_BID,
+                LostCaravanAuctionGui.SLOT_TIMER, LostCaravanAuctionGui.SLOT_LOT_PREVIEW, LostCaravanAuctionGui.SLOT_BIDS,
+                LostCaravanAuctionGui.SLOT_MIN_BID,
                 LostCaravanAuctionGui.SLOT_BID_1, LostCaravanAuctionGui.SLOT_BID_2, LostCaravanAuctionGui.SLOT_BID_3,
                 LostCaravanAuctionGui.SLOT_CUSTOM_BID));
         for (int s : LostCaravanAuctionGui.SLOTS_QUEUE) slots.add(s);
-        for (int s : LostCaravanAuctionGui.SLOTS_RECENT_BIDS) slots.add(s);
         return slots;
     }
 

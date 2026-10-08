@@ -22,7 +22,7 @@ import java.util.List;
 
 /**
  * GUI Регистрации в Потерянном Караване (27 слотов):
- * - Header (0-8): профиль игрока (0), инфо (4), стекло (1-3, 5-8)
+ * - Header (0-8): правила (0), стекло (1-8)
  * - Рабочая зона (9-17): без стекла! Слот 13 — «Внести залог»
  * - Footer (18-26): стекло, слот 26 — «Закрыть»
  */
@@ -66,35 +66,33 @@ public class LostCaravanEntryGui implements InventoryHolder {
     }
 
     public void render() {
-        inventory.clear();
         ItemStack filler = GuiUtils.createFiller();
 
         for (int i = 0; i <= 8; i++) {
-            inventory.setItem(i, filler);
+            GuiUtils.putIfChanged(inventory, i, filler);
         }
 
         int fee = plugin.getLostCaravanManager().entryFee();
         LoveEconomy eco = plugin.getEconomy().orElse(null);
 
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.BUTTON_BACK,
+                HeadTextures.CARAVAN_LOST_INFO,
                 "<gold>⚔ Правила Потерянного Каравана</gold>",
                 List.of(
                         "",
                         "<gray>Еженедельное торговое событие с ценными ящиками!</gray>",
                         "<gray>Залог за участие: </gray>" + CoinFormat.formatGlyphs(eco, fee),
-                        "<gray>Кулдаун участия: <yellow>1 раз в 7 дней</yellow></gray>",
                         "<gray>Если вы ничего не выиграете — вернётся <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "% залога</green>.</gray>",
-                        "<gray>При >6 участниках — открывается аукцион.</gray>",
-                        "<gray>При ≥12 участниках — появляется <red>6-й Секретный Ящик</red>!</gray>",
+                        "<gray>При участниках больше <yellow>" + plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6) + "</yellow> — открывается аукцион.</gray>",
+                        "<gray>От <yellow>" + plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12) + "</yellow> участников — появляется <red>Секретный Ящик</red>!</gray>",
                         "",
                         "<gray>До торгов: </gray>" + remainingLabel()
                 )
         );
-        inventory.setItem(0, infoItem);
+        GuiUtils.putIfChanged(inventory, 0, infoItem);
 
         for (int i = 9; i <= 17; i++) {
-            inventory.setItem(i, null);
+            GuiUtils.putIfChanged(inventory, i, null);
         }
 
         boolean already = manager.getCurrentSession() != null
@@ -118,7 +116,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
                     List.of(
                             "",
                             "<gray>Стоимость залога: </gray>" + CoinFormat.formatGlyphs(eco, fee),
-                            "<gray>Неуспешным участникам возвращается <green>50%</green>.</gray>",
+                            "<gray>Неуспешным участникам возвращается <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "%</green>.</gray>",
                             "",
                             "<gray>До торгов: </gray>" + remainingLabel(),
                             "",
@@ -126,16 +124,25 @@ public class LostCaravanEntryGui implements InventoryHolder {
                     )
             );
         }
-        inventory.setItem(SLOT_REGISTER, registerBtn);
+        GuiUtils.putIfChanged(inventory, SLOT_REGISTER, registerBtn);
 
         for (int i = 18; i <= 26; i++) {
-            inventory.setItem(i, filler);
+            GuiUtils.putIfChanged(inventory, i, filler);
         }
-        inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
+        GuiUtils.putIfChanged(inventory, SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
                 List.of("", "<gray>Выход из меню</gray>")
         ));
+    }
+
+    /** Redraws every open registration menu (the countdown); unchanged slots are not resent. */
+    public static void refreshAll() {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p.getOpenInventory().getTopInventory().getHolder() instanceof LostCaravanEntryGui gui) {
+                gui.render();
+            }
+        }
     }
 
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {

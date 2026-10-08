@@ -32,9 +32,9 @@ import java.util.UUID;
  * - Header (0-8): тематическая голова в слоте 0 (инфо о торгах), остальное стекло; кнопок управления нет.
  * - Row 1 (9-17): 100% стекло
  * - Рабочая зона (18-44): без стекла, боковые стенки (18, 26, 27, 35, 36, 44) пусты, пагинации нет
- *   - Ряд 1: 19 — таймер, 22 — лот, 25 — статус игрока
- *   - Ряд 2: 28 — лидер, 29 — минимальная ставка, 30-32 — быстрые ставки (проценты), 33 — своя сумма
- *   - Ряд 3: 37-39 — очередь следующих лотов, 41-43 — последние ставки по лоту
+ *   - Ряд 1: 20 — таймер, 22 — лот, 24 — «Ставки» (лидер и следующие ставки одним списком, свой ник другого цвета)
+ *   - Ряд 2: 29 — минимальная ставка, 30-32 — быстрые ставки (проценты), 33 — своя сумма
+ *   - Ряд 3: 39-41 — очередь следующих лотов
  * - Footer (45-53): стекло, слот 53 — «Закрыть» (Д и Back не используются: стекло)
  */
 public class LostCaravanAuctionGui implements InventoryHolder {
@@ -43,17 +43,18 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
     public static final int SIZE = 54;
     public static final int SLOT_INFO = 0;
-    public static final int SLOT_TIMER = 19;
+    public static final int SLOT_TIMER = 20;
     public static final int SLOT_LOT_PREVIEW = 22;
-    public static final int SLOT_MY_STATUS = 25;
-    public static final int SLOT_LEADER = 28;
+    public static final int SLOT_BIDS = 24;
     public static final int SLOT_MIN_BID = 29;
     public static final int SLOT_BID_1 = 30;
     public static final int SLOT_BID_2 = 31;
     public static final int SLOT_BID_3 = 32;
     public static final int SLOT_CUSTOM_BID = 33;
-    public static final int[] SLOTS_QUEUE = {37, 38, 39};
-    public static final int[] SLOTS_RECENT_BIDS = {41, 42, 43};
+    public static final int[] SLOTS_QUEUE = {39, 40, 41};
+    /** How many bidders after the leader the «Ставки» card lists (caravan.lost.bids-shown). */
+    private static final int DEFAULT_BIDS_SHOWN = 4;
+    private static final int[] WORK_ROWS = {19, 28, 37};
     public static final int SLOT_CLOSE = 53;
 
     private final LoveShops plugin;
@@ -78,17 +79,26 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         player.openInventory(inventory);
     }
 
+    private void put(int slot, ItemStack item) {
+        GuiUtils.putIfChanged(inventory, slot, item);
+    }
+
     public void render() {
-        inventory.clear();
         ItemStack filler = GuiUtils.createFiller();
 
         // Header (0-8) and Row 1 (9-17): glass only; slot 0 is the themed info head
         for (int i = 0; i <= 17; i++) {
-            inventory.setItem(i, filler);
+            put(i, filler);
         }
         // Footer (45-53): glass, the close button replaces the glass at 53
         for (int i = 45; i <= 53; i++) {
-            inventory.setItem(i, filler);
+            put(i, filler);
+        }
+        // Work zone: empty unless a card below fills the slot (no stale items after the layout changes)
+        for (int row : WORK_ROWS) {
+            for (int col = 0; col < 7; col++) {
+                put(row + col, null);
+            }
         }
 
         LostCaravanSession session = manager.getCurrentSession();
@@ -99,7 +109,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         int lotIdx = lot != null ? (lot.lotIndex() + 1) : 0;
         int totalLots = manager.getActiveLots().size();
 
-        inventory.setItem(SLOT_INFO, GuiUtils.createCustomHead(
+        put(SLOT_INFO, GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
                 "<gold>⚔ Торги Каравана</gold>",
                 List.of(
@@ -116,12 +126,11 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         if (lot != null) {
             renderLot(lot, lotIdx, timeRem, eco);
             renderBidButtons(lot, eco);
-            renderStatus(lot, eco);
+            renderBids(lot, eco);
             renderQueue(eco);
-            renderRecentBids(lot, eco);
         }
 
-        inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
+        put(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
                 List.of("", "<gray>Выход из меню аукциона</gray>")
@@ -130,7 +139,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
     private void renderLot(LostCaravanLot lot, int lotIdx, long timeRem, LoveEconomy eco) {
         // Timer card with a progress bar of the lot's bidding window
-        inventory.setItem(SLOT_TIMER, GuiUtils.createCustomHead(
+        put(SLOT_TIMER, GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_TIMER,
                 "<gold>⏱ Осталось: " + timeRem + " сек.</gold>",
                 List.of("", timeBar(timeRem), "",
@@ -158,22 +167,13 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             meta.lore(lore);
             preview.setItemMeta(meta);
         }
-        inventory.setItem(SLOT_LOT_PREVIEW, preview);
+        put(SLOT_LOT_PREVIEW, preview);
     }
 
     private void renderBidButtons(LostCaravanLot lot, LoveEconomy eco) {
         boolean leading = player.getUniqueId().equals(lot.highestBidder());
 
-        if (lot.currentBid() > 0 && lot.highestBidder() != null) {
-            inventory.setItem(SLOT_LEADER, leaderHead(lot, eco));
-        } else {
-            inventory.setItem(SLOT_LEADER, GuiUtils.createCustomHead(
-                    HeadTextures.BANKER_DEPOSIT_EMPTY,
-                    "<gray>Лидера пока нет</gray>",
-                    List.of("", "<gray>Сделайте первую ставку — от начальной цены.</gray>")));
-        }
-
-        inventory.setItem(SLOT_MIN_BID, GuiUtils.createCustomHead(
+        put(SLOT_MIN_BID, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_PLUS,
                 "<green>Минимальная ставка</green>",
                 List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, manager.minimumBid(lot)), "",
@@ -182,32 +182,39 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         int[] slots = {SLOT_BID_1, SLOT_BID_2, SLOT_BID_3};
         String[] colors = {"green", "gold", "yellow"};
         for (int i = 0; i < slots.length; i++) {
-            inventory.setItem(slots[i], GuiUtils.createCustomHead(
+            put(slots[i], GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
                     "<" + colors[i] + ">+" + quickPercent(i) + "%</" + colors[i] + ">",
                     List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, quickBid(manager, lot, i)), "",
                             leading ? "<gray>Вы уже лидируете.</gray>" : "<yellow>Нажмите для ставки</yellow>")));
         }
 
-        inventory.setItem(SLOT_CUSTOM_BID, GuiUtils.createCustomHead(
+        put(SLOT_CUSTOM_BID, GuiUtils.createCustomHead(
                 HeadTextures.COMMISSION_PRICE,
                 "<gold>Своя сумма ставки</gold>",
                 List.of("", "<gray>Введите сумму в чат: число или, например,</gray>",
                         "<yellow>3i 50c</yellow> <gray>(c — медная, i — железная, g — золотая, d — алмазная).</gray>")));
     }
 
-    private void renderStatus(LostCaravanLot lot, LoveEconomy eco) {
-        if (player.getUniqueId().equals(lot.highestBidder())) {
-            inventory.setItem(SLOT_MY_STATUS, GuiUtils.createCustomHead(
-                    HeadTextures.HEAD_CONFIRM,
-                    "<green>Вы лидируете!</green>",
-                    List.of("", "<gray>Ваша ставка </gray>" + CoinFormat.formatGlyphs(eco, lot.currentBid()) + "<gray> наивысшая.</gray>")));
-        } else {
-            inventory.setItem(SLOT_MY_STATUS, GuiUtils.createCustomHead(
-                    HeadTextures.HEAD_DELETE_NO,
-                    "<red>Вы не лидируете</red>",
-                    List.of("", "<gray>Сделайте ставку, чтобы побороться за этот ящик!</gray>")));
+    /** One card with the leader and the next bidders; replaces the separate bidder heads. */
+    private void renderBids(LostCaravanLot lot, LoveEconomy eco) {
+        boolean leading = player.getUniqueId().equals(lot.highestBidder());
+        int shown = Math.max(1, plugin.getConfig().getInt("caravan.lost.bids-shown", DEFAULT_BIDS_SHOWN));
+        List<CaravanBidBoard.Bid> bids = new ArrayList<>();
+        for (LostCaravanManager.BidEntry entry : manager.getRecentBids(lot.id(), 40)) {
+            bids.add(new CaravanBidBoard.Bid(entry.bidder(), entry.bidderName(), entry.amount()));
         }
+        List<String> lore = new ArrayList<>();
+        lore.add("");
+        lore.addAll(CaravanBidBoard.lines(bids, player.getUniqueId(), shown, amount -> CoinFormat.formatGlyphs(eco, amount)));
+        lore.add("");
+        lore.add(leading
+                ? "<gray>Ваша ставка наивысшая.</gray>"
+                : "<gray>Вы не лидируете: сделайте ставку, чтобы побороться за ящик.</gray>");
+        put(SLOT_BIDS, GuiUtils.createCustomHead(
+                leading ? HeadTextures.HEAD_CONFIRM : HeadTextures.BANKER_DEPOSIT_EMPTY,
+                leading ? "<green>Ставки — вы лидируете!</green>" : "<gold>Ставки</gold>",
+                lore));
     }
 
     /** Next lots in the queue (secret crates are shown without hinting what is inside). */
@@ -215,7 +222,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         List<LostCaravanLot> upcoming = manager.getUpcomingLots(SLOTS_QUEUE.length);
         for (int i = 0; i < upcoming.size(); i++) {
             LostCaravanLot next = upcoming.get(i);
-            inventory.setItem(SLOTS_QUEUE[i], GuiUtils.createCustomHead(
+            put(SLOTS_QUEUE[i], GuiUtils.createCustomHead(
                     next.secret() ? HeadTextures.CARAVAN_LOST_SECRET : HeadTextures.CARAVAN_LOST_CRATE,
                     next.secret()
                             ? "<red>⚡ Секретный ящик #" + (next.lotIndex() + 1) + "</red>"
@@ -225,43 +232,12 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         }
     }
 
-    /** Newest-first bids on the current lot, shown as the bidder's head. */
-    private void renderRecentBids(LostCaravanLot lot, LoveEconomy eco) {
-        List<LostCaravanManager.BidEntry> bids = manager.getRecentBids(lot.id(), SLOTS_RECENT_BIDS.length);
-        for (int i = 0; i < bids.size(); i++) {
-            LostCaravanManager.BidEntry bid = bids.get(i);
-            inventory.setItem(SLOTS_RECENT_BIDS[i], bidderHead(bid.bidder(),
-                    "<yellow>" + bid.bidderName() + "</yellow>",
-                    List.of("", "<gray>Ставка: </gray>" + CoinFormat.formatGlyphs(eco, bid.amount()),
-                            "<gray>" + ago(bid.atMillis()) + "</gray>")));
-        }
-    }
-
-    private ItemStack leaderHead(LostCaravanLot lot, LoveEconomy eco) {
-        OfflinePlayer leader = Bukkit.getOfflinePlayer(lot.highestBidder());
-        String name = leader.getName() != null ? leader.getName() : "—";
-        return bidderHead(lot.highestBidder(), "<gold>🏆 Лидер: <white>" + name + "</white></gold>",
-                List.of("", "<gray>Ставка: </gray>" + CoinFormat.formatGlyphs(eco, lot.currentBid())));
-    }
-
-    private ItemStack bidderHead(UUID uuid, String name, List<String> lore) {
-        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) head.getItemMeta();
-        if (meta != null) {
-            meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
-            meta.displayName(MessageUtils.parse(name));
-            meta.lore(lore.stream().map(MessageUtils::parse).toList());
-            head.setItemMeta(meta);
-        }
-        return head;
-    }
-
     /** "[■■■■□□□□□□]" bar for the share of the bidding window that is left. */
     private String timeBar(long timeRem) {
         long total = Math.max(1, plugin.getConfig().getLong("caravan.lost.bid-duration-seconds", 60));
         int filled = (int) Math.max(0, Math.min(10, Math.round(10.0 * timeRem / total)));
         String color = filled <= 2 ? "<red>" : filled <= 5 ? "<yellow>" : "<green>";
-        return color + "■".repeat(filled) + "</>" + "<dark_gray>" + "■".repeat(10 - filled) + "</dark_gray>";
+        return color + "■".repeat(filled) + "</" + color.substring(1)  + "<dark_gray>" + "■".repeat(10 - filled) + "</dark_gray>";
     }
 
     private static String ago(long atMillis) {

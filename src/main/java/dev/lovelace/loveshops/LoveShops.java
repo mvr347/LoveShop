@@ -65,6 +65,7 @@ public final class LoveShops extends JavaPlugin {
 
         // 1. Config & Lang
         saveDefaultConfig();
+        backfillConfig();
         this.langManager = new LangManager(this);
         this.langManager.loadLang();
 
@@ -164,6 +165,23 @@ public final class LoveShops extends JavaPlugin {
         );
 
         getLogger().info("LoveShops v" + getDescription().getVersion() + " успешно включён!");
+    }
+
+    /** Adds caravan keys that an older config.yml lacks (crate quality tiers, switches) without touching existing values. */
+    private void backfillConfig() {
+        try (java.io.InputStream in = getResource("config.yml")) {
+            if (in == null) return;
+            org.bukkit.configuration.file.YamlConfiguration bundled = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+            int added = dev.lovelace.loveshops.utils.ConfigBackfill.backfill(getConfig(), bundled,
+                    java.util.Set.of("caravan.lost.crates.default", "caravan.lost.crates.secret"), "caravan.lost");
+            if (added > 0) {
+                saveConfig();
+                getLogger().info("config.yml: added " + added + " missing caravan.lost key(s) from the bundled defaults.");
+            }
+        } catch (Exception e) {
+            getLogger().warning("Could not backfill config.yml: " + e.getMessage());
+        }
     }
 
     @Override
