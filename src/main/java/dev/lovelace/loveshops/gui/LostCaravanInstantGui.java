@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * GUI Мгновенной покупки ящиков Потерянного Каравана (36 слотов):
  * - Размер 36 слотов по стандарту gui-gen-5
- * - Header (0-8): профиль игрока (0), инфо (4), стекло (1-3, 5-8)
+ * - Header (0-8): инфо (0), стекло (1-8)
  * - Рабочая зона (9-26): без стекла! Доступные для выкупа ящики
  * - Footer (27-35): стекло, слот 35 — «Закрыть»
  */
@@ -71,7 +71,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
         }
 
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.BUTTON_BACK,
+                HeadTextures.CARAVAN_LOST_INFO,
                 "<gold>📦 Мгновенная покупка ящиков</gold>",
                 List.of(
                         "",

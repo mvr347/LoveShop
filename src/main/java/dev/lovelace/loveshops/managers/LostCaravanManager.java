@@ -73,7 +73,7 @@ public class LostCaravanManager {
     public record BidEntry(int lotId, UUID bidder, String bidderName, int amount, long atMillis) {}
 
     /** Most recent bids kept in memory (a few are shown in the menu, see caravan.lost.recent-bids-shown). */
-    private static final int RECENT_BIDS_KEPT = 10;
+    private static final int RECENT_BIDS_KEPT = 40;
 
     private final Deque<BidEntry> recentBids = new ArrayDeque<>();
 
@@ -93,6 +93,7 @@ public class LostCaravanManager {
     private org.bukkit.scheduler.BukkitTask bossBarTickTask;
     private long currentLotEndTimestamp = 0;
     private org.bukkit.scheduler.BukkitTask schedulerTask;
+    private org.bukkit.scheduler.BukkitTask registrationTask;
     private org.bukkit.scheduler.BukkitTask auctionTickTask;
 
     public LostCaravanManager(LoveShops plugin) {
@@ -183,6 +184,58 @@ public class LostCaravanManager {
         // Проверка расписания каждые 30 секунд. Именно на главном потоке: фазы события выдают предметы и
         // монеты, шлют сообщения и меняют боссбары - всё это Bukkit API, которому нельзя на async-потоке.
         schedulerTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkSchedule, 300L, 600L);
+        // Registration is watched every second: the countdown in open menus stays live and the auction starts
+        // exactly at 0:00 instead of up to 30 seconds late (the schedule check above runs twice a minute).
+        registrationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickRegistration, 40L, 20L);
+    }
+
+    private void tickRegistration() {
+        LostCaravanSession session = currentSession;
+        if (session == null || !"ANNOUNCED".equalsIgnoreCase(session.status())) return;
+        if (System.currentTimeMillis() / 1000 >= session.openedAt()) {
+            openSession();
+        } else {
+            LostCaravanEntryGui.refreshAll();
+        }
+    }
+
+    /** Runs on the main thread: open inventories must not be touched from anywhere else. */
+    private void onMainThread(Runnable task) {
+        if (Bukkit.isPrimaryThread()) task.run();
+        else Bukkit.getScheduler().runTask(plugin, task);
+    }
+
+    /** Registration is over: participants' registration menus turn into the auction/shop window, others are closed. */
+    private void switchRegistrationMenus() {
+        onMainThread(() -> {
+            LostCaravanSession session = currentSession;
+            if (session == null) return;
+            boolean auction = "AUCTION".equalsIgnoreCase(session.mode());
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (!(p.getOpenInventory().getTopInventory().getHolder() instanceof LostCaravanEntryGui)) continue;
+                if (!isParticipant(session.id(), p.getUniqueId())) {
+                    p.closeInventory();
+                    MessageUtils.sendMessage(p, "<gray>Регистрация закончилась: меню лотов доступно только участникам.</gray>");
+                } else if (auction) {
+                    new LostCaravanAuctionGui(plugin, p, this).open();
+                } else {
+                    new LostCaravanInstantGui(plugin, p, this).open();
+                }
+            }
+        });
+    }
+
+    /** The event is over: close every open window of the given kinds. */
+    private void closeMenus(boolean includeShop) {
+        onMainThread(() -> {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                var holder = p.getOpenInventory().getTopInventory().getHolder();
+                if (holder instanceof LostCaravanAuctionGui
+                        || (includeShop && (holder instanceof LostCaravanInstantGui || holder instanceof LostCaravanEntryGui))) {
+                    p.closeInventory();
+                }
+            }
+        });
     }
 
     public synchronized void startAuctionTicker() {
@@ -208,6 +261,10 @@ public class LostCaravanManager {
         if (schedulerTask != null) {
             schedulerTask.cancel();
             schedulerTask = null;
+        }
+        if (registrationTask != null) {
+            registrationTask.cancel();
+            registrationTask = null;
         }
         stopAuctionTicker();
         clearAllParticipantBossBars();
@@ -395,6 +452,7 @@ public class LostCaravanManager {
             startLotRound(0);
             startAuctionTicker();
         }
+        switchRegistrationMenus();
     }
 
     /**
@@ -604,6 +662,7 @@ public class LostCaravanManager {
         // Возврат 50% залога неуспешным участникам
         refundNonWinners(currentSession.id());
 
+        closeMenus(false);
         CaravanEffects.broadcast("<gold><bold>⚔ [Потерянный Караван]</bold></gold> <yellow>Все торги завершены! Караван простоит ещё "
                 + settleMinutes + " мин. для расчётов.</yellow>");
     }
@@ -660,6 +719,7 @@ public class LostCaravanManager {
         currentSession = null;
         activeLots.clear();
         currentAuctionLotIndex = -1;
+        closeMenus(true);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             despawnCaravanNpc();
@@ -1148,19 +1208,14 @@ public class LostCaravanManager {
         loc.getWorld().spawnParticle(org.bukkit.Particle.FIREWORK, loc.clone().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.05);
 
         // Качество: 30% плохой / 50% обычный / 20% хороший (секретный чуть лучше)
-        double qualityRoll = ThreadLocalRandom.current().nextDouble();
-        String quality;
-        int rolls;
-        double chanceMul;
-        if (isSecret) {
-            if (qualityRoll < 0.15) { quality = "bad"; rolls = 2; chanceMul = 0.7; }
-            else if (qualityRoll < 0.55) { quality = "normal"; rolls = 3; chanceMul = 1.0; }
-            else { quality = "good"; rolls = 5; chanceMul = 1.25; }
-        } else {
-            if (qualityRoll < 0.30) { quality = "bad"; rolls = 1; chanceMul = 0.55; }
-            else if (qualityRoll < 0.80) { quality = "normal"; rolls = 3; chanceMul = 1.0; }
-            else { quality = "good"; rolls = 4; chanceMul = 1.2; }
-        }
+        // Tiers (weights, rolls, chance scale) come from caravan.lost.quality.<default|secret>
+        CrateQuality picked = CrateQuality.pick(
+                CrateQuality.fromConfig(plugin.getConfig().getConfigurationSection(
+                        "caravan.lost.quality." + (isSecret ? "secret" : "default")), isSecret),
+                ThreadLocalRandom.current().nextDouble());
+        String quality = picked.id();
+        int rolls = picked.rolls();
+        double chanceMul = picked.chanceMultiplier();
 
         List<ItemStack> rewards = new ArrayList<>();
         for (int r = 0; r < rolls && !table.isEmpty(); r++) {

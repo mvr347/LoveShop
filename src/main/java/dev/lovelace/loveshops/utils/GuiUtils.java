@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -42,11 +43,34 @@ public class GuiUtils {
         return head;
     }
 
+    /**
+     * Writes a slot only when its content changed. Menus that refresh every second must not resend identical items:
+     * the client reloads head skins on every resend, which shows up as flicker.
+     */
+    public static void putIfChanged(Inventory inventory, int slot, ItemStack item) {
+        ItemStack current = inventory.getItem(slot);
+        if (item == null) {
+            if (current != null) inventory.setItem(slot, null);
+            return;
+        }
+        if (current == null || current.getAmount() != item.getAmount() || !current.isSimilar(item)) {
+            inventory.setItem(slot, item);
+        }
+    }
+
     /** Centre card of a list menu that has nothing to show: "Пока ничего нет". */
     public static ItemStack emptyCard(String hint) {
         return createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.BANKER_DEPOSIT_EMPTY,
                 "<gray>Пока ничего нет</gray>",
                 hint == null || hint.isBlank() ? List.of() : List.of("", hint));
+    }
+
+    /**
+     * Same texture, same profile id. A random id per call made every rebuilt head look different to the client,
+     * which reloaded the skin each time the menu refreshed (flicker).
+     */
+    static UUID textureProfileId(String base64) {
+        return UUID.nameUUIDFromBytes(base64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public static ItemStack createCustomHead(String base64, String name, List<String> lore) {
@@ -58,7 +82,7 @@ public class GuiUtils {
                 meta.lore(lore.stream().map(MessageUtils::parse).toList());
             }
             try {
-                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+                PlayerProfile profile = Bukkit.createProfile(textureProfileId(base64));
                 profile.setProperty(new ProfileProperty("textures", base64));
                 meta.setPlayerProfile(profile);
             } catch (Throwable ignored) {}
@@ -85,7 +109,7 @@ public class GuiUtils {
             if (name != null) meta.displayName(name);
             if (lore != null) meta.lore(lore);
             try {
-                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+                PlayerProfile profile = Bukkit.createProfile(textureProfileId(base64));
                 profile.setProperty(new ProfileProperty("textures", base64));
                 meta.setPlayerProfile(profile);
             } catch (Throwable ignored) {}
