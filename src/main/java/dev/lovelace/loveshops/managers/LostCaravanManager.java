@@ -500,7 +500,10 @@ public class LostCaravanManager {
                 ps.setInt(2, i);
                 ps.setInt(3, isSecret ? 1 : 0);
                 ps.setString(4, base64);
-                int startingPrice = isSecret ? startingPriceSecret : startingPriceBase;
+                // each crate gets its own price within +-price-variance-percent of the base; the contents do not matter
+                int startingPrice = PriceJitter.apply(isSecret ? startingPriceSecret : startingPriceBase,
+                        plugin.getConfig().getInt("caravan.lost.price-variance-percent", 25),
+                        ThreadLocalRandom.current().nextDouble());
                 ps.setInt(5, startingPrice);
                 ps.executeUpdate();
 
