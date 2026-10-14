@@ -156,7 +156,7 @@ public class InventoryClickListener implements Listener {
             if (slot == 51) {
                 plugin.getWandererManager().resetDeal(player.getUniqueId()).thenRun(() -> {
                     org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
-                        MessageUtils.sendMessage(player, "<green>Заказ завершён! Вы можете заключить новый договор.</green>");
+                        MessageUtils.event(player, "<green>Заказ завершён! Вы можете заключить новый договор.</green>");
                         new dev.lovelace.loveshops.gui.WandererDealGui(plugin, player).open();
                     });
                 });
@@ -344,7 +344,7 @@ public class InventoryClickListener implements Listener {
                             player.updateInventory();
                             org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
                         } else {
-                            MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                            MessageUtils.event(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
                         }
                     }
                 }
@@ -368,7 +368,7 @@ public class InventoryClickListener implements Listener {
                         player.updateInventory();
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
                     } else {
-                        MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                        MessageUtils.event(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
                     }
                     return;
                 }
@@ -380,7 +380,7 @@ public class InventoryClickListener implements Listener {
                     player.updateInventory();
                     org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
                 } else {
-                    MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                    MessageUtils.event(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
                 }
                 return;
             }
@@ -421,7 +421,7 @@ public class InventoryClickListener implements Listener {
                     player.updateInventory();
                     org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> BankerGui.refresh(plugin, player));
                 } else {
-                    MessageUtils.sendMessage(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
+                    MessageUtils.event(player, "<red>Сюда можно класть только монеты LoveEconomy.</red>");
                 }
                 return;
             }

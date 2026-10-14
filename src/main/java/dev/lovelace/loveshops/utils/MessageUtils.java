@@ -110,6 +110,28 @@ public final class MessageUtils {
         sender.sendMessage(message);
     }
 
+    /** Event-style notice: LoveNotify (action bar, chat fallback). Command replies keep {@link #sendMessage}. */
+    public static void event(Player player, String message) {
+        if (player == null || message == null || message.isEmpty()) return;
+        Notify.event(player, parse(player, message));
+    }
+
+    /** Critical notice (money moved, item lost): LoveNotify always duplicates it to chat. */
+    public static void important(Player player, String message) {
+        if (player == null || message == null || message.isEmpty()) return;
+        Notify.important(player, parse(player, message));
+    }
+
+    public static void event(Player player, Component message) {
+        if (player == null || message == null) return;
+        Notify.event(player, message);
+    }
+
+    public static void important(Player player, Component message) {
+        if (player == null || message == null) return;
+        Notify.important(player, message);
+    }
+
     public static String escapeTags(String input) {
         if (input == null || input.isEmpty()) return input;
         return MINI_MESSAGE.escapeTags(input);

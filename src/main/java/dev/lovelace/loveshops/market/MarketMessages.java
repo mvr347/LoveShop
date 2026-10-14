@@ -2,6 +2,7 @@ package dev.lovelace.loveshops.market;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.utils.MessageUtils;
+import dev.lovelace.loveshops.utils.Notify;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -141,6 +142,12 @@ public final class MarketMessages {
 
     public void send(CommandSender to, String key, String... kv) {
         Player viewer = to instanceof Player p ? p : null;
-        to.sendMessage(get(viewer, key, kv));
+        Component message = get(viewer, key, kv);
+        // Only players get LoveNotify routing; the console and unlisted keys keep plain chat (see NoticeRouting).
+        switch (viewer == null ? NoticeRouting.Kind.CHAT : NoticeRouting.classify(key)) {
+            case IMPORTANT -> Notify.important(viewer, message);
+            case EVENT -> Notify.event(viewer, message);
+            default -> to.sendMessage(message);
+        }
     }
 }

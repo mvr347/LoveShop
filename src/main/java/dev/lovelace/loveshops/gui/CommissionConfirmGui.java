@@ -119,16 +119,16 @@ public class CommissionConfirmGui implements InventoryHolder {
                 if (gui.action == ConfirmAction.BUY) {
                     CommissionManager.LotResult result = manager.buyLot(player, gui.lot.id());
                     switch (result) {
-                        case NO_MONEY -> MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для покупки!</red>");
-                        case NO_SPACE -> MessageUtils.sendMessage(player, "<red>В вашем инвентаре недостаточно свободного места!</red>");
-                        case NOT_FOUND -> MessageUtils.sendMessage(player, "<red>Этот лот уже был куплен или снят с продажи.</red>");
-                        case CANT_BUY_SELF -> MessageUtils.sendMessage(player, "<red>Вы не можете купить свой собственный лот!</red>");
+                        case NO_MONEY -> MessageUtils.event(player, "<red>У вас недостаточно монет для покупки!</red>");
+                        case NO_SPACE -> MessageUtils.event(player, "<red>В вашем инвентаре недостаточно свободного места!</red>");
+                        case NOT_FOUND -> MessageUtils.event(player, "<red>Этот лот уже был куплен или снят с продажи.</red>");
+                        case CANT_BUY_SELF -> MessageUtils.event(player, "<red>Вы не можете купить свой собственный лот!</red>");
                         default -> {}
                     }
                 } else if (gui.action == ConfirmAction.CANCEL_OWN) {
                     CommissionManager.LotResult result = manager.cancelLot(player, gui.lot.id());
                     if (result == CommissionManager.LotResult.NOT_FOUND) {
-                        MessageUtils.sendMessage(player, "<red>Лот не найден или уже был продан!</red>");
+                        MessageUtils.event(player, "<red>Лот не найден или уже был продан!</red>");
                     }
                 }
 

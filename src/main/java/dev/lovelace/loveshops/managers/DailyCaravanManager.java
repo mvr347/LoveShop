@@ -561,7 +561,7 @@ public class DailyCaravanManager {
                 Map.of("count", String.valueOf(totalUnitsCollected),
                         "name", targetCrate.displayName(),
                         "money", CoinFormat.formatGlyphs(eco, totalCoinsEarned)));
-        MessageUtils.sendMessage(player, successMsg);
+        MessageUtils.important(player, successMsg);
 
         // Проверка завершения визита
         boolean allClosed = true;
@@ -656,7 +656,7 @@ public class DailyCaravanManager {
                 Map.of("count", String.valueOf(take),
                         "name", targetCrate.displayName(),
                         "money", CoinFormat.formatGlyphs(eco, itemCoins)));
-        MessageUtils.sendMessage(player, successMsg);
+        MessageUtils.important(player, successMsg);
 
         boolean allClosed = true;
         for (DailyCrateState c : activeCrates) {
@@ -761,7 +761,7 @@ public class DailyCaravanManager {
 
     public void openGui(Player player) {
         if (!active) {
-            MessageUtils.sendMessage(player, "<red>Караванщик сейчас не в городе!</red>");
+            MessageUtils.event(player, "<red>Караванщик сейчас не в городе!</red>");
             return;
         }
         plugin.getNpcDialogueManager().sayCaravanerGreeting(player);

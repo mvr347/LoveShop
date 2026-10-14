@@ -58,12 +58,12 @@ public class BankerGui {
     public void open() {
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null) {
-            MessageUtils.sendMessage(player, "<red>Экономика недоступна.</red>");
+            MessageUtils.event(player, "<red>Экономика недоступна.</red>");
             return;
         }
         Session session = SESSIONS.computeIfAbsent(player.getUniqueId(), id -> new Session());
         if (!session.lock.compareAndSet(false, true)) {
-            MessageUtils.sendMessage(player, "<red>Подождите, операция ещё выполняется.</red>");
+            MessageUtils.event(player, "<red>Подождите, операция ещё выполняется.</red>");
             return;
         }
         try {
@@ -422,12 +422,12 @@ public class BankerGui {
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null) return false;
         if (!session.lock.compareAndSet(false, true)) {
-            MessageUtils.sendMessage(player, "<red>Подождите, операция ещё выполняется.</red>");
+            MessageUtils.event(player, "<red>Подождите, операция ещё выполняется.</red>");
             return false;
         }
         try {
             if (session.deposited < unitValue) {
-                MessageUtils.sendMessage(player, "<red>Недостаточно на столе.</red>");
+                MessageUtils.event(player, "<red>Недостаточно на столе.</red>");
                 return false;
             }
             long maxCount = session.deposited / unitValue;
@@ -451,7 +451,7 @@ public class BankerGui {
                         fee = feePercent > 0 ? (need * feePercent + 99) / 100 : 0;
                     }
                     if (count <= 0) {
-                        MessageUtils.sendMessage(player, "<red>Не хватает с учётом комиссии.</red>");
+                        MessageUtils.event(player, "<red>Не хватает с учётом комиссии.</red>");
                         return false;
                     }
                     totalCost = need + fee;
@@ -463,7 +463,7 @@ public class BankerGui {
             // Доплата комиссии из инвентаря игрока, если депозита на столе хватило на номинал, но не на сбор
             if (fromInventory > 0) {
                 if (!economy.charge(player, fromInventory)) {
-                    MessageUtils.sendMessage(player, "<red>Для операции требуется комиссия " + feePercent + "%: <yellow>" + fee + " " + economy.currencyName() + "</yellow> (не хватает " + fromInventory + ").</red>");
+                    MessageUtils.event(player, "<red>Для операции требуется комиссия " + feePercent + "%: <yellow>" + fee + " " + economy.currencyName() + "</yellow> (не хватает " + fromInventory + ").</red>");
                     return false;
                 }
             }

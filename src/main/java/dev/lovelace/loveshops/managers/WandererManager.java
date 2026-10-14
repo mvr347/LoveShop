@@ -687,13 +687,13 @@ public class WandererManager {
                     .replace("{cost}", CoinFormat.formatGlyphs(economy, finalCost))
                     .replace("{currency}", currencyName)
                     .replace("{currency_icon}", "");
-                MessageUtils.sendMessage(player, msg);
+                MessageUtils.event(player, msg);
                 future.complete(false);
                 return future;
             }
 
             if (!economy.charge(player, finalCost)) {
-                MessageUtils.sendMessage(player, "<red>Ошибка списания средств!</red>");
+                MessageUtils.event(player, "<red>Ошибка списания средств!</red>");
                 future.complete(false);
                 return future;
             }
@@ -747,7 +747,7 @@ public class WandererManager {
                         String startedMsg = plugin.getConfig().getString("wanderer.messages.deal-started",
                             "<green>Странник:</green> <gray>Договорились! Я принесу товар через <gold>{time}</gold>.</gray>")
                             .replace("{time}", timeText);
-                        MessageUtils.sendMessage(player, startedMsg);
+                        MessageUtils.event(player, startedMsg);
                         future.complete(true);
                     });
                 } catch (SQLException e) {
@@ -817,13 +817,13 @@ public class WandererManager {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 LoveEconomy economy = plugin.getEconomy().orElse(null);
                 if (economy == null || !economy.has(player, target.price())) {
-                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                    MessageUtils.event(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
 
                 if (!economy.charge(player, target.price())) {
-                    MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+                    MessageUtils.event(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
                     future.complete(false);
                     return;
                 }
@@ -832,7 +832,7 @@ public class WandererManager {
                 for (ItemStack extra : player.getInventory().addItem(itemStack).values()) {
                     player.getWorld().dropItemNaturally(player.getLocation(), extra);
                 }
-                MessageUtils.sendMessage(player, "<green>Вы успешно приобрели товар у Странника!</green>");
+                MessageUtils.important(player, "<green>Вы успешно приобрели товар у Странника!</green>");
 
                 // Update deal items list
                 List<WandererDealItem> updatedItems = new ArrayList<>();
