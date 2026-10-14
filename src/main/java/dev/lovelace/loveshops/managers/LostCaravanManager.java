@@ -215,7 +215,7 @@ public class LostCaravanManager {
                 if (!(p.getOpenInventory().getTopInventory().getHolder() instanceof LostCaravanEntryGui)) continue;
                 if (!isParticipant(session.id(), p.getUniqueId())) {
                     p.closeInventory();
-                    MessageUtils.sendMessage(p, "<gray>Регистрация закончилась: меню лотов доступно только участникам.</gray>");
+                    MessageUtils.event(p, "<gray>Регистрация закончилась: меню лотов доступно только участникам.</gray>");
                 } else if (auction) {
                     new LostCaravanAuctionGui(plugin, p, this).open();
                 } else {
@@ -597,7 +597,7 @@ public class LostCaravanManager {
             if (winner != null && winner.isOnline()) {
                 giveOrDropItem(winner, lot.crateItem().clone());
                 CaravanEffects.playSubmitEffects(winner);
-                MessageUtils.sendMessage(winner, "<green>Поздравляем! Вы выиграли "
+                MessageUtils.important(winner, "<green>Поздравляем! Вы выиграли "
                         + (lot.secret() ? "Секретный Ящик" : "Ящик каравана") + " со ставкой " + CoinFormat.formatGlyphs(lot.currentBid()) + "!</green>");
             } else {
                 // Если победитель офлайн, сохраняем в pending_returns
@@ -689,7 +689,7 @@ public class LostCaravanManager {
         Player leader = Bukkit.getPlayer(lot.highestBidder());
         returnMoney(lot.highestBidder(), leader, lot.currentBid(), eco);
         if (leader != null && leader.isOnline()) {
-            MessageUtils.sendMessage(leader, "<yellow>[Потерянный Караван] Торги прерваны, ваша ставка возвращена.</yellow>");
+            MessageUtils.important(leader, "<yellow>[Потерянный Караван] Торги прерваны, ваша ставка возвращена.</yellow>");
         }
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             PreparedStatement ps = conn.prepareStatement(
@@ -792,11 +792,11 @@ public class LostCaravanManager {
             if (prevBidder != null && prevBidder.isOnline()) {
                 if (eco.canFit(prevBidder, lot.currentBid())) {
                     eco.give(prevBidder, lot.currentBid());
-                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Вам возвращено "
+                    MessageUtils.important(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Вам возвращено "
                             + CoinFormat.formatGlyphs(eco, lot.currentBid()) + ".</yellow>");
                 } else {
                     addPendingRefund(lot.highestBidder(), lot.currentBid());
-                    MessageUtils.sendMessage(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Ваш инвентарь полон, возврат "
+                    MessageUtils.important(prevBidder, "<yellow>[Потерянный Караван] Ваша ставка на ящик была перебита! Ваш инвентарь полон, возврат "
                             + CoinFormat.formatGlyphs(eco, lot.currentBid()) + " сохранён и ожидает вас у торговца.</yellow>");
                 }
             } else {
@@ -826,7 +826,7 @@ public class LostCaravanManager {
 
         LostCaravanAuctionGui.refreshAll(plugin);
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.2f, 1.5f);
-        MessageUtils.sendMessage(player, "<green>Вы сделали ставку " + CoinFormat.formatGlyphs(eco, amount) + "! Вы лидируете в торгах.</green>");
+        MessageUtils.important(player, "<green>Вы сделали ставку " + CoinFormat.formatGlyphs(eco, amount) + "! Вы лидируете в торгах.</green>");
         return BidResult.SUCCESS;
     }
 
@@ -844,18 +844,18 @@ public class LostCaravanManager {
         }
 
         if (!isParticipant(currentSession.id(), player.getUniqueId())) {
-            MessageUtils.sendMessage(player, "<red>Вы не вносили залог для участия в этом караване!</red>");
+            MessageUtils.event(player, "<red>Вы не вносили залог для участия в этом караване!</red>");
             return false;
         }
 
         LoveEconomy eco = plugin.getEconomy().orElse(null);
         if (eco == null || !eco.has(player, lot.startingPrice())) {
-            MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для покупки этого ящика!</red>");
+            MessageUtils.event(player, "<red>У вас недостаточно монет для покупки этого ящика!</red>");
             return false;
         }
 
         if (player.getInventory().firstEmpty() == -1) {
-            MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет свободного места!</red>");
+            MessageUtils.event(player, "<red>В вашем инвентаре нет свободного места!</red>");
             return false;
         }
 
@@ -895,7 +895,7 @@ public class LostCaravanManager {
             } catch (SQLException e) {
                 plugin.getLogger().severe("Откат покупки ящика #" + lot.id() + " не удался (лот остался проданным без оплаты): " + e.getMessage());
             }
-            MessageUtils.sendMessage(player, "<red>Не удалось списать монеты!</red>");
+            MessageUtils.event(player, "<red>Не удалось списать монеты!</red>");
             return false;
         }
 
@@ -909,7 +909,7 @@ public class LostCaravanManager {
 
         LostCaravanInstantGui.refreshAll(plugin);
 
-        MessageUtils.sendMessage(player, "<green>Вы успешно приобрели "
+        MessageUtils.important(player, "<green>Вы успешно приобрели "
                 + (lot.secret() ? "Секретный Ящик" : "Ящик каравана") + " за " + CoinFormat.formatGlyphs(eco, lot.startingPrice()) + "!</green>");
 
         // Проверяем, все ли ящики раскуплены
@@ -969,8 +969,8 @@ public class LostCaravanManager {
 
         attachParticipantBossBar(player);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-        MessageUtils.sendMessage(player, "<green>Вы успешно зарегистрировались в Потерянном Караване!</green>");
-        MessageUtils.sendMessage(player, "<gray>Залог в размере " + CoinFormat.formatGlyphs(eco, entryFee) + " внесён. Ожидайте начала торгов!</gray>");
+        MessageUtils.event(player, "<green>Вы успешно зарегистрировались в Потерянном Караване!</green>");
+        MessageUtils.important(player, "<gray>Залог в размере " + CoinFormat.formatGlyphs(eco, entryFee) + " внесён. Ожидайте начала торгов!</gray>");
         return RegisterResult.SUCCESS;
     }
 
@@ -994,11 +994,11 @@ public class LostCaravanManager {
                 if (p != null && p.isOnline() && eco != null) {
                     if (eco.canFit(p, refundAmount)) {
                         eco.give(p, refundAmount);
-                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога: "
+                        MessageUtils.important(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога: "
                                 + CoinFormat.formatGlyphs(eco, refundAmount) + ".</yellow>");
                     } else {
                         addPendingRefund(uuid, refundAmount);
-                        MessageUtils.sendMessage(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога ("
+                        MessageUtils.important(p, "<yellow>[Потерянный Караван] Вам возвращено " + refundPercent + "% залога ("
                                 + CoinFormat.formatGlyphs(eco, refundAmount) + "), но ваш инвентарь полон! Выплата сохранена и ожидает вас у торговца.</yellow>");
                     }
                 } else {
@@ -1379,7 +1379,7 @@ public class LostCaravanManager {
 
     public void handleNpcClick(Player player) {
         if (currentSession == null) {
-            MessageUtils.sendMessage(player, "<yellow>Потерянный караван ещё не прибыл.</yellow>");
+            MessageUtils.event(player, "<yellow>Потерянный караван ещё не прибыл.</yellow>");
             return;
         }
 
@@ -1391,7 +1391,7 @@ public class LostCaravanManager {
 
         if ("OPEN".equalsIgnoreCase(currentSession.status())) {
             if (!isParticipant(currentSession.id(), player.getUniqueId())) {
-                MessageUtils.sendMessage(player, "<gray>Вы не вносили залог. Меню лотов доступно только участникам.</gray>");
+                MessageUtils.event(player, "<gray>Вы не вносили залог. Меню лотов доступно только участникам.</gray>");
                 return;
             }
             plugin.getNpcDialogueManager().sayLostCaravanGreeting(player);
@@ -1404,7 +1404,7 @@ public class LostCaravanManager {
         }
 
         if ("SETTLING".equalsIgnoreCase(currentSession.status())) {
-            MessageUtils.sendMessage(player, "<gray>Торги завершены, караван сворачивает лагерь.</gray>");
+            MessageUtils.event(player, "<gray>Торги завершены, караван сворачивает лагерь.</gray>");
         }
     }
 
@@ -1414,7 +1414,7 @@ public class LostCaravanManager {
             for (ItemStack drop : leftovers.values()) {
                 player.getWorld().dropItemNaturally(player.getLocation(), drop);
             }
-            MessageUtils.sendMessage(player, "<yellow>Ваш инвентарь был полон, часть предметов выпала на землю!</yellow>");
+            MessageUtils.important(player, "<yellow>Ваш инвентарь был полон, часть предметов выпала на землю!</yellow>");
         }
     }
 

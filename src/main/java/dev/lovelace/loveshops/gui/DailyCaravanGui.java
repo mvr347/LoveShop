@@ -206,10 +206,10 @@ public class DailyCaravanGui implements InventoryHolder {
                         return true;
                     }
                     switch (result) {
-                        case NO_ITEMS -> MessageUtils.sendMessage(player, "<yellow>Этот предмет не подходит для данного ящика!</yellow>");
-                        case CRATE_CLOSED -> MessageUtils.sendMessage(player, "<red>Этот ящик уже заполнен или закрыт.</red>");
-                        case LIMIT_REACHED -> MessageUtils.sendMessage(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
-                        case NO_SPACE -> MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
+                        case NO_ITEMS -> MessageUtils.event(player, "<yellow>Этот предмет не подходит для данного ящика!</yellow>");
+                        case CRATE_CLOSED -> MessageUtils.event(player, "<red>Этот ящик уже заполнен или закрыт.</red>");
+                        case LIMIT_REACHED -> MessageUtils.event(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
+                        case NO_SPACE -> MessageUtils.event(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
                         default -> {}
                     }
                     return true;
@@ -239,11 +239,11 @@ public class DailyCaravanGui implements InventoryHolder {
                 if (last == DailyCaravanManager.SubmitResult.LIMIT_REACHED || last == DailyCaravanManager.SubmitResult.NO_SPACE) break;
             }
             if (last == DailyCaravanManager.SubmitResult.NO_ITEMS && !held.getType().isAir()) {
-                MessageUtils.sendMessage(player, "<yellow>Этот предмет не подходит ни для одного ящика!</yellow>");
+                MessageUtils.event(player, "<yellow>Этот предмет не подходит ни для одного ящика!</yellow>");
             } else if (last == DailyCaravanManager.SubmitResult.LIMIT_REACHED) {
-                MessageUtils.sendMessage(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
+                MessageUtils.event(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
             } else if (last == DailyCaravanManager.SubmitResult.NO_SPACE) {
-                MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
+                MessageUtils.event(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
             }
             moved = held;
         }
@@ -264,7 +264,7 @@ public class DailyCaravanGui implements InventoryHolder {
         DailyCaravanManager manager = plugin.getDailyCaravanManager();
         if (manager == null || !manager.isCaravanerActive()) {
             player.closeInventory();
-            MessageUtils.sendMessage(player, "<red>Караванщик уже уехал!</red>");
+            MessageUtils.event(player, "<red>Караванщик уже уехал!</red>");
             return;
         }
 
@@ -277,10 +277,10 @@ public class DailyCaravanGui implements InventoryHolder {
                 DailyCaravanManager.SubmitResult result = manager.submitItems(player, crateId, allMatching);
 
                 switch (result) {
-                    case NO_ITEMS -> MessageUtils.sendMessage(player, "<red>У вас нет подходящих предметов для этого ящика!</red>");
-                    case CRATE_CLOSED -> MessageUtils.sendMessage(player, "<red>Этот ящик уже заполнен или закрыт.</red>");
-                    case LIMIT_REACHED -> MessageUtils.sendMessage(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
-                    case NO_SPACE -> MessageUtils.sendMessage(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
+                    case NO_ITEMS -> MessageUtils.event(player, "<red>У вас нет подходящих предметов для этого ящика!</red>");
+                    case CRATE_CLOSED -> MessageUtils.event(player, "<red>Этот ящик уже заполнен или закрыт.</red>");
+                    case LIMIT_REACHED -> MessageUtils.event(player, "<red>Вы достигли лимита сдачи товаров за этот визит каравана!</red>");
+                    case NO_SPACE -> MessageUtils.event(player, "<red>В вашем инвентаре нет места для монет выплаты!</red>");
                     default -> {}
                 }
 

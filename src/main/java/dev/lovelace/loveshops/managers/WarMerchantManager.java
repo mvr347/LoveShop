@@ -114,11 +114,11 @@ public class WarMerchantManager {
 
         LoveEconomy economy = plugin.getEconomy().orElse(null);
         if (economy == null || !economy.has(player, taxedPrice)) {
-            MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+            MessageUtils.event(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }
         if (!economy.charge(player, taxedPrice)) {
-            MessageUtils.sendMessage(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
+            MessageUtils.event(player, MessageUtils.currencyIcon() + plugin.getConfig().getString("protection.insufficient-funds", "&cНедостаточно средств!"));
             return false;
         }
 
@@ -126,7 +126,7 @@ public class WarMerchantManager {
         for (ItemStack extra : player.getInventory().addItem(toGive).values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), extra);
         }
-        MessageUtils.sendMessage(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
+        MessageUtils.important(player, plugin.getLangManager().getRaw("gui.item-bought", "&aПокупка успешна!"));
         return true;
     }
 

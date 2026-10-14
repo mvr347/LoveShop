@@ -237,7 +237,7 @@ public class CommissionAgentGui implements InventoryHolder {
         CommissionManager manager = plugin.getCommissionManager();
         if (manager == null || !manager.isEnabled()) {
             player.closeInventory();
-            MessageUtils.sendMessage(player, "<red>Комиссионный брокер временно недоступен.</red>");
+            MessageUtils.event(player, "<red>Комиссионный брокер временно недоступен.</red>");
             return;
         }
 
@@ -278,7 +278,7 @@ public class CommissionAgentGui implements InventoryHolder {
             if (lotId != null) {
                 Optional<CommissionLot> lotOpt = manager.getLotById(lotId);
                 if (lotOpt.isEmpty() || !"ACTIVE".equalsIgnoreCase(lotOpt.get().status())) {
-                    MessageUtils.sendMessage(player, "<red>Этот лот уже был продан или снят.</red>");
+                    MessageUtils.event(player, "<red>Этот лот уже был продан или снят.</red>");
                     gui.render();
                     return;
                 }
@@ -302,16 +302,16 @@ public class CommissionAgentGui implements InventoryHolder {
     public static void startListing(LoveShops plugin, Player player, CommissionManager manager,
                                     ItemStack itemToSell, boolean takeFromHand) {
         if (manager.getPlayerActiveLot(player.getUniqueId()).isPresent()) {
-            MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот! Сначала снимите его.</red>");
+            MessageUtils.event(player, "<red>У вас уже есть активный лот! Сначала снимите его.</red>");
             if (!takeFromHand) giveBack(player, itemToSell);
             return;
         }
         if (itemToSell == null || itemToSell.getType().isAir() || itemToSell.getAmount() <= 0) {
-            MessageUtils.sendMessage(player, "<gray>Нечего выставлять.</gray>");
+            MessageUtils.event(player, "<gray>Нечего выставлять.</gray>");
             return;
         }
         if (plugin.getForbiddenManager().isForbidden(itemToSell.getType())) {
-            MessageUtils.sendMessage(player, "<red>Этот предмет запрещено выставлять.</red>");
+            MessageUtils.event(player, "<red>Этот предмет запрещено выставлять.</red>");
             if (!takeFromHand) giveBack(player, itemToSell);
             return;
         }
@@ -326,7 +326,7 @@ public class CommissionAgentGui implements InventoryHolder {
             if (takeFromHand) {
                 ItemStack hand = player.getInventory().getItemInMainHand();
                 if (!hand.isSimilar(listing) || hand.getAmount() < sell.getAmount()) {
-                    MessageUtils.sendMessage(player, "<red>Предмет в руке изменился. Лог отменён.</red>");
+                    MessageUtils.event(player, "<red>Предмет в руке изменился. Лог отменён.</red>");
                     return;
                 }
                 int left = hand.getAmount() - sell.getAmount();
@@ -338,7 +338,7 @@ public class CommissionAgentGui implements InventoryHolder {
             long total = price * (long) sell.getAmount();
             if (total <= 0 || total > manager.maxLotPrice()) {
                 giveBack(player, sell);
-                MessageUtils.sendMessage(player, "<red>Некорректная цена.</red>");
+                MessageUtils.event(player, "<red>Некорректная цена.</red>");
                 return;
             }
 
@@ -346,12 +346,12 @@ public class CommissionAgentGui implements InventoryHolder {
             if (result != CommissionManager.LotResult.SUCCESS) {
                 giveBack(player, sell);
                 switch (result) {
-                    case ALREADY_HAS_LOT -> MessageUtils.sendMessage(player, "<red>У вас уже есть активный лот!</red>");
-                    case FORBIDDEN_ITEM -> MessageUtils.sendMessage(player, "<red>Этот предмет запрещено продавать.</red>");
-                    default -> MessageUtils.sendMessage(player, "<red>Не удалось выставить лот.</red>");
+                    case ALREADY_HAS_LOT -> MessageUtils.event(player, "<red>У вас уже есть активный лот!</red>");
+                    case FORBIDDEN_ITEM -> MessageUtils.event(player, "<red>Этот предмет запрещено продавать.</red>");
+                    default -> MessageUtils.event(player, "<red>Не удалось выставить лот.</red>");
                 }
             } else {
-                MessageUtils.sendMessage(player, "<green>Лот выставлен.</green>");
+                MessageUtils.event(player, "<green>Лот выставлен.</green>");
             }
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
@@ -362,7 +362,7 @@ public class CommissionAgentGui implements InventoryHolder {
             if (!takeFromHand) {
                 giveBack(player, listing);
             }
-            MessageUtils.sendMessage(player, "<gray>Выставление отменено.</gray>");
+            MessageUtils.event(player, "<gray>Выставление отменено.</gray>");
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     new CommissionAgentGui(plugin, player, manager, 0).open();

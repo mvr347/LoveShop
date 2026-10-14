@@ -255,14 +255,14 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
         LostCaravanManager manager = plugin.getLostCaravanManager();
         if (manager == null || !manager.isAuctionPhase()) {
-            MessageUtils.sendMessage(player, "<red>Аукцион сейчас не активен.</red>");
+            MessageUtils.event(player, "<red>Аукцион сейчас не активен.</red>");
             player.closeInventory();
             return;
         }
 
         LostCaravanLot lot = manager.getCurrentAuctionLot();
         if (lot == null) {
-            MessageUtils.sendMessage(player, "<red>Нет активного лота.</red>");
+            MessageUtils.event(player, "<red>Нет активного лота.</red>");
             gui.render();
             return;
         }
@@ -303,11 +303,11 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                     LostCaravanManager.BidResult result = manager.placeBid(player, amount);
                     if (result != LostCaravanManager.BidResult.SUCCESS) {
                         switch (result) {
-                            case TOO_LOW -> MessageUtils.sendMessage(player, "<red>Ставка слишком мала! Она должна превышать текущую.</red>");
-                            case NO_MONEY -> MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для такой ставки!</red>");
-                            case ALREADY_HIGHEST -> MessageUtils.sendMessage(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
-                            case NOT_REGISTERED -> MessageUtils.sendMessage(player, "<red>Вы не вносили залог для участия!</red>");
-                            default -> MessageUtils.sendMessage(player, "<red>Не удалось сделать ставку.</red>");
+                            case TOO_LOW -> MessageUtils.event(player, "<red>Ставка слишком мала! Она должна превышать текущую.</red>");
+                            case NO_MONEY -> MessageUtils.event(player, "<red>У вас недостаточно монет для такой ставки!</red>");
+                            case ALREADY_HIGHEST -> MessageUtils.event(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
+                            case NOT_REGISTERED -> MessageUtils.event(player, "<red>Вы не вносили залог для участия!</red>");
+                            default -> MessageUtils.event(player, "<red>Не удалось сделать ставку.</red>");
                         }
                     }
 
@@ -347,12 +347,12 @@ public class LostCaravanAuctionGui implements InventoryHolder {
     /** Tells the player why a quick bid did not go through (it used to fail silently). */
     private static void report(Player player, LostCaravanManager.BidResult result) {
         switch (result) {
-            case TOO_LOW -> MessageUtils.sendMessage(player, "<red>Ставка слишком мала: нужно выше текущей минимум на шаг повышения (по умолчанию 5%).</red>");
-            case NO_MONEY -> MessageUtils.sendMessage(player, "<red>У вас недостаточно монет для такой ставки!</red>");
-            case ALREADY_HIGHEST -> MessageUtils.sendMessage(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
-            case NOT_REGISTERED -> MessageUtils.sendMessage(player, "<red>Вы не вносили залог для участия!</red>");
-            case AUCTION_NOT_ACTIVE -> MessageUtils.sendMessage(player, "<red>Торги за этот лот уже закончились.</red>");
-            case DB_ERROR -> MessageUtils.sendMessage(player, "<red>Не удалось сохранить ставку, монеты возвращены.</red>");
+            case TOO_LOW -> MessageUtils.event(player, "<red>Ставка слишком мала: нужно выше текущей минимум на шаг повышения (по умолчанию 5%).</red>");
+            case NO_MONEY -> MessageUtils.event(player, "<red>У вас недостаточно монет для такой ставки!</red>");
+            case ALREADY_HIGHEST -> MessageUtils.event(player, "<yellow>Вы уже лидируете в торгах!</yellow>");
+            case NOT_REGISTERED -> MessageUtils.event(player, "<red>Вы не вносили залог для участия!</red>");
+            case AUCTION_NOT_ACTIVE -> MessageUtils.event(player, "<red>Торги за этот лот уже закончились.</red>");
+            case DB_ERROR -> MessageUtils.event(player, "<red>Не удалось сохранить ставку, монеты возвращены.</red>");
             default -> { }
         }
     }

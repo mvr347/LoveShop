@@ -122,7 +122,7 @@ public class CommissionManager {
 
         seller.playSound(seller.getLocation(), Sound.ENTITY_VILLAGER_YES, 1.0f, 1.1f);
         LoveEconomy eco = plugin.getEconomy().orElse(null);
-        MessageUtils.sendMessage(seller, "<green>Лот успешно выставлен за "
+        MessageUtils.important(seller, "<green>Лот успешно выставлен за "
                 + CoinFormat.formatGlyphs(eco, price) + "! Комиссия брокера при продаже составит " + feePercent + "%.</green>");
 
         return LotResult.SUCCESS;
@@ -214,10 +214,10 @@ public class CommissionManager {
             for (ItemStack drop : leftover.values()) {
                 buyer.getWorld().dropItemNaturally(buyer.getLocation(), drop);
             }
-            MessageUtils.sendMessage(buyer, "<yellow>[Комиссионер] В инвентаре не хватило места, часть предметов выпала на землю!</yellow>");
+            MessageUtils.important(buyer, "<yellow>[Комиссионер] В инвентаре не хватило места, часть предметов выпала на землю!</yellow>");
         }
         buyer.playSound(buyer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-        MessageUtils.sendMessage(buyer, "<green>[Комиссионер] Вы успешно приобрели предмет за "
+        MessageUtils.important(buyer, "<green>[Комиссионер] Вы успешно приобрели предмет за "
                 + CoinFormat.formatGlyphs(eco, lot.price()) + "!</green>");
 
         // 3. Выплата продавцу (за вычетом комиссии)
@@ -227,13 +227,13 @@ public class CommissionManager {
             if (eco.canFit(seller, payout)) {
                 eco.give(seller, payout);
                 CaravanEffects.playSubmitEffects(seller);
-                MessageUtils.sendMessage(seller, "<green>[Комиссионер] Ваш лот был куплен игроком <gold>"
+                MessageUtils.important(seller, "<green>[Комиссионер] Ваш лот был куплен игроком <gold>"
                         + buyer.getName() + "</gold>! Вам начислено " + CoinFormat.formatGlyphs(eco, payout)
                         + " (комиссия " + lot.feePercent() + "%).</green>");
             } else {
                 // Инвентарь полон -> откладываем в pending_payouts
                 addPendingPayout(lot.sellerUuid(), payout);
-                MessageUtils.sendMessage(seller, "<yellow>[Комиссионер] Ваш лот был куплен игроком <gold>"
+                MessageUtils.important(seller, "<yellow>[Комиссионер] Ваш лот был куплен игроком <gold>"
                         + buyer.getName() + "</gold>, но ваш инвентарь полон! Монеты (" + CoinFormat.formatGlyphs(eco, payout)
                         + ") сохранены в выплатах и будут выданы, когда вы освободите место.</yellow>");
             }
@@ -282,11 +282,11 @@ public class CommissionManager {
             for (ItemStack drop : leftover.values()) {
                 seller.getWorld().dropItemNaturally(seller.getLocation(), drop);
             }
-            MessageUtils.sendMessage(seller, "<yellow>Ваш инвентарь был полон, предмет выпал рядом с вами!</yellow>");
+            MessageUtils.important(seller, "<yellow>Ваш инвентарь был полон, предмет выпал рядом с вами!</yellow>");
         }
 
         seller.playSound(seller.getLocation(), Sound.BLOCK_CHEST_CLOSE, 1.0f, 1.0f);
-        MessageUtils.sendMessage(seller, "<yellow>[Комиссионер] Лот снят с продажи, предмет возвращён в ваш инвентарь.</yellow>");
+        MessageUtils.event(seller, "<yellow>[Комиссионер] Лот снят с продажи, предмет возвращён в ваш инвентарь.</yellow>");
         return LotResult.SUCCESS;
     }
 
@@ -314,7 +314,7 @@ public class CommissionManager {
                 LoveEconomy eco = plugin.getEconomy().orElse(null);
                 if (eco != null) {
                     if (!eco.canFit(player, total)) {
-                        MessageUtils.sendMessage(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <yellow>У вас есть отложенная выплата за продажу лотов ("
+                        MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <yellow>У вас есть отложенная выплата за продажу лотов ("
                                 + CoinFormat.formatGlyphs(eco, total) + "), но в вашем инвентаре недостаточно места для монет! Освободите слоты.</yellow>");
                         return;
                     }
@@ -331,7 +331,7 @@ public class CommissionManager {
                     long finalTotal = total;
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         if (player.isOnline()) {
-                            MessageUtils.sendMessage(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <green>Пока вас не было в сети, были проданы ваши лоты! Вам начислено: "
+                            MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <green>Пока вас не было в сети, были проданы ваши лоты! Вам начислено: "
                                     + CoinFormat.formatGlyphs(eco, finalTotal) + ".</green>");
                         }
                     }, 40L);

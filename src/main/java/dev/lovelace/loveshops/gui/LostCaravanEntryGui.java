@@ -156,16 +156,16 @@ public class LostCaravanEntryGui implements InventoryHolder {
         if (rawSlot == SLOT_REGISTER) {
             LostCaravanManager manager = plugin.getLostCaravanManager();
             if (manager == null || !manager.isRegistrationPhase()) {
-                MessageUtils.sendMessage(player, "<red>Фаза регистрации уже завершена или событие не активно!</red>");
+                MessageUtils.event(player, "<red>Фаза регистрации уже завершена или событие не активно!</red>");
                 player.closeInventory();
                 return;
             }
 
             LostCaravanManager.RegisterResult result = manager.registerParticipant(player);
             switch (result) {
-                case ALREADY_REGISTERED -> MessageUtils.sendMessage(player, "<yellow>Вы уже зарегистрированы в этом караване.</yellow>");
-                case NO_FEE -> MessageUtils.sendMessage(player, "<red>У вас нет достаточного количества монет для внесения залога!</red>");
-                case EVENT_NOT_REGISTRATION -> MessageUtils.sendMessage(player, "<red>Регистрация уже закрыта!</red>");
+                case ALREADY_REGISTERED -> MessageUtils.event(player, "<yellow>Вы уже зарегистрированы в этом караване.</yellow>");
+                case NO_FEE -> MessageUtils.event(player, "<red>У вас нет достаточного количества монет для внесения залога!</red>");
+                case EVENT_NOT_REGISTRATION -> MessageUtils.event(player, "<red>Регистрация уже закрыта!</red>");
                 default -> {}
             }
             gui.render();
