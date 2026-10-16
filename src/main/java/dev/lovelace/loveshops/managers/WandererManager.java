@@ -63,6 +63,9 @@ public class WandererManager {
     public WandererManager(LoveShops plugin) {
         this.plugin = plugin;
         loadScheduleState();
+        for (org.bukkit.entity.Player online : Bukkit.getOnlinePlayers()) {
+            onPlayerJoin(online.getUniqueId());
+        }
     }
 
     // ==========================================
@@ -601,6 +604,26 @@ public class WandererManager {
     // DEAL OPERATIONS & PERSISTENCE
     // ==========================================
 
+    private final WandererDealCache dealCache = new WandererDealCache();
+
+    public WandererDealCache getDealCache() {
+        return dealCache;
+    }
+
+    /** Join: start tracking and load the deal in the background. */
+    public void onPlayerJoin(UUID uuid) {
+        dealCache.track(uuid);
+        getPlayerDeal(uuid);
+    }
+
+    public void onPlayerQuit(UUID uuid) {
+        dealCache.untrack(uuid);
+    }
+
+    private void refreshDealCache(UUID uuid) {
+        if (dealCache.isTracked(uuid)) getPlayerDeal(uuid);
+    }
+
     public CompletableFuture<Optional<WandererDeal>> getPlayerDeal(UUID playerUuid) {
         CompletableFuture<Optional<WandererDeal>> future = new CompletableFuture<>();
 
@@ -633,7 +656,9 @@ public class WandererManager {
             }
         });
 
-        return future;
+        return future.whenComplete((opt, err) -> {
+            if (err == null && opt != null) dealCache.update(playerUuid, opt);
+        });
     }
 
     public CompletableFuture<Boolean> startDeal(Player player) {
@@ -768,7 +793,7 @@ public class WandererManager {
             }
         });
 
-        return future;
+        return future.whenComplete((r, t) -> refreshDealCache(player.getUniqueId()));
     }
 
     public CompletableFuture<Boolean> buyDealItem(Player player, String dealItemId) {
@@ -867,7 +892,7 @@ public class WandererManager {
             return null;
         });
 
-        return future;
+        return future.whenComplete((r, t) -> refreshDealCache(playerUuid));
     }
 
     public CompletableFuture<Void> resetDeal(UUID playerUuid) {
@@ -886,7 +911,7 @@ public class WandererManager {
             }
         });
 
-        return future;
+        return future.whenComplete((r, t) -> refreshDealCache(playerUuid));
     }
 
     public CompletableFuture<Boolean> setDealReady(UUID playerUuid) {
@@ -911,7 +936,7 @@ public class WandererManager {
             }
         });
 
-        return future;
+        return future.whenComplete((r, t) -> refreshDealCache(playerUuid));
     }
 
     private void updateDealStatus(UUID playerUuid, String status) {

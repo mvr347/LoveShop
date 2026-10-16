@@ -687,7 +687,29 @@ public class DailyCaravanManager {
         return null;
     }
 
+    // Units each player submitted during the current visit: read from the DB once per player, then
+    // kept in memory (submitItems consults it on every click).
+    private final java.util.Map<UUID, Integer> submittedUnits = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile int submittedUnitsVisit = Integer.MIN_VALUE;
+
+    private void addSubmittedUnits(UUID playerUuid, int amount) {
+        if (submittedUnitsVisit != currentVisitId) return; // not loaded for this visit yet; the next read hits the DB
+        submittedUnits.merge(playerUuid, amount, Integer::sum);
+    }
+
     private int getPlayerSubmittedUnits(UUID playerUuid, int visitId) {
+        if (submittedUnitsVisit != visitId) {
+            submittedUnits.clear();
+            submittedUnitsVisit = visitId;
+        }
+        Integer cached = submittedUnits.get(playerUuid);
+        if (cached != null) return cached;
+        int loaded = readPlayerSubmittedUnits(playerUuid, visitId);
+        submittedUnits.put(playerUuid, loaded);
+        return loaded;
+    }
+
+    private int readPlayerSubmittedUnits(UUID playerUuid, int visitId) {
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             PreparedStatement ps = conn.prepareStatement("""
                 SELECT COALESCE(SUM(s.amount), 0) AS total_submitted
@@ -706,13 +728,21 @@ public class DailyCaravanManager {
     }
 
     private void updateCrateInDb(DailyCrateState crate) {
+        // Snapshot now (state is mutated on the main thread), write on the DB thread.
+        final int amount = crate.currentAmount();
+        final boolean closed = crate.isClosed();
+        final int id = crate.id();
+        plugin.getDatabaseManager().runAsync(() -> writeCrate(id, amount, closed));
+    }
+
+    private void writeCrate(int id, int amount, boolean closed) {
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             PreparedStatement ps = conn.prepareStatement(
                     "UPDATE daily_caravan_crates SET current_amount = ?, closed = ? WHERE id = ?"
             );
-            ps.setInt(1, crate.currentAmount());
-            ps.setInt(2, crate.isClosed() ? 1 : 0);
-            ps.setInt(3, crate.id());
+            ps.setInt(1, amount);
+            ps.setInt(2, closed ? 1 : 0);
+            ps.setInt(3, id);
             ps.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().warning("Ошибка обновления ящика в БД: " + e.getMessage());
@@ -720,6 +750,11 @@ public class DailyCaravanManager {
     }
 
     private void recordSubmission(int crateId, UUID playerUuid, int amount, long paid) {
+        addSubmittedUnits(playerUuid, amount);
+        plugin.getDatabaseManager().runAsync(() -> writeSubmission(crateId, playerUuid, amount, paid));
+    }
+
+    private void writeSubmission(int crateId, UUID playerUuid, int amount, long paid) {
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             PreparedStatement ps = conn.prepareStatement(
                     "INSERT INTO daily_caravan_submissions (crate_id, player_uuid, amount, paid) VALUES (?, ?, ?, ?)"

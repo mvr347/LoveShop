@@ -621,9 +621,38 @@ public class DatabaseManager {
         }
     }
 
+    // Single DB thread: writes queued from the main thread run in submission order off the tick.
+    private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "LoveShops-db");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Runs a DB task on the dedicated DB thread. */
+    public void runAsync(Runnable task) {
+        try {
+            dbExecutor.execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            plugin.getLogger().warning("DB executor is shut down, task dropped");
+        }
+    }
+
+    private ConnectionPool pool;
+    private ConnectionPool immediatePool;
+
+    private synchronized ConnectionPool pool(boolean immediate) {
+        if (pool == null) {
+            File dbFile = new File(plugin.getDataFolder(), "database.db");
+            String base = "jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true";
+            pool = new ConnectionPool(() -> DriverManager.getConnection(base), 4);
+            immediatePool = new ConnectionPool(() -> DriverManager.getConnection(base + "&transaction_mode=IMMEDIATE"), 2);
+        }
+        return immediate ? immediatePool : pool;
+    }
+
+    /** Pooled long-lived connection; close() returns it to the pool. */
     public Connection getConnection() throws SQLException {
-        File dbFile = new File(plugin.getDataFolder(), "database.db");
-        return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true");
+        return pool(false).borrow();
     }
 
     /**
@@ -632,12 +661,22 @@ public class DatabaseManager {
      * (the market moves money and items, a lost update there is a dupe).
      */
     public Connection getImmediateConnection() throws SQLException {
-        File dbFile = new File(plugin.getDataFolder(), "database.db");
-        return DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath()
-                + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true&transaction_mode=IMMEDIATE");
+        return pool(true).borrow();
     }
 
     public synchronized void close() {
+        // Drain queued writes before the connections go away.
+        dbExecutor.shutdown();
+        try {
+            if (!dbExecutor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                dbExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            dbExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        if (pool != null) pool.close();
+        if (immediatePool != null) immediatePool.close();
         plugin.getLogger().info("База данных закрыта.");
     }
 

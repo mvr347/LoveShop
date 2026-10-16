@@ -47,24 +47,16 @@ public class LoveShopsPlaceholder extends PlaceholderExpansion {
             return plugin.getWandererManager().getNextArrivalText();
         }
 
+        // Cache only: onRequest runs on the main thread and must not touch the DB or wait on a future.
         if (params.equalsIgnoreCase("wanderer_deal_status") && player != null) {
-            try {
-                var opt = plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).get();
-                return opt.map(dev.lovelace.loveshops.models.WandererDeal::status).orElse("NONE");
-            } catch (Exception e) {
-                return "NONE";
-            }
+            return plugin.getWandererManager().getDealCache()
+                    .status(player.getUniqueId(), System.currentTimeMillis() / 1000);
         }
 
         if (params.equalsIgnoreCase("wanderer_deal_time") && player != null) {
-            try {
-                var opt = plugin.getWandererManager().getPlayerDeal(player.getUniqueId()).get();
-                return opt.map(d -> TimeUtils.formatRemainingTime(d.remainingSeconds())).orElse("0с");
-            } catch (Exception e) {
-                return "0с";
-            }
+            return plugin.getWandererManager().getDealCache().get(player.getUniqueId())
+                    .map(d -> TimeUtils.formatRemainingTime(d.remainingSeconds())).orElse("0с");
         }
-
 
         if (params.startsWith("item_") && params.endsWith("_price")) {
             String matName = params.substring(5, params.length() - 6).toUpperCase();

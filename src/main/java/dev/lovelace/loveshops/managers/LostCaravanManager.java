@@ -327,9 +327,26 @@ public class LostCaravanManager {
             return;
         }
 
-        // Проверяем, наступило ли время создания новой сессии
-        // Для еженедельного расписания ищем последнюю закрытую сессию
-        long lastSessionTime = getLastSessionScheduledTime();
+        // The "last session" lookup is a DB read: do it on the DB executor, then decide on the main thread.
+        if (!scheduleCheckInFlight.compareAndSet(false, true)) return;
+        plugin.getDatabaseManager().runAsync(() -> {
+            long lastSessionTime;
+            try {
+                lastSessionTime = getLastSessionScheduledTime();
+            } finally {
+                Bukkit.getScheduler().runTask(plugin, () -> scheduleCheckInFlight.set(false));
+            }
+            long checkedAt = System.currentTimeMillis() / 1000;
+            Bukkit.getScheduler().runTask(plugin, () -> maybeAnnounce(checkedAt, lastSessionTime));
+        });
+    }
+
+    private final java.util.concurrent.atomic.AtomicBoolean scheduleCheckInFlight = new java.util.concurrent.atomic.AtomicBoolean();
+
+    private void maybeAnnounce(long now, long lastSessionTime) {
+        synchronized (this) {
+            if (currentSession != null) return; // something else started a session meanwhile
+        }
         long sevenDays = 7L * 86400L;
 
         if (now - lastSessionTime >= sevenDays) {
@@ -720,6 +737,7 @@ public class LostCaravanManager {
         }
 
         currentSession = null;
+        participantCache.clear();
         activeLots.clear();
         currentAuctionLotIndex = -1;
         closeMenus(true);
@@ -959,6 +977,7 @@ public class LostCaravanManager {
             """);
             psCount.setInt(1, currentSession.id());
             psCount.executeUpdate();
+            participantCache.add(currentSession.id(), uuid);
         } catch (SQLException e) {
             plugin.getLogger().severe("Ошибка регистрации участника Lost Caravan: " + e.getMessage());
             // The deposit is already taken: it must not vanish with the failed registration.
@@ -1044,19 +1063,27 @@ public class LostCaravanManager {
         }
     }
 
+    private final ParticipantCache participantCache = new ParticipantCache();
+
+    /** Memory lookup; the DB is read once per session (first miss), not on every call. */
     public boolean isParticipant(int sessionId, UUID uuid) {
+        return participantCache.contains(sessionId, uuid, this::loadParticipants);
+    }
+
+    private java.util.Set<UUID> loadParticipants(int sessionId) {
+        java.util.Set<UUID> result = new java.util.HashSet<>();
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("""
-                SELECT 1 FROM lost_caravan_participants WHERE session_id = ? AND player_uuid = ?
-            """);
+            PreparedStatement ps = conn.prepareStatement(
+                    "SELECT player_uuid FROM lost_caravan_participants WHERE session_id = ?");
             ps.setInt(1, sessionId);
-            ps.setString(2, uuid.toString());
             ResultSet rs = ps.executeQuery();
-            return rs.next();
+            while (rs.next()) {
+                result.add(UUID.fromString(rs.getString(1)));
+            }
         } catch (SQLException e) {
-            plugin.getLogger().warning("Ошибка проверки участника: " + e.getMessage());
+            plugin.getLogger().warning("Ошибка загрузки участников: " + e.getMessage());
         }
-        return false;
+        return result;
     }
 
     public int getParticipantCount(int sessionId) {
