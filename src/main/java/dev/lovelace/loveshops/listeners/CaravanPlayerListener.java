@@ -18,12 +18,22 @@ public class CaravanPlayerListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        if (plugin.getWandererManager() != null) {
+            plugin.getWandererManager().onPlayerJoin(player.getUniqueId());
+        }
         if (plugin.getCommissionManager() != null && plugin.getCommissionManager().isEnabled()) {
             org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     plugin.getCommissionManager().claimPendingPayouts(player);
                 }
             }, 60L);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        if (plugin.getWandererManager() != null) {
+            plugin.getWandererManager().onPlayerQuit(event.getPlayer().getUniqueId());
         }
     }
 

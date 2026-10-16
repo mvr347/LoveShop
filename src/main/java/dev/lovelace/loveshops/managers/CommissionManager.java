@@ -293,53 +293,90 @@ public class CommissionManager {
     /**
      * Проверка и начисление отложенных выплат офлайн-продавцу при входе.
      */
+    // Players whose payout claim is currently being processed (guards a double claim on quick rejoin).
+    private final java.util.Set<UUID> claimsInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public void claimPendingPayouts(Player player) {
         if (player == null || !player.isOnline()) return;
         UUID uuid = player.getUniqueId();
+        if (!claimsInFlight.add(uuid)) return;
 
-        long total = 0;
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("""
-                SELECT id, amount FROM commission_pending_payouts WHERE seller_uuid = ?
-            """);
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
+        // 1. Read the pending rows off the main thread.
+        plugin.getDatabaseManager().runAsync(() -> {
             List<Integer> ids = new ArrayList<>();
-            while (rs.next()) {
-                ids.add(rs.getInt("id"));
-                total += rs.getLong("amount");
-            }
-
-            if (total > 0 && !ids.isEmpty()) {
-                LoveEconomy eco = plugin.getEconomy().orElse(null);
-                if (eco != null) {
-                    if (!eco.canFit(player, total)) {
-                        MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <yellow>У вас есть отложенная выплата за продажу лотов ("
-                                + CoinFormat.formatGlyphs(eco, total) + "), но в вашем инвентаре недостаточно места для монет! Освободите слоты.</yellow>");
-                        return;
-                    }
-
-                    eco.give(player, total);
-
-                    PreparedStatement psDel = conn.prepareStatement(
-                            "DELETE FROM commission_pending_payouts WHERE seller_uuid = ?"
-                    );
-                    psDel.setString(1, uuid.toString());
-                    psDel.executeUpdate();
-
-                    CaravanEffects.playSubmitEffects(player);
-                    long finalTotal = total;
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                        if (player.isOnline()) {
-                            MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <green>Пока вас не было в сети, были проданы ваши лоты! Вам начислено: "
-                                    + CoinFormat.formatGlyphs(eco, finalTotal) + ".</green>");
-                        }
-                    }, 40L);
+            long total = 0;
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "SELECT id, amount FROM commission_pending_payouts WHERE seller_uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    ids.add(rs.getInt("id"));
+                    total += rs.getLong("amount");
                 }
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Ошибка выдачи отложенных выплат комиссии: " + e.getMessage());
+                claimsInFlight.remove(uuid);
+                return;
             }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Ошибка выдачи отложенных выплат комиссии: " + e.getMessage());
+            if (ids.isEmpty() || total <= 0) {
+                claimsInFlight.remove(uuid);
+                return;
+            }
+            final long finalTotal = total;
+            // 2. Pay on the main thread (inventory access).
+            Bukkit.getScheduler().runTask(plugin, () -> payClaimed(player, ids, finalTotal));
+        });
+    }
+
+    private void payClaimed(Player player, List<Integer> ids, long total) {
+        UUID uuid = player.getUniqueId();
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        if (eco == null || !player.isOnline()) {
+            claimsInFlight.remove(uuid);
+            return;
         }
+        if (!eco.canFit(player, total)) {
+            MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <yellow>У вас есть отложенная выплата за продажу лотов ("
+                    + CoinFormat.formatGlyphs(eco, total) + "), но в вашем инвентаре недостаточно места для монет! Освободите слоты.</yellow>");
+            claimsInFlight.remove(uuid);
+            return;
+        }
+
+        eco.give(player, total);
+        CaravanEffects.playSubmitEffects(player);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) {
+                MessageUtils.important(player, "<gold><bold>📦 [Комиссионер]</bold></gold> <green>Пока вас не было в сети, были проданы ваши лоты! Вам начислено: "
+                        + CoinFormat.formatGlyphs(eco, total) + ".</green>");
+            }
+        }, 40L);
+
+        // 3. Delete exactly the rows that were paid, in one transaction. A blanket
+        // "DELETE WHERE seller_uuid" also removed payouts inserted after the SELECT (never paid).
+        plugin.getDatabaseManager().runAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                conn.setAutoCommit(false);
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "DELETE FROM commission_pending_payouts WHERE id = ? AND seller_uuid = ?")) {
+                    for (int id : ids) {
+                        psDel.setInt(1, id);
+                        psDel.setString(2, uuid.toString());
+                        psDel.addBatch();
+                    }
+                    psDel.executeBatch();
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Ошибка удаления выплаченных отложенных выплат комиссии (игрок " + uuid
+                        + ", id " + ids + "): " + e.getMessage());
+            } finally {
+                claimsInFlight.remove(uuid);
+            }
+        });
     }
 
     private void addPendingPayout(UUID sellerUuid, int amount) {
