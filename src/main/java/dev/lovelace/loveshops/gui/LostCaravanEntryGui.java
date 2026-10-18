@@ -77,16 +77,17 @@ public class LostCaravanEntryGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
-                "<gold>⚔ Правила Потерянного Каравана</gold>",
+                "<gold>Правила Потерянного Каравана</gold>",
                 List.of(
                         "",
-                        "<gray>Еженедельное торговое событие с ценными ящиками!</gray>",
-                        "<gray>Залог за участие: </gray>" + CoinFormat.formatGlyphs(eco, fee),
-                        "<gray>Если вы ничего не выиграете — вернётся <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "% залога</green>.</gray>",
-                        "<gray>При участниках больше <yellow>" + plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6) + "</yellow> — открывается аукцион.</gray>",
-                        "<gray>От <yellow>" + plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12) + "</yellow> участников — появляется <red>Секретный Ящик</red>!</gray>",
+                        "<dark_gray>▪ <gray>О событии:",
+                        "  <gray>Еженедельное торговое событие с ценными ящиками.",
+                        "  <gray>Залог за участие: " + CoinFormat.formatGlyphs(eco, fee),
+                        "  <gray>При отсутствии выигрыша вернётся <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "% залога</green>.",
+                        "  <gray>Участников > <yellow>" + plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6) + "</yellow> — открывается аукцион.",
+                        "  <gray>Участников > <yellow>" + plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12) + "</yellow> — появляется <red>Секретный Ящик</red>.",
                         "",
-                        "<gray>До торгов: </gray>" + remainingLabel()
+                        "<gray>До начала торгов: </gray>" + remainingLabel()
                 )
         );
         GuiUtils.putIfChanged(inventory, 0, infoItem);
@@ -102,25 +103,26 @@ public class LostCaravanEntryGui implements InventoryHolder {
         if (already) {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.HEAD_CONFIRM,
-                    "<green>Вы зарегистрированы</green>",
+                    "<green>Регистрация подтверждена</green>",
                     List.of(
                             "",
-                            "<green>Вы уже зарегистрированы!</green>",
+                            "<green>✓ Вы успешно зарегистрированы</green>",
                             "<gray>До торгов: </gray>" + remainingLabel()
                     )
             );
         } else {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold>Внести залог и участвовать</gold>",
+                    "<gold>Внести залог</gold>",
                     List.of(
                             "",
-                            "<gray>Стоимость залога: </gray>" + CoinFormat.formatGlyphs(eco, fee),
-                            "<gray>Неуспешным участникам возвращается <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "%</green>.</gray>",
+                            "<dark_gray>▪ <gray>Условия участия:",
+                            "  <gray>Залог: " + CoinFormat.formatGlyphs(eco, fee),
+                            "  <gray>Возврат при неудаче: <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "%</green>",
+                            "  <gray>До начала: " + remainingLabel(),
                             "",
-                            "<gray>До торгов: </gray>" + remainingLabel(),
-                            "",
-                            "<yellow>Нажмите, чтобы зарегистрироваться!</yellow>"
+                            "<dark_gray><st>─────────────────────</st></dark_gray>",
+                            "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>зарегистрироваться</gray>"
                     )
             );
         }
@@ -132,7 +134,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
         GuiUtils.putIfChanged(inventory, SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню</gray>")
+                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
         ));
     }
 

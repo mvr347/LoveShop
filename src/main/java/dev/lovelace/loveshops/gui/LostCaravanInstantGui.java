@@ -72,12 +72,13 @@ public class LostCaravanInstantGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
-                "<gold>📦 Мгновенная покупка ящиков</gold>",
+                "<gold>Мгновенная покупка ящиков</gold>",
                 List.of(
                         "",
-                        "<gray>В караване мало участников — режим аукциона отключён!</gray>",
-                        "<gray>Вы можете выкупить ящики по фиксированной цене.</gray>",
-                        "<gray>Первый купивший забирает ящик!</gray>"
+                        "<dark_gray>▪ <gray>Правила покупки:",
+                        "  <gray>В караване мало участников — аукцион отключён.",
+                        "  <gray>Выкуп ящиков доступен по фиксированной цене.",
+                        "  <gray>Первый купивший забирает ящик!"
                 )
         );
         inventory.setItem(0, infoItem);
@@ -94,7 +95,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
             if ("SOLD".equalsIgnoreCase(lot.status())) {
                 displayItem = GuiUtils.createCustomHead(
                         HeadTextures.HEAD_DELETE_NO,
-                        "<red>[ РАСПРОДАНО ]</red>",
+                        "<gray>Ящик <dark_gray>| <red>Распродано",
                         List.of("", "<gray>Этот ящик уже приобрёл другой игрок.</gray>")
                 );
             } else {
@@ -104,14 +105,15 @@ public class LostCaravanInstantGui implements InventoryHolder {
                     List<Component> lore = new ArrayList<>();
                     lore.add(Component.empty());
                     if (lot.secret()) {
-                        lore.add(MessageUtils.parse("<red>⚡ СЕКРЕТНЫЙ ЯЩИК</red>"));
+                        lore.add(MessageUtils.parse("<red>СЕКРЕТНЫЙ ЯЩИК</red>"));
                     } else {
                         lore.add(MessageUtils.parse("<gold>Ящик #" + (i + 1) + "</gold>"));
                     }
                     lore.add(Component.empty());
                     lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.startingPrice())));
                     lore.add(Component.empty());
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— купить ящик</gray>"));
+                    lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>купить ящик</gray>"));
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
                     displayItem.setItemMeta(meta);
@@ -124,10 +126,11 @@ public class LostCaravanInstantGui implements InventoryHolder {
         for (int i = 27; i <= 35; i++) {
             inventory.setItem(i, filler);
         }
+
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню</gray>")
+                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
         ));
     }
 

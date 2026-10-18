@@ -81,12 +81,13 @@ public class DailyCaravanGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold>📦 Караванщик</gold>",
+                "<gold>Караванщик</gold>",
                 List.of(
                         "",
-                        "<gray>Сдавайте ресурсы каравану за монеты!</gray>",
-                        "<gray>Осталось в городе: <yellow>" + timeLeftStr + "</yellow></gray>",
-                        "<gray>Бонус за сдачу полными стаками: <green>+8-10%</green></gray>"
+                        "<dark_gray>▪ <gray>Скупка ресурсов:",
+                        "  <gray>Сдавайте ресурсы каравану за монеты.",
+                        "  <gray>Осталось в городе: <yellow>" + timeLeftStr + "</yellow>",
+                        "  <gray>Бонус за сдачу стаками: <green>+8–10%</green>"
                 )
         );
         inventory.setItem(0, infoItem);
@@ -156,12 +157,13 @@ public class DailyCaravanGui implements InventoryHolder {
                 lore.add(Component.empty());
 
                 // 4. Действия/кнопки
+                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
                 if (crate.isClosed()) {
-                    lore.add(MessageUtils.parse("<red>[ ЯЩИК ЗАКРЫТ ]</red>"));
+                    lore.add(MessageUtils.parse("<red>✕ Ящик заполнен и закрыт</red>"));
                 } else {
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— сдать предмет из руки</gray>"));
-                    lore.add(MessageUtils.parse("<red>ПКМ</red> <gray>— сдать все подходящие из инвентаря</gray>"));
-                    lore.add(MessageUtils.parse("<yellow>Shift </yellow><gray>на предмете в инвентаре — сдать его</gray>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>сдать предмет из руки</gray>"));
+                    lore.add(MessageUtils.parse("<gold>ПКМ</gold> <dark_gray>—</dark_gray> <gray>сдать все из инвентаря</gray>"));
+                    lore.add(MessageUtils.parse("<yellow>Shift+Клик</yellow> <dark_gray>—</dark_gray> <gray>сдать стак из инвентаря</gray>"));
                 }
 
                 meta.lore(lore);
@@ -181,7 +183,7 @@ public class DailyCaravanGui implements InventoryHolder {
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню караванщика</gray>")
+                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
         ));
     }
 

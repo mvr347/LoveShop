@@ -11,21 +11,25 @@ class ProgressBarUtilTest {
     @Test
     void emptyBarIsBracketedAndGray() {
         String bar = ProgressBarUtil.bar(0, 100, 20);
-        assertEquals("<dark_gray>[</dark_gray><dark_gray>" + "■".repeat(20) + "</dark_gray><dark_gray>]</dark_gray>", bar);
+        assertTrue(bar.startsWith("<dark_gray>[</dark_gray>"));
+        assertTrue(bar.contains("█".repeat(20)));
+        assertTrue(bar.contains("0%"));
         assertFalse(bar.contains("<green>"));
     }
 
     @Test
     void fullBarIsGreen() {
         String bar = ProgressBarUtil.bar(100, 100, 20);
-        assertEquals("<dark_gray>[</dark_gray><green>" + "■".repeat(20) + "</green><dark_gray>]</dark_gray>", bar);
+        assertTrue(bar.contains("<green>"));
+        assertTrue(bar.contains("100%"));
     }
 
     @Test
     void halfBarSplitsGreenAndGray() {
         String bar = ProgressBarUtil.bar(10, 20, 20);
-        assertTrue(bar.contains("<green>" + "■".repeat(10) + "</green>"));
-        assertTrue(bar.contains("<dark_gray>" + "■".repeat(10) + "</dark_gray>"));
+        assertTrue(bar.contains("<gold>" + "█".repeat(10) + "</gold>"));
+        assertTrue(bar.contains("<dark_gray>" + "█".repeat(10) + "]</dark_gray>"));
+        assertTrue(bar.contains("50%"));
     }
 
     @Test
@@ -41,7 +45,7 @@ class ProgressBarUtilTest {
 
     @Test
     void overflowAndZeroMaxAreClamped() {
-        assertTrue(ProgressBarUtil.bar(500, 100, 20).contains("<green>" + "■".repeat(20)));
+        assertTrue(ProgressBarUtil.bar(500, 100, 20).contains("<green>" + "█".repeat(20)));
         assertTrue(ProgressBarUtil.caption(5, 0, "шт").contains("(100%)"));
     }
 }

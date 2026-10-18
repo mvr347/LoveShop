@@ -111,15 +111,16 @@ public class LostCaravanAuctionGui implements InventoryHolder {
 
         put(SLOT_INFO, GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
-                "<gold>⚔ Торги Каравана</gold>",
+                "<gold>Торги Каравана</gold>",
                 List.of(
                         "",
-                        "<gray>Текущий лот: <yellow>" + lotIdx + " из " + totalLots + "</yellow></gray>",
-                        "<gray>Участников каравана: <yellow>" + (session != null ? session.participantCount() : 0) + "</yellow></gray>",
+                        "<dark_gray>▪ <gray>Ход аукциона:",
+                        "  <gray>Текущий лот: <yellow>" + lotIdx + " из " + totalLots + "</yellow>",
+                        "  <gray>Участников каравана: <yellow>" + (session != null ? session.participantCount() : 0) + "</yellow>",
                         "",
-                        "<gray>Ставка возвращается, если вас перебили.</gray>",
+                        "<gray>Ставка возвращается, если вас перебили.",
                         "<gray>Ставка в последние <yellow>" + manager.antiSnipeThresholdSeconds()
-                                + " сек.</yellow> продлевает торги.</gray>"
+                                + " сек.</yellow> продлевает торги."
                 )
         ));
 
@@ -133,7 +134,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         put(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню аукциона</gray>")
+                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
         ));
     }
 
@@ -141,7 +142,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         // Timer card with a progress bar of the lot's bidding window
         put(SLOT_TIMER, GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_TIMER,
-                "<gold>⏱ Осталось: " + timeRem + " сек.</gold>",
+                "<gold>Осталось: " + timeRem + " сек.</gold>",
                 List.of("", timeBar(timeRem), "",
                         "<gray>Ставка в последние <yellow>" + manager.antiSnipeThresholdSeconds()
                                 + " сек.</yellow> добавляет <yellow>" + manager.antiSnipeExtendSeconds() + " сек.</yellow></gray>")
@@ -153,9 +154,9 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
             if (lot.secret()) {
-                lore.add(MessageUtils.parse("<red>⚡ СЕКРЕТНЫЙ ЯЩИК КАРАВАНА</red>"));
+                lore.add(MessageUtils.parse("<red>СЕКРЕТНЫЙ ЯЩИК КАРАВАНА</red>"));
             } else {
-                lore.add(MessageUtils.parse("<gold>📦 Ящик каравана #" + lotIdx + "</gold>"));
+                lore.add(MessageUtils.parse("<gold>Ящик каравана #" + lotIdx + "</gold>"));
             }
             lore.add(Component.empty());
             lore.add(MessageUtils.parse("<gray>Начальная цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.startingPrice())));
@@ -177,7 +178,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                 HeadTextures.BUTTON_PLUS,
                 "<green>Минимальная ставка</green>",
                 List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, manager.minimumBid(lot)), "",
-                        leading ? "<gray>Вы уже лидируете.</gray>" : "<yellow>Нажмите для ставки</yellow>")));
+                        leading ? "<gray>Вы уже лидируете.</gray>" : "<dark_gray><st>─────────────────────</st></dark_gray>\n<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>сделать ставку</gray>")));
 
         int[] slots = {SLOT_BID_1, SLOT_BID_2, SLOT_BID_3};
         String[] colors = {"green", "gold", "yellow"};
@@ -186,7 +187,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                     HeadTextures.BUTTON_PLUS,
                     "<" + colors[i] + ">+" + quickPercent(i) + "%</" + colors[i] + ">",
                     List.of("", "<gray>Поставить: </gray>" + CoinFormat.formatGlyphs(eco, quickBid(manager, lot, i)), "",
-                            leading ? "<gray>Вы уже лидируете.</gray>" : "<yellow>Нажмите для ставки</yellow>")));
+                            leading ? "<gray>Вы уже лидируете.</gray>" : "<dark_gray><st>─────────────────────</st></dark_gray>\n<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>сделать ставку</gray>")));
         }
 
         put(SLOT_CUSTOM_BID, GuiUtils.createCustomHead(
@@ -213,7 +214,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
                 : "<gray>Вы не лидируете: сделайте ставку, чтобы побороться за ящик.</gray>");
         put(SLOT_BIDS, GuiUtils.createCustomHead(
                 leading ? HeadTextures.HEAD_CONFIRM : HeadTextures.BANKER_DEPOSIT_EMPTY,
-                leading ? "<green>Ставки — вы лидируете!</green>" : "<gold>Ставки</gold>",
+                leading ? "<green>Ставки — вы лидируете</green>" : "<gold>Ставки</gold>",
                 lore));
     }
 
@@ -225,8 +226,8 @@ public class LostCaravanAuctionGui implements InventoryHolder {
             put(SLOTS_QUEUE[i], GuiUtils.createCustomHead(
                     next.secret() ? HeadTextures.CARAVAN_LOST_SECRET : HeadTextures.CARAVAN_LOST_CRATE,
                     next.secret()
-                            ? "<red>⚡ Секретный ящик #" + (next.lotIndex() + 1) + "</red>"
-                            : "<gold>📦 Ящик #" + (next.lotIndex() + 1) + "</gold>",
+                            ? "<red>Секретный ящик #" + (next.lotIndex() + 1) + "</red>"
+                            : "<gold>Ящик #" + (next.lotIndex() + 1) + "</gold>",
                     List.of("", "<gray>Следующие торги.</gray>",
                             "<gray>Начальная цена: </gray>" + CoinFormat.formatGlyphs(eco, next.startingPrice()))));
         }

@@ -154,7 +154,7 @@ public final class MessageUtils {
             String itemId = denominations.get(0).itemId();
             int colon = itemId.indexOf(':');
             String tag = colon >= 0 ? itemId.substring(colon + 1) : itemId;
-            return "%img_" + tag + "% ";
+            return "<white>%img_" + tag + "%</white> ";
         }).orElse("");
     }
 }

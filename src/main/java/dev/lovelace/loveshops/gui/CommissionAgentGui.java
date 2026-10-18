@@ -92,13 +92,14 @@ public class CommissionAgentGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold>⚖ Комиссионный брокер</gold>",
+                "<gold>Комиссионный брокер</gold>",
                 List.of(
                         "",
-                        "<gray>Покупайте товары других игроков и выставляйте свои!</gray>",
-                        "<gray>Комиссия брокера при продаже: <yellow>" + feePercent + "%</yellow></gray>",
-                        "<gray>Лимит активных лотов: <yellow>" + manager.getMaxLotsPerPlayer() + " шт.</yellow></gray>",
-                        "<gray>Оплата и получение: исключительно физические монеты.</gray>"
+                        "<dark_gray>▪ <gray>Правила торговли:",
+                        "  <gray>Покупайте товары других игроков и выставляйте свои.",
+                        "  <gray>Комиссия брокера при продаже: <yellow>" + feePercent + "%</yellow>",
+                        "  <gray>Лимит активных лотов: <white>" + manager.getMaxLotsPerPlayer() + " шт.</white>",
+                        "  <gray>Оплата и получение: исключительно физические монеты."
                 )
         );
         inventory.setItem(SLOT_INFO, infoItem);
@@ -118,6 +119,7 @@ public class CommissionAgentGui implements InventoryHolder {
         if (lots.isEmpty()) {
             inventory.setItem(31, GuiUtils.emptyCard("<gray>Выставьте первый лот — кнопка внизу.</gray>"));
         }
+
         for (int i = 0; i < lots.size() && i < CONTENT_SLOTS.length; i++) {
             CommissionLot lot = lots.get(i);
             int slot = CONTENT_SLOTS[i];
@@ -129,7 +131,7 @@ public class CommissionAgentGui implements InventoryHolder {
                 lore.add(Component.empty());
 
                 if (lot.hot()) {
-                    lore.add(MessageUtils.parse("<red>🔥 ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ!</red>"));
+                    lore.add(MessageUtils.parse("<red>ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ!</red>"));
                     lore.add(Component.empty());
                     meta.addEnchant(Enchantment.UNBREAKING, 1, true);
                     meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -149,11 +151,12 @@ public class CommissionAgentGui implements InventoryHolder {
                 }
                 for (String line : CoinFormat.glyphLineStrings(eco, lot.price())) lore.add(MessageUtils.parse(line));
                 lore.add(Component.empty());
+                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
 
                 if (player.getUniqueId().equals(lot.sellerUuid())) {
-                    lore.add(MessageUtils.parse("<yellow>Ваш лот</yellow> <dark_gray>·</dark_gray> <green>ЛКМ</green> <gray>— снять</gray>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>снять лот</gray>"));
                 } else {
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— купить предмет</gray>"));
+                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>купить предмет</gray>"));
                 }
 
                 meta.lore(lore);
@@ -167,16 +170,16 @@ public class CommissionAgentGui implements InventoryHolder {
         if (page > 0) {
             inventory.setItem(SLOT_PREV_PAGE, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_ARROW_LEFT,
-                    "<gold>← Предыдущая страница</gold>",
-                    List.of("", "<gray>Страница " + page + "</gray>")
+                    "<gray>Предыдущая страница</gray>",
+                    List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>страница " + page + "</gray>")
             ));
         }
 
         if ((page + 1) * pageSize < totalCount) {
             inventory.setItem(SLOT_NEXT_PAGE, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_ARROW_RIGHT,
-                    "<gold>Следующая страница →</gold>",
-                    List.of("", "<gray>Страница " + (page + 2) + "</gray>")
+                    "<gray>Следующая страница</gray>",
+                    List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>страница " + (page + 2) + "</gray>")
             ));
         }
 
@@ -192,18 +195,17 @@ public class CommissionAgentGui implements InventoryHolder {
             ItemStack myLotBtn = myLot.item().clone();
             ItemMeta myMeta = myLotBtn.getItemMeta();
             if (myMeta != null) {
-                myMeta.displayName(MessageUtils.parse("<green>Ваш активный лот</green>"));
+                myMeta.displayName(MessageUtils.parse("<gold>Ваш активный лот</gold>"));
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<gray>Цена:</gray>"));
-                lore.add(MessageUtils.parse(CoinFormat.formatGlyphs(eco, myLot.price())));
-                lore.add(MessageUtils.parse("<gray>Вы получите при продаже:</gray>"));
-                lore.add(MessageUtils.parse(CoinFormat.formatGlyphs(eco, myLot.sellerReceives())));
+                lore.add(MessageUtils.parse("<dark_gray>▪ <gray>Цена: " + CoinFormat.formatGlyphs(eco, myLot.price())));
+                lore.add(MessageUtils.parse("<dark_gray>▪ <gray>Вы получите: " + CoinFormat.formatGlyphs(eco, myLot.sellerReceives())));
                 if (myLot.hot()) {
-                    lore.add(MessageUtils.parse("<red>🔥 Горячее предложение</red>"));
+                    lore.add(MessageUtils.parse("<red>Горячее предложение</red>"));
                 }
                 lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— снять лот и забрать предмет</gray>"));
+                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
+                lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>снять лот и забрать предмет</gray>"));
                 myMeta.lore(lore);
                 myLotBtn.setItemMeta(myMeta);
             }
@@ -214,11 +216,12 @@ public class CommissionAgentGui implements InventoryHolder {
                     "<gold>Выставить лот</gold>",
                     List.of(
                             "",
-                            "<gray>Перетащите сюда предмет или нажмите</gray>",
-                            "<yellow>Shift</yellow><gray> на предмете в инвентаре.</gray>",
+                            "<dark_gray>▪ <gray>Условия продажи:",
+                            "  <gray>Лимит: <white>" + manager.getMaxLotsPerPlayer() + "</white> лот на игрока.",
+                            "  <gray>Комиссия при продаже: <yellow>" + feePercent + "%</yellow>",
                             "",
-                            "<gray>Лимит: <yellow>" + manager.getMaxLotsPerPlayer() + "</yellow> лот на игрока.</gray>",
-                            "<gray>Комиссия при продаже: <yellow>" + feePercent + "%</yellow></gray>"
+                            "<dark_gray><st>─────────────────────</st></dark_gray>",
+                            "<green>Shift+Клик</green> <dark_gray>—</dark_gray> <gray>выбрать предмет в инвентаре</gray>"
                     )
             ));
         }
@@ -227,7 +230,7 @@ public class CommissionAgentGui implements InventoryHolder {
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
                 "<red>Закрыть</red>",
-                List.of("", "<gray>Выход из меню комиссионера</gray>")
+                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
         ));
     }
 
