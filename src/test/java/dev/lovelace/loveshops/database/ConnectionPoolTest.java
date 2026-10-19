@@ -67,4 +67,36 @@ class ConnectionPoolTest {
         assertEquals(1, pool.idleCount());
         assertThrows(java.sql.SQLException.class, () -> { pool.close(); pool.borrow(); });
     }
+
+    @Test
+    void leakedResultSetDoesNotBreakNextWriterOnPooledConnection() throws Exception {
+        String url = "jdbc:sqlite:" + dir.resolve("snap.db");
+        ConnectionPool pool = new ConnectionPool(() -> {
+            Connection c = DriverManager.getConnection(url);
+            try (Statement st = c.createStatement()) {
+                st.execute("PRAGMA journal_mode=WAL");
+            }
+            return c;
+        }, 2);
+        try (Connection c = pool.borrow(); Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE t(x INTEGER)");
+            st.execute("INSERT INTO t VALUES (1)");
+        }
+        // Connection A reads and leaks its statement and result set, then goes back to the pool.
+        Connection a = pool.borrow();
+        java.sql.ResultSet leaked = a.createStatement().executeQuery("SELECT x FROM t");
+        assertTrue(leaked.next());
+        a.close();
+        // Another connection writes in the meantime.
+        Connection b = pool.borrow();
+        try (Statement st = b.createStatement()) {
+            st.execute("INSERT INTO t VALUES (2)");
+        }
+        // A is reused from the pool: without closing leaked statements this fails with SQLITE_BUSY_SNAPSHOT.
+        try (Connection again = pool.borrow(); Statement st = again.createStatement()) {
+            st.execute("INSERT INTO t VALUES (3)");
+        }
+        b.close();
+        pool.close();
+    }
 }
