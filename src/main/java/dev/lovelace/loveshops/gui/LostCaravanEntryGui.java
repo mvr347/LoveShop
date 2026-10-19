@@ -6,6 +6,7 @@ import dev.lovelace.loveshops.managers.LostCaravanManager;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.LoreBlocks;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -18,6 +19,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -48,6 +50,10 @@ public class LostCaravanEntryGui implements InventoryHolder {
         return inventory;
     }
 
+    private dev.lovelace.loveshops.managers.LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, Component.text(TITLE).color(NamedTextColor.GOLD));
         render();
@@ -57,7 +63,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
     private String remainingLabel() {
         var session = manager.getCurrentSession();
         if (session == null || !"ANNOUNCED".equalsIgnoreCase(session.status())) {
-            return "<gray>Регистрация закрыта</gray>";
+            return lang().text("gui.lost.entry-closed");
         }
         long left = Math.max(0, session.openedAt() - System.currentTimeMillis() / 1000);
         long m = left / 60;
@@ -75,20 +81,15 @@ public class LostCaravanEntryGui implements InventoryHolder {
         int fee = plugin.getLostCaravanManager().entryFee();
         LoveEconomy eco = plugin.getEconomy().orElse(null);
 
+        int refund = plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50);
+        String feeText = CoinFormat.formatGlyphs(eco, fee);
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
-                "<gold>Правила Потерянного Каравана</gold>",
-                List.of(
-                        "",
-                        "<dark_gray>▪ <gray>О событии:",
-                        "  <gray>Еженедельное торговое событие с ценными ящиками.",
-                        "  <gray>Залог за участие: " + CoinFormat.formatGlyphs(eco, fee),
-                        "  <gray>При отсутствии выигрыша вернётся <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "% залога</green>.",
-                        "  <gray>Участников > <yellow>" + plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6) + "</yellow> — открывается аукцион.",
-                        "  <gray>Участников > <yellow>" + plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12) + "</yellow> — появляется <red>Секретный Ящик</red>.",
-                        "",
-                        "<gray>До начала торгов: </gray>" + remainingLabel()
-                )
+                lang().text("gui.lost.entry-info"),
+                lang().lines("gui.lost.entry-info-lore", "fee", feeText, "refund", String.valueOf(refund),
+                        "min", String.valueOf(plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6)),
+                        "secret", String.valueOf(plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12)),
+                        "remaining", remainingLabel())
         );
         GuiUtils.putIfChanged(inventory, 0, infoItem);
 
@@ -103,27 +104,23 @@ public class LostCaravanEntryGui implements InventoryHolder {
         if (already) {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.HEAD_CONFIRM,
-                    "<green>Регистрация подтверждена</green>",
-                    List.of(
-                            "",
-                            "<green>✓ Вы успешно зарегистрированы</green>",
-                            "<gray>До торгов: </gray>" + remainingLabel()
-                    )
+                    lang().text("gui.lost.entry-done"),
+                    lang().lines("gui.lost.entry-done-lore", "remaining", remainingLabel())
             );
+        } else if (!manager.isRegistrationPhase()) {
+            // Display only: the click handler already refuses a closed registration
+            List<String> lore = new ArrayList<>();
+            lore.add(lang().text("gui.lost.entry-subtitle"));
+            lore.add("");
+            lore.addAll(LoreBlocks.blocked(lang().style(), "unavailable", lang().text("gui.lost.entry-register-off-reason"),
+                    LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.lost.entry-register-click"))));
+            registerBtn = GuiUtils.createCustomHead(HeadTextures.BUTTON_PLUS, lang().text("gui.lost.entry-register-off"), lore);
         } else {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold>Внести залог</gold>",
-                    List.of(
-                            "",
-                            "<dark_gray>▪ <gray>Условия участия:",
-                            "  <gray>Залог: " + CoinFormat.formatGlyphs(eco, fee),
-                            "  <gray>Возврат при неудаче: <green>" + plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50) + "%</green>",
-                            "  <gray>До начала: " + remainingLabel(),
-                            "",
-                            "<dark_gray><st>─────────────────────</st></dark_gray>",
-                            "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>зарегистрироваться</gray>"
-                    )
+                    lang().text("gui.lost.entry-register"),
+                    lang().lines("gui.lost.entry-register-lore", "fee", feeText, "refund", String.valueOf(refund),
+                            "remaining", remainingLabel())
             );
         }
         GuiUtils.putIfChanged(inventory, SLOT_REGISTER, registerBtn);
@@ -133,8 +130,8 @@ public class LostCaravanEntryGui implements InventoryHolder {
         }
         GuiUtils.putIfChanged(inventory, SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
-                "<red>Закрыть</red>",
-                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
+                lang().text("gui.close"),
+                lang().lines("gui.close-lore")
         ));
     }
 

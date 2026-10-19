@@ -7,6 +7,7 @@ import dev.lovelace.loveshops.models.caravan.LostCaravanLot;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.LoreBlocks;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -55,6 +56,10 @@ public class LostCaravanInstantGui implements InventoryHolder {
         return inventory;
     }
 
+    private dev.lovelace.loveshops.managers.LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     public void open() {
         this.inventory = Bukkit.createInventory(this, 36, Component.text(TITLE).color(NamedTextColor.GOLD));
         render();
@@ -72,14 +77,8 @@ public class LostCaravanInstantGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
-                "<gold>Мгновенная покупка ящиков</gold>",
-                List.of(
-                        "",
-                        "<dark_gray>▪ <gray>Правила покупки:",
-                        "  <gray>В караване мало участников — аукцион отключён.",
-                        "  <gray>Выкуп ящиков доступен по фиксированной цене.",
-                        "  <gray>Первый купивший забирает ящик!"
-                )
+                lang().text("gui.lost.instant-info"),
+                lang().lines("gui.lost.instant-info-lore")
         );
         inventory.setItem(0, infoItem);
 
@@ -93,27 +92,19 @@ public class LostCaravanInstantGui implements InventoryHolder {
 
             ItemStack displayItem;
             if ("SOLD".equalsIgnoreCase(lot.status())) {
-                displayItem = GuiUtils.createCustomHead(
-                        HeadTextures.HEAD_DELETE_NO,
-                        "<gray>Ящик <dark_gray>| <red>Распродано",
-                        List.of("", "<gray>Этот ящик уже приобрёл другой игрок.</gray>")
-                );
+                List<String> soldLore = new ArrayList<>(lang().lines("gui.lost.instant-sold-lore"));
+                soldLore.addAll(LoreBlocks.blocked(lang().style(), "unavailable", lang().text("gui.lost.instant-sold-reason"),
+                        LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.lost.instant-click"))));
+                displayItem = GuiUtils.createCustomHead(HeadTextures.HEAD_DELETE_NO, lang().text("gui.lost.instant-sold"), soldLore);
             } else {
                 displayItem = lot.crateItem().clone();
                 ItemMeta meta = displayItem.getItemMeta();
                 if (meta != null) {
                     List<Component> lore = new ArrayList<>();
-                    lore.add(Component.empty());
-                    if (lot.secret()) {
-                        lore.add(MessageUtils.parse("<red>СЕКРЕТНЫЙ ЯЩИК</red>"));
-                    } else {
-                        lore.add(MessageUtils.parse("<gold>Ящик #" + (i + 1) + "</gold>"));
+                    String crate = lot.secret() ? lang().text("gui.lost.crate-secret") : lang().text("gui.lost.crate-number", "number", String.valueOf(i + 1));
+                    for (String line : lang().lines("gui.lost.instant-lot", "crate", crate, "price", CoinFormat.formatGlyphs(eco, lot.startingPrice()))) {
+                        lore.add(GuiUtils.line(player, line));
                     }
-                    lore.add(Component.empty());
-                    lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.startingPrice())));
-                    lore.add(Component.empty());
-                    lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>купить ящик</gray>"));
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, LOT_INDEX_KEY), PersistentDataType.INTEGER, i);
                     displayItem.setItemMeta(meta);
@@ -129,8 +120,8 @@ public class LostCaravanInstantGui implements InventoryHolder {
 
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
-                "<red>Закрыть</red>",
-                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
+                lang().text("gui.close"),
+                lang().lines("gui.close-lore")
         ));
     }
 

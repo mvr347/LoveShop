@@ -1187,22 +1187,11 @@ public class LostCaravanManager {
     public ItemStack createCrateItem(boolean secret, int sessionId) {
         String texture = secret ? dev.lovelace.loveshops.textures.HeadTextures.CARAVAN_LOST_SECRET
                 : dev.lovelace.loveshops.textures.HeadTextures.CARAVAN_LOST_CRATE;
-        Component name = secret
-                ? MessageUtils.parse("<gradient:#FF55FF:#FFAA00><bold>⚡ Секретный Ящик Каравана</bold></gradient>")
-                : MessageUtils.parse("<gradient:#FFAA00:#FF5555><bold>📦 Ящик Потерянного Каравана</bold></gradient>");
-        List<Component> lore = secret ? List.of(
-                Component.empty(),
-                MessageUtils.parse("<gray>Редчайший запечатанный ящик из глубин каравана.</gray>"),
-                MessageUtils.parse("<gray>Содержит ценнейшие реликвии и драгоценности.</gray>"),
-                Component.empty(),
-                MessageUtils.parse("<yellow>Нажмите <gold>ПКМ</gold>, чтобы открыть!</yellow>")
-        ) : List.of(
-                Component.empty(),
-                MessageUtils.parse("<gray>Трофейный запечатанный ящик из потерянного каравана.</gray>"),
-                MessageUtils.parse("<gray>Содержит редкие минералы и ценные ресурсы.</gray>"),
-                Component.empty(),
-                MessageUtils.parse("<yellow>Нажмите <gold>ПКМ</gold>, чтобы открыть!</yellow>")
-        );
+        // Name and lore come from lang.yml (gui.lost.crate-*): no icons in the name, no "Нажмите" in the lore
+        Component name = MessageUtils.parse(plugin.getLangManager().text(secret ? "gui.lost.crate-secret-item" : "gui.lost.crate-default"));
+        List<Component> lore = plugin.getLangManager()
+                .lines(secret ? "gui.lost.crate-secret-item-lore" : "gui.lost.crate-default-lore")
+                .stream().map(MessageUtils::parse).toList();
 
         ItemStack item = dev.lovelace.loveshops.utils.GuiUtils.createHead(texture, name, lore);
         ItemMeta meta = item.getItemMeta();

@@ -25,7 +25,7 @@ class CaravanBidBoardTest {
         // newest first: A raised twice
         var out = lines(List.of(new Bid(A, "A", 300), new Bid(B, "B", 200), new Bid(A, "A", 100)), ME, 3);
         assertEquals(2, out.size());
-        assertTrue(out.get(0).contains("🏆") && out.get(0).contains("300c"));
+        assertTrue(out.get(0).contains("#1") && out.get(0).contains("300c"));
         assertTrue(out.get(1).contains("#2") && out.get(1).contains("200c"));
     }
 

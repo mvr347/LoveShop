@@ -22,7 +22,7 @@ public final class CaravanBidBoard {
      * @param bidsNewestFirst recent bids of the current lot, newest first
      * @param shown           how many bidders after the leader are listed
      * @param money           formats an amount for display
-     * @return MiniMessage lines for the lore (without the leading blank line)
+     * @return MiniMessage rows for the lore, without indent (the caller indents them under its section header)
      */
     public static List<String> lines(List<Bid> bidsNewestFirst, UUID viewer, int shown, LongFunction<String> money) {
         // one row per player: his best bid (the newest one on a tie)
@@ -38,7 +38,7 @@ public final class CaravanBidBoard {
 
         List<String> out = new ArrayList<>();
         if (ranked.isEmpty()) {
-            out.add("<gray>Ставок пока нет.</gray>");
+            out.add("<gray>Ставок пока нет");
             return out;
         }
 
@@ -48,7 +48,7 @@ public final class CaravanBidBoard {
         }
         for (int i = visible; i < ranked.size(); i++) {
             if (ranked.get(i).bidder().equals(viewer)) {
-                out.add("<dark_gray>…</dark_gray>");
+                out.add("<dark_gray>…");
                 out.add(row(i, ranked.get(i), viewer, money));
                 break;
             }
@@ -59,8 +59,9 @@ public final class CaravanBidBoard {
     private static String row(int index, Bid bid, UUID viewer, LongFunction<String> money) {
         boolean me = bid.bidder().equals(viewer);
         String name = (me ? "<aqua>" : "<white>") + bid.name() + (me ? "</aqua>" : "</white>");
-        String rank = index == 0 ? "<gold>🏆</gold>" : "<gray>#" + (index + 1) + "</gray>";
-        String tail = index == 0 && me ? " <green>(вы лидируете)</green>" : "";
-        return rank + " " + name + " <gray>—</gray> " + money.apply(bid.amount()) + tail;
+        // no emoji in lore rows (gui-gen-6): the leader is simply #1, in gold
+        String rank = index == 0 ? "<gold>#1</gold>" : "<gray>#" + (index + 1) + "</gray>";
+        String tail = index == 0 && me ? " <dark_gray>(<green>вы лидируете<dark_gray>)" : "";
+        return rank + " " + name + " <dark_gray>— <white>" + money.apply(bid.amount()) + tail;
     }
 }

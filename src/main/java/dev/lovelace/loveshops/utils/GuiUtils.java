@@ -90,11 +90,14 @@ public class GuiUtils {
     /** Centre card of a list menu that has nothing to show: "Пока ничего нет". */
     public static ItemStack emptyCard(String hint) {
         dev.lovelace.loveshops.LoveShops plugin = dev.lovelace.loveshops.LoveShops.getInstance();
-        String title = plugin == null || plugin.getLangManager() == null
-                ? "<gray>Пока ничего нет</gray>" : plugin.getLangManager().getRaw("gui.empty-title", "<gray>Пока ничего нет</gray>");
+        boolean haveLang = plugin != null && plugin.getLangManager() != null;
+        String title = haveLang ? plugin.getLangManager().getRaw("gui.empty-title", "<gray>Список <dark_gray>| <yellow>Пуст")
+                : "<gray>Список <dark_gray>| <yellow>Пуст";
+        String subtitle = haveLang ? plugin.getLangManager().getRaw("gui.empty-subtitle", "<dark_gray>Список пуст")
+                : "<dark_gray>Список пуст";
         return createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.BANKER_DEPOSIT_EMPTY,
                 title,
-                hint == null || hint.isBlank() ? List.of() : List.of("<dark_gray>Список пуст", "", hint));
+                hint == null || hint.isBlank() ? List.of(subtitle) : List.of(subtitle, "", hint));
     }
 
     /**

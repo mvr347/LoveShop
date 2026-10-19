@@ -48,23 +48,15 @@ public class WandererWaitingGui {
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         // Slot 26: Close button
-        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
+        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, plugin.getLangManager().text("gui.close"),
+            plugin.getLangManager().lines("gui.close-lore")));
 
         long remaining = deal != null ? deal.remainingSeconds() : 0;
         String remainingText = TimeUtils.formatRemainingTime(remaining);
 
         // Slot 13: Waiting Status Head
-        ItemStack waitingHead = GuiUtils.createCustomHead(HOURGLASS_HEAD_BASE64, "<yellow>Странник в пути...</yellow>",
-            List.of(
-                "",
-                "<gray>Странник исследует тайные уголки мира,</gray>",
-                "<gray>собирая контрабандные предметы для вас.</gray>",
-                "",
-                "<gray>Осталось ждать: <gold>" + remainingText + "</gold></gray>",
-                "",
-                "<dark_gray>Возвращайтесь, когда таймер истечёт!</dark_gray>"
-            ));
+        ItemStack waitingHead = GuiUtils.createCustomHead(HOURGLASS_HEAD_BASE64, plugin.getLangManager().text("gui.wanderer.waiting"),
+            plugin.getLangManager().lines("gui.wanderer.waiting-lore", "time", remainingText));
 
         inv.setItem(13, waitingHead);
 
