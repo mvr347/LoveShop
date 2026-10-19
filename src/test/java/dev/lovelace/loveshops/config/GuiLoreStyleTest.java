@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -167,6 +168,9 @@ class GuiLoreStyleTest {
             }
             // click hints are never joined on one line
             if (v.contains("·")) offenders.add(text.path() + " joins with a dot: " + v);
+            // the click verb is never an instruction: a click is a click line (ЛКМ / ПКМ / Shift+…), not a verb in a sentence
+            String lower = v.toLowerCase(Locale.ROOT);
+            if (lower.contains("клик") || lower.contains("нажм")) offenders.add(text.path() + " uses a click/press verb: " + v);
         }
         assertTrue(offenders.isEmpty(), "forbidden strings: " + offenders);
     }
