@@ -51,6 +51,10 @@ public class CommissionConfirmGui implements InventoryHolder {
         return inventory;
     }
 
+    private dev.lovelace.loveshops.managers.LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     public void open() {
         String titleStr = TITLE + ": " + (action == ConfirmAction.BUY ? "Покупка лота" : "Снятие лота");
         this.inventory = Bukkit.createInventory(this, 9, MessageUtils.parse("<dark_gray>" + titleStr + "</dark_gray>"));
@@ -72,12 +76,11 @@ public class CommissionConfirmGui implements InventoryHolder {
         ItemMeta meta = preview.getItemMeta();
         if (meta != null) {
             List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(eco, lot.price())));
-            if (action == ConfirmAction.CANCEL_OWN) {
-                lore.add(MessageUtils.parse("<yellow>Вы собираетесь вернуть этот предмет в инвентарь.</yellow>"));
-            } else {
-                lore.add(MessageUtils.parse("<gray>Продавец: <gold>" + Bukkit.getOfflinePlayer(lot.sellerUuid()).getName() + "</gold></gray>"));
+            String price = CoinFormat.formatGlyphs(eco, lot.price());
+            for (String line : action == ConfirmAction.CANCEL_OWN
+                    ? lang().lines("gui.confirm.preview-cancel-own", "price", price)
+                    : lang().lines("gui.confirm.preview-buy", "price", price, "seller", String.valueOf(Bukkit.getOfflinePlayer(lot.sellerUuid()).getName()))) {
+                lore.add(GuiUtils.line(player, line));
             }
             meta.lore(lore);
             preview.setItemMeta(meta);
@@ -85,19 +88,19 @@ public class CommissionConfirmGui implements InventoryHolder {
         inventory.setItem(4, preview);
 
         // Слот 1: Подтвердить
-        String confirmTitle = action == ConfirmAction.BUY ? "<green>Купить за " + CoinFormat.formatGlyphs(eco, lot.price()) + "</green>"
-                : "<green>Забрать предмет</green>";
+        // The price goes into the lore, never into the name (gui-gen-6)
+        boolean buy = action == ConfirmAction.BUY;
         inventory.setItem(1, GuiUtils.createCustomHead(
                 HeadTextures.HEAD_CONFIRM,
-                confirmTitle,
-                List.of("", "<gray>Нажмите, чтобы подтвердить действие</gray>")
+                lang().text(buy ? "gui.confirm.buy" : "gui.confirm.cancel-own"),
+                lang().lines(buy ? "gui.confirm.buy-lore" : "gui.confirm.cancel-own-lore", "price", CoinFormat.formatGlyphs(eco, lot.price()))
         ));
 
         // Слот 7: Отмена
         inventory.setItem(7, GuiUtils.createCustomHead(
                 HeadTextures.HEAD_DELETE_NO,
-                "<red>Отмена</red>",
-                List.of("", "<gray>Вернуться назад</gray>")
+                lang().text("gui.confirm.cancel"),
+                lang().lines("gui.confirm.cancel-lore")
         ));
     }
 

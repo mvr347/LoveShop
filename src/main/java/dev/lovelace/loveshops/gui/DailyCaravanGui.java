@@ -9,6 +9,7 @@ import dev.lovelace.loveshops.models.caravan.DailyCrateState;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.LoreBlocks;
 import dev.lovelace.loveshops.utils.ItemResolver;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import dev.lovelace.loveshops.utils.ProgressBarUtil;
@@ -59,6 +60,10 @@ public class DailyCaravanGui implements InventoryHolder {
         return inventory;
     }
 
+    private dev.lovelace.loveshops.managers.LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     public void open() {
         this.inventory = Bukkit.createInventory(this, 45, Component.text(TITLE).color(NamedTextColor.GOLD));
         render();
@@ -81,14 +86,8 @@ public class DailyCaravanGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold>Караванщик</gold>",
-                List.of(
-                        "",
-                        "<dark_gray>▪ <gray>Скупка ресурсов:",
-                        "  <gray>Сдавайте ресурсы каравану за монеты.",
-                        "  <gray>Осталось в городе: <yellow>" + timeLeftStr + "</yellow>",
-                        "  <gray>Бонус за сдачу стаками: <green>+8–10%</green>"
-                )
+                lang().text("gui.daily.info"),
+                lang().lines("gui.daily.info-lore", "time", timeLeftStr)
         );
         inventory.setItem(0, infoItem);
 
@@ -122,50 +121,58 @@ public class DailyCaravanGui implements InventoryHolder {
             ItemMeta meta = crateItem.getItemMeta();
 
             if (meta != null) {
-                meta.displayName(MessageUtils.parse(crate.displayName()));
+                // Name | state: the configured crate name plus its current state (gui-gen-6)
+                String state = crate.isClosed() ? "gui.daily.state-closed" : crate.isUrgent() ? "gui.daily.state-urgent" : "gui.daily.state-open";
+                meta.displayName(GuiUtils.line(player, crate.displayName() + lang().text(state)));
 
-                List<Component> lore = new ArrayList<>();
-                lore.add(Component.empty());
+                List<String> loreLines = new ArrayList<>();
+                loreLines.add(lang().text("gui.daily.crate-subtitle"));
+                loreLines.add("");
 
-                // 1. Заполненность: полоска в скобках, подпись строкой ниже
-                for (String line : ProgressBarUtil.formatStackProgressBar(crate.currentAmount(), crate.maxAmount(), 64, 20)) {
-                    lore.add(MessageUtils.parse(line));
-                }
-                lore.add(Component.empty());
+                // 1. Заполненность: 16-клеточная шкала с процентом
+                long stackSize = 64;
+                long curStacks = crate.currentAmount() / stackSize;
+                long maxStacks = Math.max(1, crate.maxAmount() / stackSize);
+                loreLines.add(lang().text("gui.daily.fill-section"));
+                loreLines.add("  " + ProgressBarUtil.bar(curStacks, maxStacks));
+                loreLines.add(lang().text("gui.daily.fill-count", "current", String.valueOf(curStacks), "max", String.valueOf(maxStacks)));
+                loreLines.add("");
 
                 // 2. Предметы (принимаются) — список на русском
-                lore.add(MessageUtils.parse("<gray>Принимаются:</gray>"));
+                loreLines.add(lang().text("gui.daily.accepts-section"));
                 if (cfg != null) {
                     for (DailyCrateAcceptedItem acc : cfg.acceptedItems()) {
-                        String rusName = ItemResolver.getFriendlyRussianName(acc.itemId());
-                        lore.add(MessageUtils.parse(" <dark_gray>•</dark_gray> <yellow>" + rusName + "</yellow>"));
+                        loreLines.add(lang().text("gui.daily.accepts-row", "item", ItemResolver.getFriendlyRussianName(acc.itemId())));
                     }
                 }
-                lore.add(Component.empty());
+                loreLines.add("");
 
                 // 3. Цена
+                loreLines.add(lang().text("gui.daily.price-section"));
                 if (crate.isUrgent()) {
                     long urgentSec = Math.max(0, crate.urgentExpiresAt() - (System.currentTimeMillis() / 1000));
                     long uMin = urgentSec / 60;
                     long uSec = urgentSec % 60;
-                    lore.add(MessageUtils.parse("<red>⚡ СРОЧНЫЙ ЗАКАЗ!</red> <yellow>(" + uMin + ":" + (uSec < 10 ? "0" : "") + uSec + ")</yellow>"));
+                    loreLines.add(lang().text("gui.daily.urgent-row", "time", uMin + ":" + (uSec < 10 ? "0" : "") + uSec));
                 }
-                lore.add(MessageUtils.parse("<gray>Цена за шт: </gray>" + CoinFormat.formatGlyphs(eco, crate.pricePerUnit())));
+                loreLines.add(lang().text("gui.daily.price-row", "price", CoinFormat.formatGlyphs(eco, crate.pricePerUnit())));
                 if (cfg != null && cfg.stackBonusPercent() > 0) {
-                    lore.add(MessageUtils.parse("<gray>Бонус за стак: <green>+" + cfg.stackBonusPercent() + "% монет</green></gray>"));
+                    loreLines.add(lang().text("gui.daily.bonus-row", "percent", String.valueOf(cfg.stackBonusPercent())));
                 }
-                lore.add(Component.empty());
 
                 // 4. Действия/кнопки
-                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
                 if (crate.isClosed()) {
-                    lore.add(MessageUtils.parse("<red>✕ Ящик заполнен и закрыт</red>"));
+                    loreLines.addAll(LoreBlocks.blocked(lang().style(), "unavailable", lang().text("gui.daily.closed-reason"),
+                            LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.daily.click-hand"))));
                 } else {
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>сдать предмет из руки</gray>"));
-                    lore.add(MessageUtils.parse("<gold>ПКМ</gold> <dark_gray>—</dark_gray> <gray>сдать все из инвентаря</gray>"));
-                    lore.add(MessageUtils.parse("<yellow>Shift+Клик</yellow> <dark_gray>—</dark_gray> <gray>сдать стак из инвентаря</gray>"));
+                    loreLines.addAll(LoreBlocks.clicks(lang().style(),
+                            LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.daily.click-hand")),
+                            LoreBlocks.hint(LoreBlocks.Click.RIGHT, lang().text("gui.daily.click-all")),
+                            LoreBlocks.hint(LoreBlocks.Click.SHIFT_LEFT, lang().text("gui.daily.click-stack"))));
                 }
 
+                List<Component> lore = new ArrayList<>();
+                for (String line : loreLines) lore.add(GuiUtils.line(player, line));
                 meta.lore(lore);
                 meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, CRATE_ID_KEY), PersistentDataType.INTEGER, crate.id());
                 crateItem.setItemMeta(meta);
@@ -182,8 +189,8 @@ public class DailyCaravanGui implements InventoryHolder {
         // Слот 44: Закрыть
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
-                "<red>Закрыть</red>",
-                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
+                lang().text("gui.close"),
+                lang().lines("gui.close-lore")
         ));
     }
 

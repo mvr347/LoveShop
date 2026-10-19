@@ -7,6 +7,8 @@ import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.StorageItem;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -63,7 +65,7 @@ public final class StallStorageGui extends MarketGui {
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-storage-head", "gui-storage-head-lore",
                 "stored", String.valueOf(stored.size()), "capacity", String.valueOf(capacity),
-                "level", String.valueOf(point.level())));
+                "level", String.valueOf(point.level()), "bar", ProgressBarUtil.bar(stored.size(), capacity)));
         // "Collect all" is the footer's extra button (slot 51 of 54), not a header control.
         button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BANKER_WITHDRAW, "gui-storage-collect", "gui-storage-collect-lore"),
                 e -> collectAll());
@@ -87,7 +89,7 @@ public final class StallStorageGui extends MarketGui {
         ItemStack item = si.item().clone();
         ItemMeta meta = item.getItemMeta();
         List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-        for (String line : lines("gui-storage-item-lore")) lore.add(MessageUtils.parse(viewer, line));
+        for (String line : lines("gui-storage-item-lore")) lore.add(GuiUtils.line(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;

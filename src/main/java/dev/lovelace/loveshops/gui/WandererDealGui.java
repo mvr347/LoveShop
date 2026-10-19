@@ -77,8 +77,8 @@ public class WandererDealGui {
         inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
 
         // Slot 26: Close button ALWAYS in corner for 27-slot menu
-        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
+        inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, plugin.getLangManager().text("gui.close"),
+            plugin.getLangManager().lines("gui.close-lore")));
 
         long cost = plugin.getWandererManager().dealBaseCost();
         int deliveryMinutes = plugin.getConfig().getInt("wanderer.deal.delivery-time-minutes", 60);
@@ -87,17 +87,8 @@ public class WandererDealGui {
         String timeStr = TimeUtils.formatRemainingTime(deliveryMinutes * 60L);
 
         // Slot 13: Standard (unfiltered) deal button
-        ItemStack dealBtn = GuiUtils.createCustomHead(CONTRACT_HEAD_BASE64, "<gold>Заключить сделку со Странником</gold>",
-            List.of(
-                "",
-                "<gray>Странник отправится в запретные земли и</gray>",
-                "<gray>добудет случайный набор редкой контрабанды.</gray>",
-                "",
-                "<gray>Стоимость аванса: </gray>" + CoinFormat.formatGlyphs(cost),
-                "<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>",
-                "",
-                "<green>ЛКМ</green> <gray>— договориться и отправить Странника</gray>"
-            ));
+        ItemStack dealBtn = GuiUtils.createCustomHead(CONTRACT_HEAD_BASE64, plugin.getLangManager().text("gui.wanderer.deal"),
+            plugin.getLangManager().lines("gui.wanderer.deal-lore", "cost", CoinFormat.formatGlyphs(cost), "time", timeStr));
         inv.setItem(standardDealSlot(plugin), dealBtn);
 
         // Slot 11: single cycling paid personal-request button — ЛКМ cycles which category is
@@ -128,18 +119,13 @@ public class WandererDealGui {
         ItemStack item = new ItemStack(materialFor(category));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse("<light_purple>Заказ: " + category.displayName() + "</light_purple>"));
+            var lang = plugin.getLangManager();
+            meta.displayName(GuiUtils.line(null, lang.text("gui.wanderer.category", "category", category.displayName())));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Странник принесёт партию ТОЛЬКО из</gray>"));
-            lore.add(MessageUtils.parse("<gray>выбранной категории — с доплатой.</gray>"));
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<gray>Текущий выбор: <light_purple>" + category.displayName() + "</light_purple></gray>"));
-            lore.add(MessageUtils.parse("<gray>Стоимость заказа: </gray>" + CoinFormat.formatGlyphs(personalCost)));
-            lore.add(MessageUtils.parse("<gray>Срок доставки: <gold>" + timeStr + "</gold></gray>"));
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— сменить категорию</gray>"));
-            lore.add(MessageUtils.parse("<red>ПКМ</red> <gray>— заказать текущую категорию</gray>"));
+            for (String line : lang.lines("gui.wanderer.category-lore", "category", category.displayName(),
+                    "cost", CoinFormat.formatGlyphs(personalCost), "time", timeStr)) {
+                lore.add(GuiUtils.line(null, line));
+            }
             meta.lore(lore);
             meta.getPersistentDataContainer().set(
                 dev.lovelace.loveshops.utils.Keys.of(plugin, CATEGORY_INDEX_KEY), PersistentDataType.INTEGER, category.ordinal());

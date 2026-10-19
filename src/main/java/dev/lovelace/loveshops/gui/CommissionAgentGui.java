@@ -7,6 +7,7 @@ import dev.lovelace.loveshops.models.commission.CommissionLot;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.LoreBlocks;
 import dev.lovelace.loveshops.market.gui.PriceGui;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
@@ -72,6 +73,10 @@ public class CommissionAgentGui implements InventoryHolder {
         return inventory;
     }
 
+    private dev.lovelace.loveshops.managers.LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     public void open() {
         this.inventory = Bukkit.createInventory(this, 54, Component.text(TITLE).color(NamedTextColor.GOLD));
         render();
@@ -92,15 +97,9 @@ public class CommissionAgentGui implements InventoryHolder {
 
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_BACK,
-                "<gold>Комиссионный брокер</gold>",
-                List.of(
-                        "",
-                        "<dark_gray>▪ <gray>Правила торговли:",
-                        "  <gray>Покупайте товары других игроков и выставляйте свои.",
-                        "  <gray>Комиссия брокера при продаже: <yellow>" + feePercent + "%</yellow>",
-                        "  <gray>Лимит активных лотов: <white>" + manager.getMaxLotsPerPlayer() + " шт.</white>",
-                        "  <gray>Оплата и получение: исключительно физические монеты."
-                )
+                lang().text("gui.commission.info"),
+                lang().lines("gui.commission.info-lore", "fee", String.valueOf(feePercent),
+                        "max", String.valueOf(manager.getMaxLotsPerPlayer()))
         );
         inventory.setItem(SLOT_INFO, infoItem);
 
@@ -115,9 +114,10 @@ public class CommissionAgentGui implements InventoryHolder {
         int pageSize = CONTENT_SLOTS.length;
         List<CommissionLot> lots = manager.getActiveLots(page, pageSize);
         int totalCount = manager.getActiveLotsCount();
+        int pages = Math.max(1, (totalCount + pageSize - 1) / pageSize);
 
         if (lots.isEmpty()) {
-            inventory.setItem(31, GuiUtils.emptyCard("<gray>Выставьте первый лот — кнопка внизу.</gray>"));
+            inventory.setItem(31, GuiUtils.emptyCard(lang().text("gui.commission.empty-hint")));
         }
 
         for (int i = 0; i < lots.size() && i < CONTENT_SLOTS.length; i++) {
@@ -128,11 +128,8 @@ public class CommissionAgentGui implements InventoryHolder {
             ItemMeta meta = displayItem.getItemMeta();
             if (meta != null) {
                 List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-                lore.add(Component.empty());
-
                 if (lot.hot()) {
-                    lore.add(MessageUtils.parse("<red>ГОРЯЧЕЕ ПРЕДЛОЖЕНИЕ!</red>"));
-                    lore.add(Component.empty());
+                    for (String line : lang().lines("gui.commission.lot-hot")) lore.add(GuiUtils.line(player, line));
                     meta.addEnchant(Enchantment.UNBREAKING, 1, true);
                     meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
                 }
@@ -140,23 +137,18 @@ public class CommissionAgentGui implements InventoryHolder {
                 String sellerName = Bukkit.getOfflinePlayer(lot.sellerUuid()).getName();
                 if (sellerName == null) sellerName = "Игрок";
 
-                lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Продавец: <gold>" + sellerName + "</gold></gray>"));
                 int lotAmount = Math.max(1, lot.item().getAmount());
-                if (lotAmount > 1 && lot.price() % lotAmount == 0) {
-                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Цена за единицу:</gray>"));
-                    for (String line : CoinFormat.glyphLineStrings(eco, lot.price() / lotAmount)) lore.add(MessageUtils.parse(line));
-                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Итоговая цена (" + lotAmount + " ед.):</gray>"));
-                } else {
-                    lore.add(MessageUtils.parse("<dark_gray>▪</dark_gray> <gray>Цена за лот:</gray>"));
+                boolean perUnit = lotAmount > 1 && lot.price() % lotAmount == 0;
+                for (String line : perUnit
+                        ? lang().lines("gui.commission.lot-multi", "seller", sellerName, "amount", String.valueOf(lotAmount),
+                                "unit", CoinFormat.formatGlyphs(eco, lot.price() / lotAmount), "price", CoinFormat.formatGlyphs(eco, lot.price()))
+                        : lang().lines("gui.commission.lot", "seller", sellerName, "price", CoinFormat.formatGlyphs(eco, lot.price()))) {
+                    lore.add(GuiUtils.line(player, line));
                 }
-                for (String line : CoinFormat.glyphLineStrings(eco, lot.price())) lore.add(MessageUtils.parse(line));
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
-
-                if (player.getUniqueId().equals(lot.sellerUuid())) {
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>снять лот</gray>"));
-                } else {
-                    lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>купить предмет</gray>"));
+                boolean own = player.getUniqueId().equals(lot.sellerUuid());
+                for (String line : LoreBlocks.clicks(lang().style(), LoreBlocks.hint(LoreBlocks.Click.LEFT,
+                        lang().text(own ? "gui.commission.lot-click-own" : "gui.commission.lot-click-buy")))) {
+                    lore.add(GuiUtils.line(player, line));
                 }
 
                 meta.lore(lore);
@@ -170,16 +162,16 @@ public class CommissionAgentGui implements InventoryHolder {
         if (page > 0) {
             inventory.setItem(SLOT_PREV_PAGE, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_ARROW_LEFT,
-                    "<gray>Предыдущая страница</gray>",
-                    List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>страница " + page + "</gray>")
+                    lang().text("gui.page-prev", "page", String.valueOf(page), "pages", String.valueOf(pages)),
+                    lang().lines("gui.page-lore", "page", String.valueOf(page), "pages", String.valueOf(pages))
             ));
         }
 
         if ((page + 1) * pageSize < totalCount) {
             inventory.setItem(SLOT_NEXT_PAGE, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_ARROW_RIGHT,
-                    "<gray>Следующая страница</gray>",
-                    List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>страница " + (page + 2) + "</gray>")
+                    lang().text("gui.page-next", "page", String.valueOf(page + 2), "pages", String.valueOf(pages)),
+                    lang().lines("gui.page-lore", "page", String.valueOf(page + 2), "pages", String.valueOf(pages))
             ));
         }
 
@@ -195,17 +187,16 @@ public class CommissionAgentGui implements InventoryHolder {
             ItemStack myLotBtn = myLot.item().clone();
             ItemMeta myMeta = myLotBtn.getItemMeta();
             if (myMeta != null) {
-                myMeta.displayName(MessageUtils.parse("<gold>Ваш активный лот</gold>"));
+                myMeta.displayName(GuiUtils.line(player, lang().text("gui.commission.my-lot")));
                 List<Component> lore = new ArrayList<>();
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<dark_gray>▪ <gray>Цена: " + CoinFormat.formatGlyphs(eco, myLot.price())));
-                lore.add(MessageUtils.parse("<dark_gray>▪ <gray>Вы получите: " + CoinFormat.formatGlyphs(eco, myLot.sellerReceives())));
-                if (myLot.hot()) {
-                    lore.add(MessageUtils.parse("<red>Горячее предложение</red>"));
+                for (String line : lang().lines("gui.commission.my-lot-lore", "price", CoinFormat.formatGlyphs(eco, myLot.price()),
+                        "receive", CoinFormat.formatGlyphs(eco, myLot.sellerReceives()))) {
+                    lore.add(GuiUtils.line(player, line));
                 }
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse("<dark_gray><st>─────────────────────</st></dark_gray>"));
-                lore.add(MessageUtils.parse("<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>снять лот и забрать предмет</gray>"));
+                if (myLot.hot()) lore.add(GuiUtils.line(player, lang().text("gui.commission.my-lot-hot")));
+                for (String line : LoreBlocks.clicks(lang().style(), LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.commission.my-lot-click")))) {
+                    lore.add(GuiUtils.line(player, line));
+                }
                 myMeta.lore(lore);
                 myLotBtn.setItemMeta(myMeta);
             }
@@ -213,24 +204,17 @@ public class CommissionAgentGui implements InventoryHolder {
         } else {
             inventory.setItem(SLOT_CREATE_LOT, GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
-                    "<gold>Выставить лот</gold>",
-                    List.of(
-                            "",
-                            "<dark_gray>▪ <gray>Условия продажи:",
-                            "  <gray>Лимит: <white>" + manager.getMaxLotsPerPlayer() + "</white> лот на игрока.",
-                            "  <gray>Комиссия при продаже: <yellow>" + feePercent + "%</yellow>",
-                            "",
-                            "<dark_gray><st>─────────────────────</st></dark_gray>",
-                            "<green>Shift+Клик</green> <dark_gray>—</dark_gray> <gray>выбрать предмет в инвентаре</gray>"
-                    )
+                    lang().text("gui.commission.create"),
+                    lang().lines("gui.commission.create-lore", "max", String.valueOf(manager.getMaxLotsPerPlayer()),
+                            "fee", String.valueOf(feePercent))
             ));
         }
 
         // Слот 53: Закрыть
         inventory.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(
                 HeadTextures.BUTTON_CLOSE,
-                "<red>Закрыть</red>",
-                List.of("", "<dark_gray><st>─────────────────────</st></dark_gray>", "<green>ЛКМ</green> <dark_gray>—</dark_gray> <gray>закрыть меню</gray>")
+                lang().text("gui.close"),
+                lang().lines("gui.close-lore")
         ));
     }
 

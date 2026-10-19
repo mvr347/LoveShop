@@ -1,7 +1,9 @@
 package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.market.StallUpgradeService;
+import dev.lovelace.loveshops.market.UpgradeMath;
 import dev.lovelace.loveshops.market.model.CloseReason;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.market.model.TradingMode;
@@ -70,7 +72,8 @@ public final class StallManageGui extends MarketGui {
                 new Control(tile(HeadTextures.TAB_BUYER, "gui-manage-discounts", "gui-manage-discounts-lore",
                         "count", String.valueOf(discounts)), e -> new StallDiscountGui(plugin, viewer, point).open()),
                 new Control(tile(HeadTextures.MARKET_CLOSED, "gui-manage-blacklist", "gui-manage-blacklist-lore",
-                        "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries())),
+                        "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries()),
+                        "bar", ProgressBarUtil.bar(blacklisted, plugin.getMarketConfig().blacklistMaxEntries())),
                         e -> new StallBlacklistGui(plugin, viewer, point).open()),
                 // The guard is hired at the landlord; here only its state is shown (no click action).
                 new Control(guardTile(), e -> { })
@@ -96,19 +99,34 @@ public final class StallManageGui extends MarketGui {
 
     private ItemStack modeButton() {
         String mode = t("gui-mode-" + point.tradingMode().name().toLowerCase(Locale.ROOT));
-        return tile(HeadTextures.BANKER_INFO, "gui-manage-mode", "gui-manage-mode-lore", "mode", mode);
+        // same order as cycleMode(): the lore shows what the click will switch to
+        TradingMode next = switch (point.tradingMode()) {
+            case SELL_ONLY -> TradingMode.BOTH;
+            case BOTH -> TradingMode.BUY_ONLY;
+            case BUY_ONLY -> TradingMode.SELL_ONLY;
+        };
+        return tile(HeadTextures.BANKER_INFO, "gui-manage-mode", "gui-manage-mode-lore", "mode", mode,
+                "next", t("gui-mode-" + next.name().toLowerCase(Locale.ROOT)));
     }
 
     private ItemStack upgradeButton() {
         StallUpgradeService svc = plugin.getUpgradeService();
         if (svc.isMax(point)) {
             return tile(HeadTextures.BANKER_DEPOSIT, "gui-manage-upgrade", "gui-manage-upgrade-max-lore",
-                    "level", String.valueOf(point.level()), "max", String.valueOf(plugin.getMarketConfig().maxLevel()));
+                    "level", String.valueOf(point.level()), "max", String.valueOf(plugin.getMarketConfig().maxLevel()),
+                    "bar", ProgressBarUtil.bar(point.level(), plugin.getMarketConfig().maxLevel()));
         }
+        var cfg = plugin.getMarketConfig();
+        int nextLevel = point.level() + 1;
         return tile(HeadTextures.BANKER_DEPOSIT, "gui-manage-upgrade", "gui-manage-upgrade-lore",
-                "level", String.valueOf(point.level()), "max", String.valueOf(plugin.getMarketConfig().maxLevel()),
+                "level", String.valueOf(point.level()), "level_next", String.valueOf(nextLevel), "max", String.valueOf(cfg.maxLevel()),
+                "bar", ProgressBarUtil.bar(point.level(), cfg.maxLevel()),
                 "shelves", String.valueOf(point.sellSlots()), "orders", String.valueOf(point.buySlots()),
                 "storage", String.valueOf(plugin.getTradePointManager().getStorageCapacity(point)),
+                // the same formulas StallUpgradeService applies when the upgrade is paid
+                "shelves_next", String.valueOf(UpgradeMath.slots(cfg.baseSellSlots(), nextLevel)),
+                "orders_next", String.valueOf(UpgradeMath.slots(cfg.baseBuySlots(), nextLevel)),
+                "storage_next", String.valueOf(UpgradeMath.storageCapacity(cfg.baseStorageStacks(), cfg.storagePerLevel(), nextLevel)),
                 "cost", plugin.getMarketStyle().money(svc.nextCost(point)));
     }
 

@@ -27,8 +27,8 @@ class LangKeysTest {
     /** Keys assembled from a prefix in code; every variant must exist. */
     private static final List<String> DYNAMIC = List.of(
             "gui-mode-sell_only", "gui-mode-buy_only", "gui-mode-both",
-            "gui-customer-tab-goods", "gui-customer-tab-goods-on", "gui-customer-tab-goods-lore",
-            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore",
+            "gui-customer-tab-goods", "gui-customer-tab-goods-on", "gui-customer-tab-goods-lore", "gui-customer-tab-goods-lore-on",
+            "gui-customer-tab-orders", "gui-customer-tab-orders-on", "gui-customer-tab-orders-lore", "gui-customer-tab-orders-lore-on",
             "wiz-step-corner_1", "wiz-step-corner_2", "wiz-step-npc", "wiz-step-closed_sign", "wiz-step-id_sign", "wiz-step-teleport");
 
     @Test

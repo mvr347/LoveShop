@@ -7,6 +7,8 @@ import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -90,7 +92,8 @@ public final class StallOwnerSellGui extends MarketGui {
         }
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-sell-head", "gui-sell-head-lore",
-                "used", String.valueOf(used), "total", String.valueOf(point.sellSlots()), "level", String.valueOf(point.level())));
+                "used", String.valueOf(used), "total", String.valueOf(point.sellSlots()), "level", String.valueOf(point.level()),
+                "bar", ProgressBarUtil.bar(used, point.sellSlots())));
         footer(() -> new StallTradeMenuGui(plugin, viewer, point).open());
         refreshClient();
     }
@@ -104,7 +107,7 @@ public final class StallOwnerSellGui extends MarketGui {
                 "shelf", String.valueOf(listing.slot() + 1),
                 "stock", String.valueOf(listing.stock()),
                 "price", plugin.getMarketStyle().money(listing.price()))) {
-            lore.add(MessageUtils.parse(viewer, line));
+            lore.add(GuiUtils.line(viewer, line));
         }
         meta.lore(lore);
         item.setItemMeta(meta);

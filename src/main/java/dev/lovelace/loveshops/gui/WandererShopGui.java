@@ -69,28 +69,17 @@ public class WandererShopGui {
             Math.max(0, deal.expiresAt() - (System.currentTimeMillis() / 1000)) : 0;
         String expireStr = TimeUtils.formatRemainingTime(expireRemaining);
 
-        inv.setItem(0, GuiUtils.createCustomHead(INFO_HEAD_BASE64, "<light_purple>Заказ Странника</light_purple>",
-            List.of(
-                "",
-                "<gray>Товары, доставленные специально для вас.</gray>",
-                "<gray>Срок действия предложения: <gold>" + expireStr + "</gold></gray>",
-                "",
-                "<dark_purple>Доступно только бойцам с агрессивным стилем!</dark_purple>"
-            )));
+        var lang = plugin.getLangManager();
+        inv.setItem(0, GuiUtils.createCustomHead(INFO_HEAD_BASE64, lang.text("gui.wanderer.shop-info"),
+            lang.lines("gui.wanderer.shop-info-lore", "time", expireStr)));
 
         // Slot 51: Reset / Complete Deal button
-        inv.setItem(51, GuiUtils.createCustomHead(RESET_HEAD_BASE64, "<gold>Завершить заказ</gold>",
-            List.of(
-                "",
-                "<gray>Завершает текущую партию товаров,</gray>",
-                "<gray>позволяя заключить новый договор.</gray>",
-                "",
-                "<green>ЛКМ</green> <gray>— завершить заказ</gray>"
-            )));
+        inv.setItem(51, GuiUtils.createCustomHead(RESET_HEAD_BASE64, lang.text("gui.wanderer.shop-reset"),
+            lang.lines("gui.wanderer.shop-reset-lore")));
 
         // Slot 53: Close button ALWAYS
-        inv.setItem(53, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, "<red>Закрыть</red>",
-            List.of("", "<gray>Выход из меню</gray>", "<green>ЛКМ</green> <gray>— закрыть</gray>")));
+        inv.setItem(53, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, lang.text("gui.close"),
+            lang.lines("gui.close-lore")));
 
         // Populate content slots
         if (deal != null && deal.items() != null) {
@@ -104,11 +93,8 @@ public class WandererShopGui {
                     ItemStack soldItem = new ItemStack(Material.GRAY_DYE);
                     ItemMeta meta = soldItem.getItemMeta();
                     if (meta != null) {
-                        meta.displayName(MessageUtils.parse("<dark_gray><st>" + item.name() + "</st></dark_gray>"));
-                        meta.lore(List.of(
-                            Component.empty(),
-                            MessageUtils.parse("<green>✓ Товар уже приобретён!</green>")
-                        ));
+                        meta.displayName(GuiUtils.line(player, lang.text("gui.wanderer.shop-bought", "name", item.name())));
+                        meta.lore(lang.lines("gui.wanderer.shop-bought-lore").stream().map(l -> GuiUtils.line(player, l)).toList());
                         soldItem.setItemMeta(meta);
                     }
                     inv.setItem(slot, soldItem);
@@ -119,9 +105,9 @@ public class WandererShopGui {
                         ItemMeta meta = display.getItemMeta();
                         if (meta != null) {
                             List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-                            lore.add(Component.empty());
-                            lore.add(MessageUtils.parse("<gray>Цена: </gray>" + CoinFormat.formatGlyphs(item.price())));
-                            lore.add(MessageUtils.parse("<green>ЛКМ</green> <gray>— приобрести предмет</gray>"));
+                            for (String line : lang.lines("gui.wanderer.shop-item-lore", "price", CoinFormat.formatGlyphs(item.price()))) {
+                                lore.add(GuiUtils.line(player, line));
+                            }
                             meta.lore(lore);
                             display.setItemMeta(meta);
                         }

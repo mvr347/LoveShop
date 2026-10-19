@@ -5,7 +5,9 @@ import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
+import dev.lovelace.loveshops.managers.LangManager;
 import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.LoreBlocks;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -72,10 +74,8 @@ public class BankerGui {
             for (int i = 0; i <= 8; i++) inv.setItem(i, filler);
             for (int i = 27; i < 36; i++) inv.setItem(i, filler);
             inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
-            inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, "<red>Закрыть</red>",
-                    List.of("", "<gray>Выход из меню</gray>",
-                            "<gray>Несданные монеты вернутся вам.</gray>",
-                            "<green>ЛКМ</green> <gray>— закрыть</gray>")));
+            inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, lang().text("gui.close"),
+                    lang().lines("gui.banker.close-lore")));
             renderContent(inv, economy, session);
             // The flag swallows the InventoryCloseEvent Bukkit fires for the banker view this call replaces.
             // When no banker view is open that event never comes, and an unconditional flag ate the player's
@@ -160,42 +160,40 @@ public class BankerGui {
         }
     }
 
+    private LangManager lang() {
+        return plugin.getLangManager();
+    }
+
     private ItemStack infoItem(LoveEconomy economy, long deposited, int feePercent, boolean personal, String currency, boolean showRates) {
         List<String> lore = new ArrayList<>();
-        lore.add("");
         String title;
         if (showRates) {
-            title = "<gold>Курс и размен валют</gold>";
+            title = lang().text("gui.banker.info-rates");
+            lore.add(lang().text("gui.banker.rates-subtitle"));
+            lore.add("");
             List<Denomination> dens = new ArrayList<>(economy.denominations());
             dens.sort(Comparator.comparingLong(Denomination::value).reversed());
             if (dens.size() > 1) {
                 // Показываем размен для каждого номинала, кроме самого младшего (меди)
                 for (int i = 0; i < dens.size() - 1; i++) {
                     Denomination higher = dens.get(i);
-                    lore.add(getCoinGlyph(higher) + " " + getCoinName(higher) + " <gray>равна:</gray>");
+                    lore.add(lang().text("gui.banker.rates-section", "coin", getCoinGlyph(higher) + " " + getCoinName(higher)));
                     List<String> parts = new ArrayList<>();
                     for (int j = i + 1; j < dens.size(); j++) {
                         Denomination lower = dens.get(j);
                         if (lower.value() <= 0) continue;
                         long ratio = higher.value() / lower.value();
-                        parts.add(getCoinGlyph(lower) + " <yellow>" + ratio + " шт.</yellow>");
+                        parts.add(lang().text("gui.banker.rates-part", "coin", getCoinGlyph(lower), "ratio", String.valueOf(ratio)));
                     }
-                    lore.add("  <gray>•</gray> " + String.join(" <dark_gray>/</dark_gray> ", parts));
+                    lore.add("  " + String.join(lang().text("gui.banker.rates-separator"), parts));
                     lore.add("");
                 }
             }
-            lore.add("<green>ЛКМ</green> <gray>— показать правила банкира</gray>");
+            lore.addAll(LoreBlocks.clicks(lang().style(), LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.banker.rates-click"))));
         } else {
-            title = "<gold>Как работает банкир</gold>";
-            lore.add("<gray>• <yellow>Внесение:</yellow> положите монеты в слот <gold>«Ваша валюта»</gold></gray>");
-            lore.add("<gray>• <yellow>Выбор:</yellow> справа выберите желаемый номинал</gray>");
-            lore.add("<gray>• </gray><green>ЛКМ</green> <gray>— получить <aqua>1 монету</aqua></gray>");
-            lore.add("<gray>• <yellow>Shift</yellow><dark_gray>+</dark_gray><green>ЛКМ</green> <gray>— получить <gold>максимум</gold></gray></gray>");
-            lore.add("<gray>• <yellow>Возврат:</yellow> клик по слоту валюты вернёт всё назад</gray>");
-            lore.add("");
-            lore.add("<gray>Банковский сбор: <gold>" + feePercent + "%" + (personal ? " <dark_gray>(личный)</dark_gray>" : "") + "</gold></gray>");
-            lore.add("");
-            lore.add("<green>ЛКМ</green> <gray>— посмотреть курс размена монет</gray>");
+            title = lang().text("gui.banker.info-rules");
+            lore.addAll(lang().lines("gui.banker.rules-lore", "fee", String.valueOf(feePercent),
+                    "personal", personal ? lang().text("gui.banker.fee-personal") : ""));
         }
         ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, title, lore);
         ItemMeta meta = item.getItemMeta();
@@ -209,12 +207,8 @@ public class BankerGui {
     private ItemStack depositItem(LoveEconomy economy, long deposited, String currency) {
         if (deposited <= 0) {
             ItemStack empty = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_EMPTY,
-                    "<gold>Ваша валюта</gold>",
-                    List.of(
-                            "",
-                            "<gray>Положите сюда монеты для обмена</gray>",
-                            "<dark_gray>(клик монетой из инвентаря или Shift)</dark_gray>"
-                    ));
+                    lang().text("gui.banker.deposit-empty"),
+                    lang().lines("gui.banker.deposit-empty-lore"));
             ItemMeta meta = empty.getItemMeta();
             if (meta != null) {
                 meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "deposit");
@@ -224,14 +218,15 @@ public class BankerGui {
         }
 
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.empty());
-        lore.add(MessageUtils.parse(player, "<gray>Внесённые монеты:</gray>"));
-        lore.addAll(CoinFormat.formatGlyphLines(economy, deposited));
-        lore.add(Component.empty());
-        lore.add(MessageUtils.parse(player, "<yellow>Клик </yellow><gray>— забрать всё назад</gray>"));
+        for (String line : lang().lines("gui.banker.deposit-filled-lore")) lore.add(GuiUtils.line(player, line));
+        for (Component line : CoinFormat.formatGlyphLines(economy, deposited)) lore.add(Component.text("  ").append(line));
+        for (String line : LoreBlocks.clicks(lang().style(),
+                LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.banker.deposit-filled-click")))) {
+            lore.add(GuiUtils.line(player, line));
+        }
 
         ItemStack filled = GuiUtils.createCustomHead(HeadTextures.BANKER_DEPOSIT_FILLED,
-                "<gold>Ваша валюта</gold>",
+                lang().text("gui.banker.deposit-filled"),
                 List.of());
         ItemMeta meta = filled.getItemMeta();
         if (meta != null) {
@@ -336,24 +331,22 @@ public class BankerGui {
         item.setAmount((int) Math.min(64, Math.max(1, maxCount)));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            String countSuffix = maxCount > 64 ? " <yellow>(" + maxCount + " шт)</yellow>" : "";
+            String countSuffix = maxCount > 64 ? lang().text("gui.banker.option-suffix", "count", String.valueOf(maxCount)) : "";
             Component displayName;
             if (meta.hasDisplayName()) {
                 displayName = countSuffix.isEmpty() ? meta.displayName() : meta.displayName().append(MessageUtils.parse(player, countSuffix));
             } else {
                 displayName = MessageUtils.parse(player, getCoinName(den) + countSuffix);
             }
-            meta.displayName(displayName);
+            meta.displayName(GuiUtils.noItalic(displayName));
 
+            List<String> loreLines = new ArrayList<>(lang().lines("gui.banker.option-lore", "count", String.valueOf(maxCount)));
+            if (feePercent > 0) loreLines.add(lang().text("gui.banker.option-fee", "fee", String.valueOf(feePercent)));
+            loreLines.addAll(LoreBlocks.clicks(lang().style(),
+                    LoreBlocks.hint(LoreBlocks.Click.LEFT, lang().text("gui.banker.option-click-one")),
+                    LoreBlocks.hint(LoreBlocks.Click.SHIFT_LEFT, lang().text("gui.banker.option-click-max"))));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(player, "<gray>Доступно: <yellow>до " + maxCount + " шт.</yellow></gray>"));
-            if (feePercent > 0) {
-                lore.add(MessageUtils.parse(player, "<dark_gray>Банковский сбор: " + feePercent + "%</dark_gray>"));
-            }
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(player, "<green>ЛКМ</green> <gray>— взять 1 шт.</gray>"));
-            lore.add(MessageUtils.parse(player, "<yellow>Shift</yellow><dark_gray>+</dark_gray><green>ЛКМ</green> <gray>— взять максимум</gray>"));
+            for (String line : loreLines) lore.add(GuiUtils.line(player, line));
             meta.lore(lore);
 
             meta.getPersistentDataContainer().set(denomKey(), PersistentDataType.LONG, unit);

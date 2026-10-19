@@ -7,6 +7,8 @@ import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -90,7 +92,8 @@ public final class StallOwnerBuyGui extends MarketGui {
         }
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-buy-head", "gui-buy-head-lore",
-                "used", String.valueOf(used), "total", String.valueOf(point.buySlots()), "level", String.valueOf(point.level())));
+                "used", String.valueOf(used), "total", String.valueOf(point.buySlots()), "level", String.valueOf(point.level()),
+                "bar", ProgressBarUtil.bar(used, point.buySlots())));
         // "Collect all" is an action, not a tab: it takes the footer's extra slot, the header stays glass.
         button(MarketLayout.extraSlot(inventory.getSize()), tile(HeadTextures.BANKER_WITHDRAW, "gui-buy-collect", "gui-buy-collect-lore"),
                 e -> collectAll());
@@ -107,9 +110,9 @@ public final class StallOwnerBuyGui extends MarketGui {
                 "stock", String.valueOf(listing.stock()),
                 "max", String.valueOf(listing.maxAmount()),
                 "price", plugin.getMarketStyle().money(listing.price())));
-        extra.addAll(lines(listing.stock() > 0 ? "gui-buy-order-collect" : "gui-buy-order-empty", "stock", String.valueOf(listing.stock())));
+        if (listing.stock() > 0) extra.addAll(lines("gui-buy-order-collect", "stock", String.valueOf(listing.stock())));
         extra.addAll(lines("gui-buy-order-actions"));
-        for (String line : extra) lore.add(MessageUtils.parse(viewer, line));
+        for (String line : extra) lore.add(GuiUtils.line(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;

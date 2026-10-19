@@ -9,6 +9,7 @@ import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.market.model.TradingMode;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -122,11 +123,12 @@ public final class StallBuyerGui extends MarketGui {
         if (head.getItemMeta() instanceof SkullMeta meta) {
             OfflinePlayer owner = Bukkit.getOfflinePlayer(point.ownerUuid());
             meta.setOwningPlayer(owner);
-            meta.displayName(MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName())));
+            meta.displayName(GuiUtils.line(viewer, t("gui-customer-head",
+                    "owner", point.ownerName() == null || point.ownerName().isBlank() ? "?" : point.ownerName())));
             List<Component> lore = new ArrayList<>();
             for (String line : lines("gui-customer-head-lore", "mode", t("gui-mode-" + point.tradingMode().name().toLowerCase(Locale.ROOT)),
                     "level", String.valueOf(point.level()))) {
-                lore.add(MessageUtils.parse(viewer, line));
+                lore.add(GuiUtils.line(viewer, line));
             }
             meta.lore(lore);
             head.setItemMeta(meta);
@@ -139,7 +141,7 @@ public final class StallBuyerGui extends MarketGui {
         String key = each == Tab.GOODS ? "goods" : "orders";
         boolean selected = each == tab;
         ItemStack item = head(base64, t("gui-customer-tab-" + key + (selected ? "-on" : "")),
-                lines("gui-customer-tab-" + key + "-lore", "state", t(selected ? "gui-customer-tab-open" : "gui-customer-tab-click")));
+                lines("gui-customer-tab-" + key + (selected ? "-lore-on" : "-lore")));
         if (selected && item.getItemMeta() != null) {
             ItemMeta meta = item.getItemMeta();
             meta.setEnchantmentGlintOverride(true);
@@ -191,7 +193,7 @@ public final class StallBuyerGui extends MarketGui {
             extra.addAll(lines("gui-customer-goods-price", "price", style.money(l.unitPrice())));
         }
         extra.addAll(lines("gui-customer-goods-stock", "stock", String.valueOf(l.stock())));
-        for (String line : extra) lore.add(MessageUtils.parse(viewer, line));
+        for (String line : extra) lore.add(GuiUtils.line(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
@@ -206,8 +208,8 @@ public final class StallBuyerGui extends MarketGui {
         List<String> extra = new ArrayList<>();
         extra.add("");
         extra.addAll(lines("gui-customer-order", "price", plugin.getMarketStyle().money(l.unitPrice()), "needed", String.valueOf(needed)));
-        if (needed > 0) extra.addAll(lines("gui-customer-order-actions"));
-        for (String line : extra) lore.add(MessageUtils.parse(viewer, line));
+        extra.addAll(lines(needed > 0 ? "gui-customer-order-actions" : "gui-customer-order-full"));
+        for (String line : extra) lore.add(GuiUtils.line(viewer, line));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;

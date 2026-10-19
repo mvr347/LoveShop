@@ -57,9 +57,9 @@ public final class StallConfirmGui extends MarketGui {
 
     private List<String> confirmLore() {
         java.util.ArrayList<String> lore = new java.util.ArrayList<>();
+        lore.add(t("gui-confirm-subtitle"));
         lore.add("");
         lore.addAll(summary);
-        lore.add("");
         lore.addAll(lines("gui-confirm-ok-lore"));
         return lore;
     }
