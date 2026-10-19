@@ -1,5 +1,33 @@
 prefix: "<gradient:#FF5555:#FFAA00>[LoveShops]</gradient> "
 
+# 2026-10-19: версия языкового файла. copyDefaults не обновляет уже существующие строки, поэтому тексты меню,
+# переписанные под стандарт gui-gen-6, не дошли бы до серверов со старым lang.yml. При переходе на новую версию
+# LangMigrator берёт перечисленные разделы из jar заново (правки админа в них пропадают), а прежний файл
+# сохраняется рядом как lang.yml.v<версия>.bak. Меняете оформление меню - поднимайте версию и добавляйте шаг в LangMigrator.
+lang-version: 2
+
+# 2026-10-19: общие куски оформления лора (стандарт gui-gen-6, RULE 10). Клики пишутся каждый на своей строке,
+# перед ними всегда разделитель; цвет по ролям: ЛКМ зелёный, ПКМ золотой (красный - только для нехватки и запретов),
+# Shift+... жёлтый. Значения читает LoreBlocks, а те же строки продублированы в самих списках lore ниже, чтобы файл
+# читался как готовый предмет. GuiLoreStyleTest следит, что разделитель везде один и тот же.
+style:
+  separator: "<dark_gray><st>─────────────────────</st>"
+  click:
+    left: "<green>ЛКМ <dark_gray>— <gray>{action}"
+    right: "<gold>ПКМ <dark_gray>— <gray>{action}"
+    shift-left: "<yellow>Shift+ЛКМ <dark_gray>— <gray>{action}"
+    shift-right: "<yellow>Shift+ПКМ <dark_gray>— <gray>{action}"
+  # Неактивная кнопка: разделитель, статус, "Причина:", заблокированный клик - именно в таком порядке.
+  reason: "<red>Причина: <gray>{reason}"
+  blocked-click: "<dark_gray>{click} — {action} (заблокировано)"
+  disabled-name: "<gray>{name} <dark_gray>| <red>Недоступно"
+  status:
+    unavailable: "<red>✕ Действие недоступно"
+    locked: "<red>🔒 Заблокировано"
+    cooldown: "<yellow>⌛ Подождите"
+    # Единственное место, где в лоре допустим знак ✔: достигнут предел.
+    max: "<green>✔ Достигнут предел"
+
 commands:
   no-permission: "<red>У вас нет прав для выполнения этой команды!</red>"
   only-players: "<red>Эта команда предназначена только для игроков.</red>"
@@ -23,8 +51,19 @@ admin:
   help-npc: "<aqua>/loveshopsadmin npc <create|delete|list></aqua> <gray>- Управление NPC-торговцами</gray>"
   help-footer: "<dark_gray>=========================================</dark_gray>"
 
+# 2026-10-19: тексты меню NPC (банкир, комиссионер, караваны, странник, военный торговец) раньше были зашиты в Java
+# и не переводились; теперь лежат здесь и идут через LangManager.text/lines. Оформление - по стандарту gui-gen-6.
 gui:
   item-bought: "<green>Вы успешно купили предмет!</green>"
+  # Общие карточки: голова профиля в слоте 0 и "пусто" в центре списка.
+  profile:
+    name: "<gold>Профиль <dark_gray>| <white>{player}"
+    lore:
+      - "<dark_gray>Профиль игрока"
+      - ""
+      - "<dark_gray>▪ <gray>Вы вошли как:"
+      - "  <white>{player}"
+  empty-title: "<gray>Пока ничего нет"
 
 # ===== Рынок игроков (торговые точки) =====
 # Тексты рынка. Вместо {i_stall}, {i_guard}, {i_robbery}, {i_star}, {i_closed}, {i_till}
