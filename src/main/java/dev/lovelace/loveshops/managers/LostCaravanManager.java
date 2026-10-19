@@ -419,7 +419,9 @@ public class LostCaravanManager {
             if ("AUCTION".equals(fm)) {
                 mode = "AUCTION";
             } else if ("SECRET".equals(fm)) {
-                mode = participantCount <= minForAuction ? "INSTANT" : "AUCTION";
+                // 2026-10-19: the secret subtype is a regular auction plus one extra (secret) crate; it no
+                // longer falls back to instant purchase when few players joined.
+                mode = "AUCTION";
                 secretCrate = true;
             } else if ("BASE".equals(fm) || "INSTANT".equals(fm)) {
                 mode = "INSTANT";
