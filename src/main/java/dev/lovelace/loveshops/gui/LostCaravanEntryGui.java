@@ -86,7 +86,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
         ItemStack infoItem = GuiUtils.createCustomHead(
                 HeadTextures.CARAVAN_LOST_INFO,
                 lang().text("gui.lost.entry-info"),
-                lang().lines("gui.lost.entry-info-lore", "fee", feeText, "refund", String.valueOf(refund),
+                lang().lines("gui.lost.entry-info-lore", "fee", feeText, "percent", String.valueOf(refund),
                         "min", String.valueOf(plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6)),
                         "secret", String.valueOf(plugin.getConfig().getInt("caravan.lost.secret-crate-chance-players", 12)),
                         "remaining", remainingLabel())
@@ -119,7 +119,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
             registerBtn = GuiUtils.createCustomHead(
                     HeadTextures.BUTTON_PLUS,
                     lang().text("gui.lost.entry-register"),
-                    lang().lines("gui.lost.entry-register-lore", "fee", feeText, "refund", String.valueOf(refund),
+                    lang().lines("gui.lost.entry-register-lore", "fee", feeText, "percent", String.valueOf(refund),
                             "remaining", remainingLabel())
             );
         }
