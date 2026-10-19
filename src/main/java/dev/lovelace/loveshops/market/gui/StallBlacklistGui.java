@@ -4,6 +4,8 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.model.BlacklistEntry;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -58,7 +60,7 @@ public final class StallBlacklistGui extends MarketGui {
         int max = plugin.getMarketConfig().blacklistMaxEntries();
 
         inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-blacklist-head", "gui-blacklist-head-lore",
-                "count", String.valueOf(list.size()), "max", String.valueOf(max)));
+                "count", String.valueOf(list.size()), "max", String.valueOf(max), "bar", ProgressBarUtil.bar(list.size(), max)));
         if (list.size() < max) {
             // "Add player" is the footer's extra button (slot 51 of 54), not a header control.
             button(MarketLayout.extraSlot(SIZE), tile(HeadTextures.BUTTON_PLUS, "gui-blacklist-add", "gui-blacklist-add-lore"), e -> promptAdd());
@@ -81,12 +83,12 @@ public final class StallBlacklistGui extends MarketGui {
         OfflinePlayer op = Bukkit.getOfflinePlayer(be.playerUuid());
         meta.setOwningPlayer(op);
         String name = op.getName() != null ? op.getName() : be.playerUuid().toString().substring(0, 8);
-        meta.displayName(MessageUtils.parse(viewer, t("gui-blacklist-entry", "player", name)));
+        meta.displayName(GuiUtils.line(viewer, t("gui-blacklist-entry", "player", name)));
         String reason = be.reason() != null && !be.reason().isBlank() ? be.reason() : t("gui-blacklist-no-reason");
         List<Component> lore = new ArrayList<>();
         for (String line : lines("gui-blacklist-entry-lore", "reason", reason,
                 "date", WHEN.format(Instant.ofEpochMilli(be.createdAt())))) {
-            lore.add(MessageUtils.parse(viewer, line));
+            lore.add(GuiUtils.line(viewer, line));
         }
         meta.lore(lore);
         item.setItemMeta(meta);

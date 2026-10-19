@@ -4,6 +4,8 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.model.GuardState;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -58,7 +60,7 @@ public final class StallOwnerGui extends MarketGui {
                 new Control(tile(HeadTextures.BANKER_DEPOSIT, "gui-main-trade", "gui-main-trade-lore"),
                         e -> new StallTradeMenuGui(plugin, viewer, point).open()),
                 new Control(tile(HeadTextures.BANKER_WITHDRAW, "gui-main-storage", "gui-main-storage-lore",
-                        "stored", String.valueOf(stored), "capacity", String.valueOf(cap)),
+                        "stored", String.valueOf(stored), "capacity", String.valueOf(cap), "bar", ProgressBarUtil.bar(stored, cap)),
                         e -> new StallStorageGui(plugin, viewer, point).open()),
                 new Control(tile(HeadTextures.BANKER_INFO, "gui-main-manage", "gui-main-manage-lore"),
                         e -> new StallManageGui(plugin, viewer, point).open())
@@ -73,7 +75,7 @@ public final class StallOwnerGui extends MarketGui {
         ItemStack item = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         meta.setOwningPlayer(viewer);
-        meta.displayName(MessageUtils.parse(viewer, t("gui-main-head", "player", viewer.getName())));
+        meta.displayName(GuiUtils.line(viewer, t("gui-main-head", "player", viewer.getName())));
         List<Component> lore = new ArrayList<>();
         for (String line : lines("gui-main-head-lore",
                 "level", String.valueOf(point.level()),
@@ -81,7 +83,7 @@ public final class StallOwnerGui extends MarketGui {
                 "money", plugin.getMarketStyle().money(point.tillCoins()),
                 "when", rentLine(),
                 "guard", guardStatus())) {
-            lore.add(MessageUtils.parse(viewer, line));
+            lore.add(GuiUtils.line(viewer, line));
         }
         meta.lore(lore);
         item.setItemMeta(meta);

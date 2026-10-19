@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.market.feudal;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.utils.ProgressBarUtil;
 import dev.lovelace.loveshops.market.ClaimsLink;
 import dev.lovelace.loveshops.market.gui.MarketGui;
 import dev.lovelace.loveshops.market.model.TradePoint;
@@ -58,7 +59,8 @@ public final class FeudalRentGui extends MarketGui {
         inventory.setItem(0, tile(HeadTextures.MARKET_OPEN, "gui-feudal-rent-head", "gui-feudal-rent-head-lore",
                 "id", id, "level", String.valueOf(point.level())));
 
-        List<String> costLines = new ArrayList<>(CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), cost));
+        List<String> costLines = new ArrayList<>();
+        for (String line : CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), cost)) costLines.add("  " + line);
         List<String> confirmLore = new ArrayList<>(lines("gui-feudal-rent-confirm-top", "id", id,
                 "weeks", String.valueOf(weeks), "days", String.valueOf(weeks * periodDays)));
         confirmLore.addAll(costLines);
@@ -67,7 +69,7 @@ public final class FeudalRentGui extends MarketGui {
         rowButtons(9, List.of(
                 new Control(head(HeadTextures.BUTTON_PLUS, t("gui-feudal-rent-weeks"),
                         lines("gui-feudal-rent-weeks-lore", "weeks", String.valueOf(weeks), "max", String.valueOf(max),
-                                "days", String.valueOf(weeks * periodDays))), this::clickWeeks),
+                                "days", String.valueOf(weeks * periodDays), "bar", ProgressBarUtil.bar(weeks, max))), this::clickWeeks),
                 new Control(head(HeadTextures.HEAD_CONFIRM, t("gui-feudal-rent-confirm"), confirmLore), e -> rent())
         ));
         footer(() -> new FeudalListGui(plugin, viewer).open());

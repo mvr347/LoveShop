@@ -103,9 +103,9 @@ public abstract class MarketGui implements InventoryHolder {
         ItemStack item = GuiUtils.createCustomHead(base64, " ", null);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(MessageUtils.parse(viewer, name));
+            meta.displayName(GuiUtils.line(viewer, name));
             if (lore != null && !lore.isEmpty()) {
-                meta.lore(lore.stream().map(line -> MessageUtils.parse(viewer, line)).toList());
+                meta.lore(lore.stream().map(line -> GuiUtils.line(viewer, line)).toList());
             }
             item.setItemMeta(meta);
         }

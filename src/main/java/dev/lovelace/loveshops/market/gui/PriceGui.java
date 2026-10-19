@@ -5,7 +5,9 @@ import dev.lovelace.lovecore.api.economy.LoveEconomy;
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.textures.HeadTextures;
 import dev.lovelace.loveshops.utils.CoinFormat;
+import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.Hints;
+import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -127,18 +129,19 @@ public final class PriceGui extends MarketGui {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-            lore.add(Component.empty());
-            lore.add(MessageUtils.parse(viewer, "<dark_gray>▪</dark_gray> <gray>Количество: <white>" + amount
-                    + "</white>" + (maxAmount > 1 ? " <dark_gray>из " + maxAmount + "</dark_gray>" : " шт.") + "</gray>"));
+            for (String line : lines("gui-price-lot", "amount", String.valueOf(amount),
+                    "limit", maxAmount > 1 ? t("gui-price-lot-limit", "max", String.valueOf(maxAmount)) : t("gui-price-lot-unit"))) {
+                lore.add(GuiUtils.line(viewer, line));
+            }
             if (input.price() > 0) {
-                lore.add(MessageUtils.parse(viewer, "<dark_gray>▪</dark_gray> <gray>Цена за единицу:</gray>"));
-                for (String line : CoinFormat.glyphLineStrings(plugin.getEconomy().orElse(null), input.price())) {
-                    lore.add(MessageUtils.parse(viewer, line));
+                for (String line : lines("gui-price-lot-price", "price", plugin.getMarketStyle().money(input.price()))) {
+                    lore.add(GuiUtils.line(viewer, line));
                 }
             }
             if (maxAmount > 1) {
-                lore.add(Component.empty());
-                lore.add(MessageUtils.parse(viewer, Hints.amountStepper(8)));
+                for (String line : Hints.amountStepper(plugin.getLangManager().style(), plugin.getMarketMessages()::raw, 8)) {
+                    lore.add(GuiUtils.line(viewer, line));
+                }
             }
             meta.lore(lore);
             item.setItemMeta(meta);
@@ -149,15 +152,11 @@ public final class PriceGui extends MarketGui {
     private ItemStack priceButton() {
         LoveEconomy eco = plugin.getEconomy().orElse(null);
         List<String> lore = new ArrayList<>(lines("gui-price-btn-top"));
-        lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
+        lore.addAll(indented(CoinFormat.glyphLineStrings(eco, input.price())));
         String coin = coinGlyph(input.activeIndex());
         String copper = copperGlyph();
-        List<String> bottom = lines("gui-price-btn-bottom", "coin", coin, "copper", copper, "hint", Hints.coinPicker());
-        lore.addAll(bottom);
-        boolean hasMin = bottom.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains("минимальная цена"));
-        if (!hasMin) {
-            lore.add("<gray>Минимальная цена </gray>" + copper + " <white>х1</white>");
-        }
+        lore.addAll(lines("gui-price-btn-bottom", "coin", coin, "copper", copper));
+        lore.addAll(Hints.coinPicker(plugin.getLangManager().style(), plugin.getMarketMessages()::raw));
         return head(HeadTextures.BANKER_ACCOUNT, t("gui-price-btn"), lore);
     }
 
@@ -165,17 +164,22 @@ public final class PriceGui extends MarketGui {
         if (input.valid()) {
             LoveEconomy eco = plugin.getEconomy().orElse(null);
             List<String> lore = new ArrayList<>(lines("gui-price-confirm-top"));
-            lore.addAll(CoinFormat.glyphLineStrings(eco, input.price()));
+            lore.addAll(indented(CoinFormat.glyphLineStrings(eco, input.price())));
             if (!editsOnlyPrice && amount > 1) {
                 lore.add("");
                 lore.add(t("gui-price-confirm-total", "amount", String.valueOf(amount)));
-                lore.addAll(CoinFormat.glyphLineStrings(eco, input.price() * (long) amount));
+                lore.addAll(indented(CoinFormat.glyphLineStrings(eco, input.price() * (long) amount)));
             }
             lore.addAll(lines("gui-price-confirm-bottom"));
             return head(HeadTextures.HEAD_CONFIRM, t("gui-price-confirm"), lore);
         }
         String reason = input.price() <= 0 ? t("gui-price-reason-unset") : t("gui-price-reason-low");
         return head(HeadTextures.HEAD_DELETE_NO, t("gui-price-confirm-off"), lines("gui-price-confirm-off-lore", "reason", reason));
+    }
+
+    /** Rows of a lore section are indented by two spaces (gui-gen-6). */
+    private static List<String> indented(List<String> rows) {
+        return rows.stream().map(row -> "  " + row).toList();
     }
 
     private String coinGlyph(int index) {

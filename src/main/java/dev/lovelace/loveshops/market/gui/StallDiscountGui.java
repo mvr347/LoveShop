@@ -4,6 +4,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.market.model.DiscountEntry;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -78,11 +79,11 @@ public final class StallDiscountGui extends MarketGui {
         OfflinePlayer op = Bukkit.getOfflinePlayer(de.beneficiaryUuid());
         meta.setOwningPlayer(op);
         String name = op.getName() != null ? op.getName() : de.beneficiaryUuid().toString().substring(0, 8);
-        meta.displayName(MessageUtils.parse(viewer, t("gui-discount-entry", "player", name)));
+        meta.displayName(GuiUtils.line(viewer, t("gui-discount-entry", "player", name, "percent", String.valueOf(de.percent()))));
         String until = de.expiresAt() <= 0 ? t("gui-discount-forever") : WHEN.format(Instant.ofEpochMilli(de.expiresAt()));
         List<Component> lore = new ArrayList<>();
         for (String line : lines("gui-discount-entry-lore", "percent", String.valueOf(de.percent()), "until", until)) {
-            lore.add(MessageUtils.parse(viewer, line));
+            lore.add(GuiUtils.line(viewer, line));
         }
         meta.lore(lore);
         item.setItemMeta(meta);
