@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,28 @@ public class LangManager {
         }
         this.langConfig = YamlConfiguration.loadConfiguration(langFile);
         this.bundled = loadBundled();
+        migrate(langFile);
+    }
+
+    /**
+     * Takes the reworded parts of the jar's lang.yml into an older server file (see {@link LangMigrator}); the
+     * previous file stays next to it as {@code lang.yml.v<old version>.bak}, so an admin's edits are never lost.
+     */
+    private void migrate(File langFile) {
+        int before = langConfig.getInt(LangMigrator.VERSION_KEY, 1);
+        if (!LangMigrator.migrate(langConfig, bundled)) return;
+        File backup = new File(plugin.getDataFolder(), "lang.yml.v" + before + ".bak");
+        try {
+            if (!backup.exists()) {
+                Files.copy(langFile.toPath(), backup.toPath());
+            }
+            langConfig.save(langFile);
+            plugin.getLogger().info("lang.yml обновлён до версии " + LangMigrator.latestVersion()
+                    + " (прежний файл сохранён как " + backup.getName() + ")");
+        } catch (IOException e) {
+            // the new texts still work in memory; the file is left as it was so nothing is lost
+            plugin.getLogger().warning("Не удалось сохранить обновлённый lang.yml: " + e.getMessage());
+        }
     }
 
     private FileConfiguration loadBundled() {
