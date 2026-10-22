@@ -42,4 +42,4 @@ LoveShops предоставляет торговцев-NPC:
 
 - **LoveCore** (обязательно) — LoveEconomy
 - **Paper 1.21**
-- **Citizens** (мягкая) — NPC
+- **Citizens** или **LoveEssential** (мягкая; выбирается в `integrations.npc-provider`, по умолчанию Citizens) — NPC через контракт `NpcProvider` из LoveCore
