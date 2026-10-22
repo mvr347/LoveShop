@@ -34,8 +34,6 @@ public class NpcManager {
     private final Map<UUID, Entity> spawnedEntities = new ConcurrentHashMap<>();
     /** Provider key of the NPC LoveShops currently tracks for a row (found, bound or created by us). */
     private final Map<UUID, String> trackedKeys = new ConcurrentHashMap<>();
-    /** Rows already reported as "should be hidden but the contract cannot hide it"; one line per row, not per tick. */
-    private final Set<UUID> hideWarned = ConcurrentHashMap.newKeySet();
     /** NPCs re-tagged from their DB row during the current spawnAllNpcs pass (legacy-tag fallback). */
     private int retagged;
 
@@ -152,8 +150,8 @@ public class NpcManager {
     /**
      * Binds an NPC that already exists in the provider (an admin placed it) to a LoveShops role.
      *
-     * @param skinFallback skin for an event spawn point: the contract cannot read the skin of the NPC being
-     *                     replaced, so the configured default of the type is used instead
+     * @param skinFallback skin for an event spawn point, used only when the NPC has no skin name of its own
+     *                     (a texture or no skin)
      */
     public CompletableFuture<NpcData> bindNpc(String type, String npcKey, String displayNameOverride, String boundBy, String skinFallback) {
         if (!Bukkit.isPrimaryThread()) {
@@ -178,6 +176,9 @@ public class NpcManager {
         }
         UUID npcUuid = UUID.randomUUID();
         if (isEphemeralType(type)) {
+            // The NPC's own skin name wins; the fallback is used only when the NPC has none.
+            String skin = handle.skinName().filter(s -> !s.isBlank())
+                    .orElse(skinFallback != null && !skinFallback.isBlank() ? skinFallback : boundBy);
             // Take place and name of the NPC as a spawn point, then remove it: the plugin creates its own.
             Location point = loc.clone();
             try {
@@ -185,7 +186,7 @@ public class NpcManager {
             } catch (Exception e) {
                 plugin.getLogger().warning("Не удалось убрать привязанный NPC #" + npcKey + ": " + e.getMessage());
             }
-            return insertNpc(npcUuid, type, name, point, skinFallback != null && !skinFallback.isBlank() ? skinFallback : boundBy, null);
+            return insertNpc(npcUuid, type, name, point, skin, null);
         }
         applyTags(handle, npcUuid, type);
         return insertNpc(npcUuid, type, name, loc, boundBy, handle.key()).whenComplete((npc, err) -> {
@@ -383,8 +384,9 @@ public class NpcManager {
             if (handle.spawned() && !sameSpot(handle.location(), loc)) {
                 handle.teleport(loc);
             }
-            // A bound NPC that is not spawned stays that way: the contract has no spawn(), and the provider
-            // brings back its own saved NPCs (the schedule veto still applies to that spawn).
+            // The row wants this NPC in the world: a bound NPC the provider hid is shown again. The schedule
+            // veto (NpcSpawnEvent) still applies: a refused spawn leaves it hidden.
+            if (!handle.spawned()) handle.spawn();
         } catch (Exception e) {
             plugin.getLogger().warning("Ошибка спавна NPC: " + e.getMessage());
         }
@@ -416,12 +418,8 @@ public class NpcManager {
         NpcHandle handle = findHandle(known);
         if (handle == null) return;
         trackedKeys.put(npcUuid, handle.key());
-        if (handle.spawned() && hideWarned.add(npcUuid)) {
-            // NpcProvider has no despawn: the spawn veto keeps the NPC from coming back, but one that is
-            // already standing stays until the provider unloads it.
-            plugin.getLogger().warning("NPC " + known.type() + " #" + known.id() + " сейчас должен быть скрыт, но контракт NpcProvider "
-                + "не умеет прятать NPC: он останется на месте до перезагрузки чанка/сервера (новые спавны запрещены).");
-        }
+        // The provider keeps the NPC (place, skin, tags) and only takes it out of the world.
+        handle.despawn();
     }
 
     public void despawnNpcEntity(UUID npcUuid) {
@@ -438,7 +436,6 @@ public class NpcManager {
         if (entity != null && entity.isValid()) {
             entity.remove();
         }
-        hideWarned.remove(npcUuid);
         String key = trackedKeys.remove(npcUuid);
         if (key == null) key = npcKey;
         if (key == null) return;
@@ -548,13 +545,14 @@ public class NpcManager {
         for (NpcData npc : new ArrayList<>(loadedNpcs.values())) {
             if (!isEphemeralType(npc.type()) || npc.npcKey() == null) continue;
             NpcHandle handle = bridge().byKey(npc.npcKey()).orElse(null);
-            // The contract cannot read an NPC's skin, so the row keeps the skin it already has.
+            // The NPC's own skin name is kept; the row keeps its skin when the NPC has none (a texture or no skin).
+            String skin = handle != null ? handle.skinName().filter(s -> !s.isBlank()).orElse(npc.skinOwner()) : npc.skinOwner();
             Location where = handle != null ? handle.location() : null;
             NpcData fresh = new NpcData(npc.id(), npc.uuid(), npc.type(), npc.world(),
                     where != null ? where.getX() : npc.x(), where != null ? where.getY() : npc.y(),
                     where != null ? where.getZ() : npc.z(), where != null ? where.getYaw() : npc.yaw(),
                     where != null ? where.getPitch() : npc.pitch(), npc.name(), npc.displayName(),
-                    npc.skinOwner(), null, npc.createdAt(), System.currentTimeMillis() / 1000);
+                    skin, null, npc.createdAt(), System.currentTimeMillis() / 1000);
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement ps = conn.prepareStatement(
                          "UPDATE shops_npcs SET citizens_id = NULL, npc_key = NULL, skin_owner = ?, x = ?, y = ?, z = ?, yaw = ?, pitch = ?, updated_at = ? WHERE uuid = ?")) {
