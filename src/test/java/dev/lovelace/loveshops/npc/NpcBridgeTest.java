@@ -48,32 +48,6 @@ class NpcBridgeTest {
         @Override public Collection<NpcHandle> all() { return new ArrayList<>(npcs.values()); }
     }
 
-    private static final class FakeNpc implements NpcHandle {
-        final String provider;
-        final String key;
-        final Map<String, String> tags = new HashMap<>();
-
-        FakeNpc(String provider, String key) {
-            this.provider = provider;
-            this.key = key;
-        }
-
-        @Override public String providerId() { return provider; }
-        @Override public String key() { return key; }
-        @Override public String name() { return "npc" + key; }
-        @Override public Optional<Entity> entity() { return Optional.empty(); }
-        @Override public boolean spawned() { return false; }
-        @Override public Location location() { return null; }
-        @Override public void setName(Component name) { }
-        @Override public void setSkin(String playerName) { }
-        @Override public void setSkin(SkinTexture texture) { }
-        @Override public void teleport(Location to) { }
-        @Override public void lookClose(boolean enabled) { }
-        @Override public void hologram(List<Component> lines) { }
-        @Override public Optional<String> tag(String k) { return Optional.ofNullable(tags.get(k)); }
-        @Override public void tag(String k, String v) { if (v == null) tags.remove(k); else tags.put(k, v); }
-    }
-
     private final List<String> warnings = new ArrayList<>();
     private String configured = "citizens";
     private final Map<String, FakeProvider> registered = new HashMap<>();

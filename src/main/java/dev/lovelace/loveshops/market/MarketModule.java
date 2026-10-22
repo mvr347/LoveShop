@@ -5,8 +5,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
 
 /**
- * Starts and stops the player market. It needs Citizens (NPCs) and LoveClaims (rentable points);
- * without either the rest of LoveShops runs as before. All LoveClaims-dependent classes are created
+ * Starts and stops the player market. It needs LoveClaims (rentable points); the traders need an NPC provider,
+ * which may arrive late and is picked up when it does. Without LoveClaims the rest of LoveShops runs as before. All LoveClaims-dependent classes are created
  * here, only after the plugin is known to be enabled.
  */
 public final class MarketModule {
@@ -51,10 +51,6 @@ public final class MarketModule {
         }
         if (!Bukkit.getPluginManager().isPluginEnabled("LoveClaims")) {
             plugin.getLogger().info("Рынок игроков не запущен: LoveClaims не найден.");
-            return false;
-        }
-        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
-            plugin.getLogger().info("Рынок игроков не запущен: Citizens не найден.");
             return false;
         }
         try {

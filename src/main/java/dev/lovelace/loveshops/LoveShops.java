@@ -11,7 +11,7 @@ import dev.lovelace.loveshops.api.LoveShopsAPIImpl;
 import dev.lovelace.loveshops.commands.LoveShopsAdminCommand;
 import dev.lovelace.loveshops.commands.ShopsCommand;
 import dev.lovelace.loveshops.database.DatabaseManager;
-import dev.lovelace.loveshops.integration.CitizensIntegration;
+import dev.lovelace.loveshops.npc.NpcBridge;
 import dev.lovelace.loveshops.listeners.InventoryClickListener;
 import dev.lovelace.loveshops.listeners.ScheduleListener;
 import dev.lovelace.loveshops.managers.*;
@@ -43,7 +43,7 @@ public final class LoveShops extends JavaPlugin {
     private WarMerchantManager warMerchantManager;
     private WandererManager wandererManager;
     private BankerManager bankerManager;
-    private CitizensIntegration citizensIntegration;
+    private NpcBridge npcBridge;
     private dev.lovelace.loveshops.managers.DailyCaravanManager dailyCaravanManager;
     private dev.lovelace.loveshops.managers.CommissionManager commissionManager;
     private dev.lovelace.loveshops.managers.LostCaravanManager lostCaravanManager;
@@ -74,6 +74,9 @@ public final class LoveShops extends JavaPlugin {
         this.databaseManager.initialize();
 
         // 3. Core Services & Managers
+        // The NPC provider (integrations.npc-provider) is looked up on every use: providers register late.
+        this.npcBridge = NpcBridge.viaLoveCore(() -> getConfig().getString(NpcBridge.CONFIG_PATH, NpcBridge.DEFAULT_PROVIDER),
+                msg -> getLogger().warning(msg));
         this.pricesManager = new PricesManager(this);
         this.pricesManager.load();
         this.forbiddenManager = new ForbiddenManager(this);
@@ -89,9 +92,8 @@ public final class LoveShops extends JavaPlugin {
         this.commissionManager = new dev.lovelace.loveshops.managers.CommissionManager(this);
         this.lostCaravanManager = new dev.lovelace.loveshops.managers.LostCaravanManager(this);
         this.lostCaravanManager.start();
-        this.citizensIntegration = new CitizensIntegration();
 
-        // 3b. Рынок игроков: конфиг/тексты/оформление создаются всегда, сам модуль — только с Citizens и LoveClaims
+        // 3b. Рынок игроков: конфиг/тексты/оформление создаются всегда, сам модуль — только с LoveClaims (NPC — у выбранного провайдера)
         this.marketConfig = new MarketConfig(this);
         this.marketStyle = new MarketStyle(this);
         this.marketMessages = new MarketMessages(this);
@@ -144,9 +146,11 @@ public final class LoveShops extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new InventoryClickListener(this), this);
         getServer().getPluginManager().registerEvents(new ScheduleListener(this), this);
         getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.CaravanPlayerListener(this), this);
-        if (getServer().getPluginManager().isPluginEnabled("Citizens")) {
-            getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.CitizensListener(this), this);
-            getLogger().info("✓ Citizens интеграция активирована.");
+        // LoveCore fires its NPC events for every installed provider; the listener ignores all but the configured one.
+        getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.NpcListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.npc.NpcProviderWatcher(this, this::onNpcProviderReady), this);
+        if (npcBridge.present()) {
+            getLogger().info("✓ NPC-провайдер '" + npcBridge.providerId() + "' активирован.");
         }
 
         // 6. PlaceholderAPI Integration
@@ -165,6 +169,13 @@ public final class LoveShops extends JavaPlugin {
         );
 
         getLogger().info("LoveShops v" + getDescription().getVersion() + " успешно включён!");
+    }
+
+    /** The configured NPC provider has just registered (it may do so after this plugin has started): show what waits for it. */
+    private void onNpcProviderReady() {
+        if (npcManager != null) npcManager.spawnAllNpcs();
+        var market = getTradePointManager();
+        if (market != null) market.syncNpcs();
     }
 
     /** Adds caravan keys that an older config.yml lacks (crate quality tiers, switches) without touching existing values. */
@@ -219,12 +230,12 @@ public final class LoveShops extends JavaPlugin {
     public dev.lovelace.loveshops.managers.DailyCaravanManager getDailyCaravanManager() { return dailyCaravanManager; }
     public dev.lovelace.loveshops.managers.CommissionManager getCommissionManager() { return commissionManager; }
     public dev.lovelace.loveshops.managers.LostCaravanManager getLostCaravanManager() { return lostCaravanManager; }
-    public CitizensIntegration getCitizensIntegration() { return citizensIntegration; }
+    public NpcBridge getNpcBridge() { return npcBridge; }
     public MarketConfig getMarketConfig() { return marketConfig; }
     public MarketMessages getMarketMessages() { return marketMessages; }
     public MarketStyle getMarketStyle() { return marketStyle; }
     public dev.lovelace.loveshops.market.MarketRepository getMarketRepository() { return marketModule == null ? null : marketModule.repo(); }
-    /** {@code null} while the market is not running (no Citizens/LoveClaims or disabled). */
+    /** {@code null} while the market is not running (no LoveClaims or disabled). */
     public TradePointManager getTradePointManager() { return marketModule == null ? null : marketModule.manager(); }
     public ChatPromptService getChatPromptService() { return marketModule == null ? null : marketModule.prompts(); }
     public StallTradeService getTradeService() { return marketModule == null ? null : marketModule.trade(); }

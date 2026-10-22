@@ -5,30 +5,36 @@ import dev.lovelace.loveshops.gui.BankerGui;
 import dev.lovelace.loveshops.gui.WarMerchantGui;
 import dev.lovelace.loveshops.models.NpcData;
 import dev.lovelace.loveshops.utils.MessageUtils;
-import net.citizensnpcs.api.event.NPCRightClickEvent;
-import net.citizensnpcs.api.event.NPCSpawnEvent;
-import net.citizensnpcs.api.npc.NPC;
+import dev.lovelace.lovecore.api.npc.NpcClick;
+import dev.lovelace.lovecore.api.npc.NpcClickEvent;
+import dev.lovelace.lovecore.api.npc.NpcHandle;
+import dev.lovelace.lovecore.api.npc.NpcSpawnEvent;
+import dev.lovelace.loveshops.npc.NpcTags;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import java.util.UUID;
-
-public class CitizensListener implements Listener {
+/**
+ * Clicks on, and the spawn veto for, the NPCs of the configured NPC provider. LoveCore fires its NPC events for
+ * every provider that is installed, so each handler first checks that the NPC belongs to the provider chosen in
+ * {@code integrations.npc-provider} and ignores the rest.
+ */
+public class NpcListener implements Listener {
 
     private final LoveShops plugin;
 
-    public CitizensListener(LoveShops plugin) {
+    public NpcListener(LoveShops plugin) {
         this.plugin = plugin;
     }
 
+    /** Schedule-based spawn veto: an event NPC (or a disabled role) is not allowed to appear out of season. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onCitizensSpawn(NPCSpawnEvent event) {
-        NPC npc = event.getNPC();
-        if (npc == null) return;
+    public void onNpcSpawn(NpcSpawnEvent event) {
+        NpcHandle npc = event.npc();
+        if (npc == null || !plugin.getNpcBridge().owns(npc)) return;
 
-        NpcData npcData = resolveNpcData(npc);
+        NpcData npcData = plugin.getNpcManager().resolve(npc);
         if (npcData != null) {
             if (!plugin.getNpcManager().isNpcAllowedToSpawn(npcData)) {
                 event.setCancelled(true);
@@ -36,34 +42,33 @@ public class CitizensListener implements Listener {
             return;
         }
 
-        // Direct metadata check as fallback
-        if (npc.data().has("loveshops_type")) {
-            String type = npc.data().get("loveshops_type", null);
-            if (!plugin.getNpcManager().isTypeAllowedToSpawn(type)) {
-                event.setCancelled(true);
-            }
+        // Direct tag check as fallback: an NPC we created whose row is not loaded yet
+        String type = npc.tag(NpcTags.TYPE).orElse(null);
+        if (type != null && !plugin.getNpcManager().isTypeAllowedToSpawn(type)) {
+            event.setCancelled(true);
         }
     }
 
     @EventHandler
-    public void onCitizensRightClick(NPCRightClickEvent event) {
-        NPC npc = event.getNPC();
-        if (npc == null) return;
+    public void onNpcRightClick(NpcClickEvent event) {
+        if (event.click() != NpcClick.RIGHT) return;
+        NpcHandle npc = event.npc();
+        if (npc == null || !plugin.getNpcBridge().owns(npc)) return;
 
         // Market NPCs (stall traders and guards) are tagged on the NPC itself: check them first, the
         // "nearest NPC" fallback below could otherwise pick a server NPC standing beside a stall.
         var feudal = plugin.getFeudalService();
-        if (feudal != null && feudal.handleClick(event.getClicker(), npc)) {
+        if (feudal != null && feudal.handleClick(event.getPlayer(), npc)) {
             return;
         }
         var market = plugin.getTradePointManager();
-        if (market != null && market.handleNpcClick(event.getClicker(), npc)) {
+        if (market != null && market.handleNpcClick(event.getPlayer(), npc)) {
             return;
         }
 
-        NpcData npcData = resolveNpcData(npc);
+        NpcData npcData = plugin.getNpcManager().resolve(npc);
         if (npcData == null) {
-            npcData = plugin.getNpcManager().getNpcNear(event.getClicker().getLocation(), 3.0)
+            npcData = plugin.getNpcManager().getNpcNear(event.getPlayer().getLocation(), 3.0)
                     .filter(n -> !dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(n.type())).orElse(null);
         }
         if (npcData != null && dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(npcData.type())
@@ -72,7 +77,7 @@ public class CitizensListener implements Listener {
         }
 
         if (npcData != null) {
-            Player player = event.getClicker();
+            Player player = event.getPlayer();
             if (npcData.type().equalsIgnoreCase("wanderer")) {
                 plugin.getWandererManager().handleWandererInteraction(player);
                 return;
@@ -124,18 +129,5 @@ public class CitizensListener implements Listener {
             }
             dialogue.maybeSayAmbient(player, mood);
         }
-    }
-
-    private NpcData resolveNpcData(NPC npc) {
-        if (npc == null) return null;
-        String uuidStr = npc.data().get("loveshops_uuid", null);
-        if (uuidStr != null) {
-            try {
-                UUID uuid = UUID.fromString(uuidStr);
-                NpcData data = plugin.getNpcManager().getNpcByUuid(uuid);
-                if (data != null) return data;
-            } catch (IllegalArgumentException ignored) {}
-        }
-        return plugin.getNpcManager().getNpcByCitizensId(npc.getId()).orElse(null);
     }
 }

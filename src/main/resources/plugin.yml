@@ -10,6 +10,7 @@ softdepend:
   - PlaceholderAPI
   - ItemsAdder
   - Citizens
+  - LoveEssential
   - LoveCore
   - LoveBrewing
   - LoveClaims

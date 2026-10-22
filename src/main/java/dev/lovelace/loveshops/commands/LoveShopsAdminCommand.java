@@ -1,7 +1,7 @@
 package dev.lovelace.loveshops.commands;
 
 import dev.lovelace.loveshops.LoveShops;
-import dev.lovelace.loveshops.integration.CitizensIntegration;
+import dev.lovelace.lovecore.api.npc.NpcHandle;
 import dev.lovelace.loveshops.managers.PricesManager;
 import dev.lovelace.loveshops.market.AdminParse;
 import dev.lovelace.loveshops.models.NpcData;
@@ -143,7 +143,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             if (feudal != null && feudal.create(player.getLocation())) {
                 player.sendMessage(MessageUtils.parse("<green>Феодал успешно создан!</green>"));
             } else {
-                player.sendMessage(MessageUtils.parse("<red>Не удалось создать Феодала (проверьте Citizens или логи).</red>"));
+                player.sendMessage(MessageUtils.parse("<red>Не удалось создать Феодала (проверьте NPC-провайдер или логи).</red>"));
             }
             return;
         }
@@ -156,9 +156,9 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        CitizensIntegration citizens = plugin.getCitizensIntegration();
-        if (!citizens.isAvailable()) {
-            player.sendMessage(MessageUtils.parse("<red>Citizens не установлен! Для создания NPC требуется Citizens.</red>"));
+        if (!plugin.getNpcBridge().available()) {
+            player.sendMessage(MessageUtils.parse("<red>NPC-провайдер '" + plugin.getNpcBridge().providerId()
+                    + "' недоступен! Для создания NPC нужен выбранный в integrations.npc-provider плагин.</red>"));
             return;
         }
 
@@ -202,24 +202,24 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         String name = args.length > 3 ? String.join(" ", List.of(args).subList(3, args.length)) : null;
 
-        CitizensIntegration citizens = plugin.getCitizensIntegration();
-        if (!citizens.isAvailable()) {
-            player.sendMessage(MessageUtils.parse("<red>Citizens не установлен! Для привязки требуется Citizens.</red>"));
+        if (!plugin.getNpcBridge().available()) {
+            player.sendMessage(MessageUtils.parse("<red>NPC-провайдер '" + plugin.getNpcBridge().providerId()
+                    + "' недоступен! Для привязки нужен выбранный в integrations.npc-provider плагин.</red>"));
             return;
         }
 
-        double distance = plugin.getConfig().getDouble("npc.bind-distance", 6.0);
-        CitizensIntegration.NpcRef ref = citizens.lookedAtNpc(player, distance);
+        // The provider decides what "targeted" means (Citizens: the selected NPC, else the one in the crosshair).
+        NpcHandle ref = plugin.getNpcBridge().targeted(player).orElse(null);
         if (ref == null) {
-            player.sendMessage(MessageUtils.parse("<red>Посмотрите на нужный Citizens NPC и повторите команду!</red>"));
+            player.sendMessage(MessageUtils.parse("<red>Выберите нужный NPC или посмотрите на него и повторите команду!</red>"));
             return;
         }
 
-        plugin.getNpcManager().bindNpc(type, ref.id(), name, player.getName()).thenAccept(npc -> {
+        plugin.getNpcManager().bindNpc(type, ref.key(), name, player.getName(), defaultSkinForType(type, player.getName())).thenAccept(npc -> {
             boolean activeNow = plugin.getNpcManager().isNpcAllowedToSpawn(npc);
             String extra = activeNow ? "" : " <gray>(скрыт, пока ивент не активен)</gray>";
             player.sendMessage(plugin.getLangManager().getAdminMessage("commands.npc-created",
-                "<green>NPC #" + ref.id() + " («" + ref.name() + "») привязан как <gold>{type}</gold>!" + extra + "</green>",
+                "<green>NPC #" + ref.key() + " («" + ref.name() + "») привязан как <gold>{type}</gold>!" + extra + "</green>",
                 java.util.Map.of("type", type, "name", npc.name())));
         }).exceptionally(ex -> {
             String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
@@ -291,15 +291,11 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private Optional<NpcData> resolveLookedAtNpc(Player player) {
-        CitizensIntegration citizens = plugin.getCitizensIntegration();
-        if (citizens.isAvailable()) {
-            double distance = plugin.getConfig().getDouble("npc.bind-distance", 6.0);
-            CitizensIntegration.NpcRef ref = citizens.lookedAtNpc(player, distance);
-            if (ref != null) {
-                Optional<NpcData> byCitizensId = plugin.getNpcManager().getNpcByCitizensId(ref.id());
-                if (byCitizensId.isPresent()) {
-                    return byCitizensId;
-                }
+        NpcHandle ref = plugin.getNpcBridge().targeted(player).orElse(null);
+        if (ref != null) {
+            NpcData bound = plugin.getNpcManager().resolve(ref);
+            if (bound != null) {
+                return Optional.of(bound);
             }
         }
         return plugin.getNpcManager().getNpcNear(player.getLocation(), 4.0);
@@ -343,7 +339,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(MessageUtils.parse("<gold>=== Список NPC LoveShops (" + npcs.size() + ") ===</gold>"));
         for (var npc : npcs) {
             String locStr = String.format("%s [%.1f, %.1f, %.1f]", npc.world(), npc.x(), npc.y(), npc.z());
-            String bindStr = npc.citizensId() != null ? " <gray>(Citizens #" + npc.citizensId() + ")</gray>"
+            String bindStr = npc.npcKey() != null ? " <gray>(" + plugin.getNpcBridge().providerId() + " #" + npc.npcKey() + ")</gray>"
                     : dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(npc.type()) ? " <gray>(точка: NPC создаёт плагин на время события)</gray>" : " <gray>(свой Villager)</gray>";
             sender.sendMessage(MessageUtils.parse("<yellow># " + npc.id() + "</yellow> | <green>" + npc.type() + "</green> | <white>" + npc.name() + "</white> | <gray>" + locStr + "</gray>" + bindStr));
         }

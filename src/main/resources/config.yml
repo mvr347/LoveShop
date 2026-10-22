@@ -15,15 +15,12 @@ integrations:
 
 
 # ===== NPC (привязка к NPC выбранного провайдера) =====
-npc:
-  # Дальность луча взгляда для "/loveshopsadmin npc create|delete" без указания id: админ
-  # создаёт и располагает NPC штатными командами Citizens, затем смотрит на него и привязывает
-  # роль LoveShops этой командой - тот же паттерн, что уже используется в LoveClans
-  # (ClansAdminCommand#createNpc) и LoveTweaks (Herald bind). Добавлено 2026-09-23 вместе
-  # с переходом NpcManager на bindNpc(): LoveShops больше не создаёт и не удаляет сам Citizens
-  # NPC, только помечает/снимает метку с уже существующего.
-  bind-distance: 6.0
-
+# Параметр npc.bind-distance (дальность луча взгляда, 6 блоков) удалён 2026-10-22: цель команд
+# "/loveshopsadmin npc bind|delete" теперь определяет сам провайдер через NpcProvider.targeted
+# (у Citizens - NPC, выбранный командой /npc select, иначе тот, на кого смотрит админ, до 10 блоков),
+# поэтому LoveShops дальность больше не знает. Старая строка в вашем config.yml ни на что не влияет.
+# Админ по-прежнему создаёт и располагает NPC штатными средствами провайдера, затем выбирает его и
+# привязывает роль LoveShops (паттерн LoveClans ClansAdminCommand#createNpc и LoveTweaks Herald bind).
 
 
 # ===== ЗАЩИТА И СИСТЕМНЫЕ ПАРАМЕТРЫ =====
@@ -756,7 +753,7 @@ wanderer:
       category: "ENCHANTMENTS"
 
 # ===== РЫНОК ИГРОКОВ (торговые точки) =====
-# Работает при наличии Citizens и LoveClaims (плот превращается в точку командой
+# Работает при наличии LoveClaims и NPC-провайдера (integrations.npc-provider) (плот превращается в точку командой
 # /rental admin settype <плот> trade_point). Значения — заготовки от 2026-09-30,
 # подбираются по экономике сервера.
 market:

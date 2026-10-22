@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * Военный торговец - фиксированный ассортимент из {@code war-merchant.items} в config.yml,
  * доступный только игрокам, прошедшим {@link WarMerchantManager#isEligible}. Сама проверка
- * права доступа выполняется до open() (см. CitizensListener/InventoryClickListener), это меню
+ * права доступа выполняется до open() (см. NpcListener/InventoryClickListener), это меню
  * просто рендерит товар.
  */
 public class WarMerchantGui {

@@ -36,7 +36,7 @@ public class InventoryClickListener implements Listener {
     @EventHandler
     public void onNpcInteract(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
-        // A stall trader/guard is handled through Citizens' own click event; the "nearest server NPC"
+        // A stall trader/guard is handled through the NPC provider's own click event (NpcClickEvent); the "nearest server NPC"
         // fallback below must not turn a click on it into a click on a buyer standing next to it.
         var market = plugin.getTradePointManager();
         if (market != null && market.isMarketEntity(event.getRightClicked())) {
@@ -46,7 +46,7 @@ public class InventoryClickListener implements Listener {
         if (npcOpt.isEmpty()) {
             npcOpt = plugin.getNpcManager().getNpcNear(event.getRightClicked().getLocation(), 2.0);
         }
-        // Event NPCs are plugin-created Citizens NPCs: CitizensListener handles their clicks, and an
+        // Event NPCs are plugin-created provider NPCs: NpcListener handles their clicks, and an
         // empty spawn point must never open a menu for whatever stands next to it.
         npcOpt = npcOpt.filter(n -> !dev.lovelace.loveshops.managers.NpcManager.isEphemeralType(n.type()));
 

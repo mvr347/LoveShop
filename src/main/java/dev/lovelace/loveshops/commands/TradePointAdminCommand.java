@@ -160,8 +160,8 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
             }
             case "remove" -> {
                 plugin.getStallNpcService().destroyAllForPoint(point.claimId());
-                point.npcCitizensId(null);
-                point.guardCitizensId(null);
+                point.npcKey(null);
+                point.guardKey(null);
                 manager.save(point);
                 msg(sender, "tpa-npc-removed", "type", "stall", "count", "1");
             }

@@ -80,6 +80,15 @@ public final class NpcBridge {
         return provider().isPresent();
     }
 
+    /** Whether the provider is registered right now, without the missing-provider warning (for status lines). */
+    public boolean present() {
+        try {
+            return resolver.apply(providerId()).isPresent();
+        } catch (RuntimeException | LinkageError e) {
+            return false;
+        }
+    }
+
     /** Whether an NPC belongs to the configured provider; events fire for every provider and must be filtered. */
     public boolean owns(NpcHandle npc) {
         return npc != null && providerId().equalsIgnoreCase(npc.providerId());
