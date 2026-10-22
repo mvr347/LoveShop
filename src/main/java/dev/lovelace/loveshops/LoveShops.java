@@ -174,7 +174,7 @@ public final class LoveShops extends JavaPlugin {
             org.bukkit.configuration.file.YamlConfiguration bundled = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
                     new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
             int added = dev.lovelace.loveshops.utils.ConfigBackfill.backfill(getConfig(), bundled,
-                    java.util.Set.of("caravan.lost.crates.default", "caravan.lost.crates.secret"), "caravan.lost");
+                    java.util.Set.of("caravan.lost.crates.default", "caravan.lost.crates.secret"), "caravan.lost", "integrations");
             if (added > 0) {
                 saveConfig();
                 getLogger().info("config.yml: added " + added + " missing caravan.lost key(s) from the bundled defaults.");

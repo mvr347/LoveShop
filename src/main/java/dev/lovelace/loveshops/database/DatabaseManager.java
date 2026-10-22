@@ -29,6 +29,7 @@ public class DatabaseManager {
                 stmt.execute("PRAGMA foreign_keys=ON;");
                 stmt.execute("PRAGMA busy_timeout=5000;");
                 createTables(conn);
+                migrateNpcKeys(conn);
                 purgeLegacyAuctionAndFlea(conn);
                 purgeOrphanRows(conn);
                 migrateEconomy(conn, dbFile);
@@ -595,6 +596,16 @@ public class DatabaseManager {
         } catch (Throwable t) {
             plugin.getLogger().log(java.util.logging.Level.SEVERE,
                     "Economy migration failed - amounts were NOT rescaled; restore from *.pre-economy-v* if needed", t);
+        }
+    }
+
+    /** Citizens ids in INTEGER columns become text NPC keys (see {@link NpcKeyMigration}); the old columns stay. */
+    private void migrateNpcKeys(Connection conn) {
+        try {
+            NpcKeyMigration.migrate(conn, plugin.getLogger());
+        } catch (SQLException | RuntimeException e) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "NPC key migration failed - NPC bindings keep being read from the old Citizens id columns", e);
         }
     }
 
