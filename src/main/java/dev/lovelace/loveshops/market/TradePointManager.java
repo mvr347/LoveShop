@@ -9,7 +9,7 @@ import dev.lovelace.loveshops.market.model.ListingType;
 import dev.lovelace.loveshops.market.model.PlayerClass;
 import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.TradePoint;
-import net.citizensnpcs.api.npc.NPC;
+import dev.lovelace.lovecore.api.npc.NpcHandle;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -58,7 +58,7 @@ public final class TradePointManager {
     private int pruneTicks;
     private RobberyService robbery;
     private GuardService guards;
-    /** Last NPC click per player: Citizens can report one click twice (both hands) and menus must not flicker open. */
+    /** Last NPC click per player: the NPC provider can report one click twice (both hands) and menus must not flicker open. */
     private final Map<UUID, Long> lastNpcClick = new HashMap<>();
 
     /** Rent reminders: the threshold (hours) last reminded about, per point. In memory only. */
@@ -92,7 +92,7 @@ public final class TradePointManager {
             plugin.getLogger().severe("Не удалось загрузить торговые точки: " + e.getMessage());
         }
         claims.register(this);
-        // Citizens loads its NPCs in its own onEnable; give the world a moment before reconciling.
+        // The NPC provider (Citizens) loads its NPCs in its own onEnable; give the world a moment before reconciling.
         Bukkit.getScheduler().runTaskLater(plugin, this::syncWithClaims, 60L);
         upkeepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::upkeep, 600L, 600L);
     }
@@ -335,8 +335,8 @@ public final class TradePointManager {
         npcStatusShown.remove(p.claimId());
         remindedHours.remove(p.claimId());
         graceRemindedAt.remove(p.claimId());
-        Integer npc = p.npcCitizensId();
-        Integer guard = p.guardCitizensId();
+        String npc = p.npcKey();
+        String guard = p.guardKey();
         long till = p.tillCoins();
 
         // The reset is written from a scratch copy and applied to the live point only after the
@@ -360,8 +360,8 @@ public final class TradePointManager {
         }
         p.ownerUuid(null);
         p.ownerName(null);
-        p.npcCitizensId(null);
-        p.guardCitizensId(null);
+        p.npcKey(null);
+        p.guardKey(null);
         p.level(1);
         p.open(false);
         p.closeReason(null);
@@ -372,10 +372,10 @@ public final class TradePointManager {
         p.guardPaidUntil(0);
         p.rentedAt(0);
         p.version(reset.version());
-        // Tag-scan: remove every Citizens NPC bound to this point (orphans too).
+        // Tag-scan: remove every NPC bound to this point (orphans too).
         npcs.destroyAllForPoint(p.claimId());
-        if (npc != null) npcs.destroy(npc);
-        if (guard != null) npcs.destroy(guard);
+        if (npc != null) npcs.destroy(npc, p.claimId());
+        if (guard != null) npcs.destroy(guard, p.claimId());
     }
 
     /**
@@ -633,18 +633,8 @@ public final class TradePointManager {
 
     public Location getNpcOrPointLocation(TradePoint p) {
         if (p == null) return null;
-        if (p.npcCitizensId() != null) {
-            try {
-                if (net.citizensnpcs.api.CitizensAPI.hasImplementation()) {
-                    NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(p.npcCitizensId());
-                    if (npc != null && npc.isSpawned() && npc.getEntity() != null) {
-                        return npc.getEntity().getLocation();
-                    }
-                }
-            } catch (Throwable ignored) {
-                // intentional: Citizens may be unloading; the claim point below is the fallback
-            }
-        }
+        Optional<Location> trader = npcs.traderLocation(p);
+        if (trader.isPresent()) return trader.get();
         return claims.point(p.claimId()).map(ClaimsLink.PointInfo::location).orElse(null);
     }
 
@@ -1112,11 +1102,11 @@ public final class TradePointManager {
     }
 
     /**
-     * Routes a click on a Citizens NPC that belongs to the market.
+     * Routes a click on an NPC that belongs to the market.
      *
      * @return {@code true} if the NPC is a market NPC (handled), {@code false} for any other NPC
      */
-    public boolean handleNpcClick(Player player, NPC npc) {
+    public boolean handleNpcClick(Player player, NpcHandle npc) {
         Optional<UUID> stall = npcs.stallPointOf(npc);
         Optional<UUID> guard = stall.isPresent() ? Optional.empty() : npcs.guardPointOf(npc);
         if (stall.isEmpty() && guard.isEmpty()) return false;
@@ -1257,7 +1247,7 @@ public final class TradePointManager {
     /** Lots were added, bought out or removed: the trader's status ("No lots" / "Open") may have changed. */
     private void refreshNpcStatus(UUID pointId) {
         TradePoint p = points.get(pointId);
-        if (p == null || p.npcCitizensId() == null) return;
+        if (p == null || p.npcKey() == null) return;
         String now = npcs.statusText(p);
         if (!now.equals(npcStatusShown.put(pointId, now))) npcs.updateStallNpc(p);
     }

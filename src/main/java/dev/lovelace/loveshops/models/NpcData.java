@@ -16,11 +16,11 @@ public record NpcData(
     String displayName,
     String skinOwner,
     /**
-     * Citizens NPC id this row is bound to, or {@code null} for a legacy/no-Citizens row that
-     * LoveShops still owns and spawns itself (plain Villager fallback). Bound rows never have
-     * their underlying Citizens NPC created or destroyed by LoveShops - only tagged/untagged.
+     * Key of the NPC this row is bound to in the configured NPC provider (for Citizens: its numeric id written
+     * as text), or {@code null} for an event spawn point / a legacy row without an NPC, for which LoveShops
+     * creates the NPC itself.
      */
-    Integer citizensId,
+    String npcKey,
     long createdAt,
     long updatedAt
 ) {}

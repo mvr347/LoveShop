@@ -10,6 +10,7 @@ import dev.lovelace.loveshops.market.model.StallListing;
 import dev.lovelace.loveshops.market.model.StorageItem;
 import dev.lovelace.loveshops.market.model.TradePoint;
 import dev.lovelace.loveshops.market.model.TradingMode;
+import dev.lovelace.loveshops.npc.NpcKeys;
 import dev.lovelace.loveshops.utils.ItemStackConverter;
 import org.bukkit.Bukkit;
 import org.bukkit.inventory.ItemStack;
@@ -76,7 +77,8 @@ public final class MarketRepository {
 
     private static final String POINT_COLS = "claim_id, owner_uuid, owner_name, npc_citizens_id, guard_citizens_id, level, "
             + "sell_slots, buy_slots, is_open, close_reason, till_coins, revenue_total, sales_total, guard_state, "
-            + "guard_paid_until, rented_at, version, trading_mode, closed_sign_world, closed_sign_x, closed_sign_y, closed_sign_z, tp_loc, id_sign_loc";
+            + "guard_paid_until, rented_at, version, trading_mode, closed_sign_world, closed_sign_x, closed_sign_y, closed_sign_z, tp_loc, id_sign_loc, "
+            + "npc_key, guard_key";
 
     public List<TradePoint> loadPoints() throws SQLException {
         List<TradePoint> out = new ArrayList<>();
@@ -93,10 +95,9 @@ public final class MarketRepository {
         String owner = rs.getString("owner_uuid");
         p.ownerUuid(owner == null ? null : UUID.fromString(owner));
         p.ownerName(rs.getString("owner_name"));
-        int npc = rs.getInt("npc_citizens_id");
-        p.npcCitizensId(rs.wasNull() ? null : npc);
-        int guard = rs.getInt("guard_citizens_id");
-        p.guardCitizensId(rs.wasNull() ? null : guard);
+        // The text key column wins; the old INTEGER column is the fallback for a row the migration has not touched.
+        p.npcKey(NpcKeys.read(rs, "npc_key", "npc_citizens_id"));
+        p.guardKey(NpcKeys.read(rs, "guard_key", "guard_citizens_id"));
         p.level(rs.getInt("level"));
         p.sellSlots(rs.getInt("sell_slots"));
         p.buySlots(rs.getInt("buy_slots"));
@@ -141,9 +142,10 @@ public final class MarketRepository {
     public void savePoint(Connection conn, TradePoint p) throws SQLException {
         p.version(p.version() + 1);
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                         + "ON CONFLICT(claim_id) DO UPDATE SET owner_uuid=excluded.owner_uuid, owner_name=excluded.owner_name, "
                         + "npc_citizens_id=excluded.npc_citizens_id, guard_citizens_id=excluded.guard_citizens_id, "
+                        + "npc_key=excluded.npc_key, guard_key=excluded.guard_key, "
                         + "level=excluded.level, sell_slots=excluded.sell_slots, buy_slots=excluded.buy_slots, "
                         + "is_open=excluded.is_open, close_reason=excluded.close_reason, till_coins=excluded.till_coins, "
                         + "revenue_total=excluded.revenue_total, sales_total=excluded.sales_total, "
@@ -155,8 +157,9 @@ public final class MarketRepository {
             ps.setString(1, p.claimId().toString());
             ps.setString(2, p.ownerUuid() == null ? null : p.ownerUuid().toString());
             ps.setString(3, p.ownerName());
-            if (p.npcCitizensId() == null) ps.setNull(4, java.sql.Types.INTEGER); else ps.setInt(4, p.npcCitizensId());
-            if (p.guardCitizensId() == null) ps.setNull(5, java.sql.Types.INTEGER); else ps.setInt(5, p.guardCitizensId());
+            // Key into the text column and, for a numeric key, the old INTEGER column too (rollback stays possible).
+            NpcKeys.write(ps, 25, 4, p.npcKey());
+            NpcKeys.write(ps, 26, 5, p.guardKey());
             ps.setInt(6, p.level());
             ps.setInt(7, p.sellSlots());
             ps.setInt(8, p.buySlots());

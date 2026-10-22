@@ -477,18 +477,7 @@ public final class MarketAdminCommands {
         if (!(sender instanceof Player p)) { msg(sender, "admin-player-only"); return; }
         TradePoint point = findPointOrAtLocation(p, manager, args, 2);
         if (point == null) return;
-        if (point.npcCitizensId() != null) {
-            try {
-                if (net.citizensnpcs.api.CitizensAPI.hasImplementation()) {
-                    var npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(point.npcCitizensId());
-                    if (npc != null) {
-                        npc.teleport(p.getLocation(), org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.COMMAND);
-                    }
-                }
-            } catch (Throwable t) {
-                plugin.getLogger().warning("Не удалось телепортировать NPC: " + t.getMessage());
-            }
-        }
+        plugin.getStallNpcService().teleportTrader(point, p.getLocation());
         manager.updateNpc(point);
         p.sendMessage(MessageUtils.parse(p, "<green>Позиция торговца точки обновлена на вашу локацию.</green>"));
     }

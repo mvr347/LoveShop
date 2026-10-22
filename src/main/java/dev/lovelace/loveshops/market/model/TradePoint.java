@@ -11,8 +11,9 @@ public final class TradePoint {
     private final UUID claimId;
     private UUID ownerUuid;
     private String ownerName;
-    private Integer npcCitizensId;
-    private Integer guardCitizensId;
+    /** Key of the trader NPC in the configured NPC provider (a Citizens id written as text for Citizens). */
+    private String npcKey;
+    private String guardKey;
     private int level = 1;
     private int sellSlots = 5;
     private int buySlots = 5;
@@ -50,11 +51,11 @@ public final class TradePoint {
     public String ownerName() { return ownerName; }
     public void ownerName(String ownerName) { this.ownerName = ownerName; }
 
-    public Integer npcCitizensId() { return npcCitizensId; }
-    public void npcCitizensId(Integer id) { this.npcCitizensId = id; }
+    public String npcKey() { return npcKey; }
+    public void npcKey(String key) { this.npcKey = key; }
 
-    public Integer guardCitizensId() { return guardCitizensId; }
-    public void guardCitizensId(Integer id) { this.guardCitizensId = id; }
+    public String guardKey() { return guardKey; }
+    public void guardKey(String key) { this.guardKey = key; }
 
     public int level() { return level; }
     public void level(int level) { this.level = Math.max(1, level); }
