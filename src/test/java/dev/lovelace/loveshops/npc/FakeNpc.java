@@ -18,6 +18,11 @@ final class FakeNpc implements NpcHandle {
     final String key;
     final String name;
     final Map<String, String> tags = new HashMap<>();
+    /** Whether the fake is currently shown; spawn() and despawn() flip it like the real providers. */
+    boolean shown;
+    String skin;
+    int spawnCalls;
+    int despawnCalls;
 
     FakeNpc(String provider, String key) {
         this(provider, key, "npc" + key);
@@ -38,7 +43,10 @@ final class FakeNpc implements NpcHandle {
     @Override public String key() { return key; }
     @Override public String name() { return name; }
     @Override public Optional<Entity> entity() { return Optional.empty(); }
-    @Override public boolean spawned() { return false; }
+    @Override public boolean spawned() { return shown; }
+    @Override public boolean spawn() { spawnCalls++; shown = true; return true; }
+    @Override public boolean despawn() { despawnCalls++; boolean was = shown; shown = false; return was; }
+    @Override public Optional<String> skinName() { return Optional.ofNullable(skin); }
     @Override public Location location() { return null; }
     @Override public void setName(Component name) { }
     @Override public void setSkin(String playerName) { }

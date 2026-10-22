@@ -322,12 +322,12 @@ public final class StallNpcService {
     }
 
     /**
-     * An NPC the provider keeps unspawned although its chunk is loaded was hidden on purpose (the previous build
-     * despawned the NPCs of closed points). The contract cannot spawn it again, so it is replaced.
+     * Shows an NPC of an open point that the provider keeps hidden (the previous build despawned the NPCs of closed
+     * points). Only in a loaded chunk: spawning into an unloaded one would load it for a trader nobody is near.
      */
-    private static boolean hiddenInLoadedChunk(NpcHandle npc, Location where) {
-        if (npc.spawned() || where == null || where.getWorld() == null) return false;
-        return where.getWorld().isChunkLoaded(where.getBlockX() >> 4, where.getBlockZ() >> 4);
+    private static void showIfHidden(NpcHandle npc, Location where) {
+        if (npc.spawned() || where == null || where.getWorld() == null) return;
+        if (where.getWorld().isChunkLoaded(where.getBlockX() >> 4, where.getBlockZ() >> 4)) npc.spawn();
     }
 
     public List<TradePoint> reconcile(java.util.Collection<TradePoint> points,
@@ -370,8 +370,7 @@ public final class StallNpcService {
             }
 
             // A closed point is left as it is: nothing is created for it, and an existing trader stays on show with
-            // its "closed" nameplate (the NPC contract has no despawn; closing a point while the server runs
-            // never hid the trader either).
+            // its "closed" nameplate (closing a point while the server runs has never hidden the trader).
             if (!p.open()) continue;
 
             Location loc = locationOf.apply(p.claimId());
@@ -382,12 +381,9 @@ public final class StallNpcService {
             if (!mine.isEmpty()) {
                 NpcHandle first = mine.get(0);
                 for (int i = 1; i < mine.size(); i++) toDestroy.add(mine.get(i));
-                if (hiddenInLoadedChunk(first, loc)) {
-                    toDestroy.add(first);
-                } else {
-                    wanted = first.key();
-                    applyNpcHologram(first, p);
-                }
+                showIfHidden(first, loc);
+                wanted = first.key();
+                applyNpcHologram(first, p);
             }
             if (wanted == null) {
                 wanted = createStallNpc(loc, p.claimId(), p.ownerName());
@@ -404,8 +400,8 @@ public final class StallNpcService {
                 if (!myGuards.isEmpty()) {
                     NpcHandle first = myGuards.get(0);
                     for (int i = 1; i < myGuards.size(); i++) toDestroy.add(myGuards.get(i));
-                    if (hiddenInLoadedChunk(first, guardAt)) toDestroy.add(first);
-                    else guardKey = first.key();
+                    showIfHidden(first, guardAt);
+                    guardKey = first.key();
                 }
                 if (guardKey == null) guardKey = createGuardNpc(guardAt, p.claimId());
                 if (!java.util.Objects.equals(guardKey, p.guardKey())) {
