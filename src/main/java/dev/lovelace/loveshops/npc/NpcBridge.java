@@ -4,6 +4,7 @@ import dev.lovelace.lovecore.api.LoveCore;
 import dev.lovelace.lovecore.api.npc.NpcHandle;
 import dev.lovelace.lovecore.api.npc.NpcProvider;
 import dev.lovelace.lovecore.api.npc.NpcSpec;
+import dev.lovelace.lovecore.api.provider.ProviderKind;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
@@ -18,7 +19,7 @@ import java.util.function.Supplier;
 
 /**
  * The only door from LoveShops to NPCs. The provider is chosen by {@code integrations.npc-provider}
- * ({@code citizens} or {@code loveessential}) and looked up on every use: providers register late
+ * ({@code global}, {@code citizens} or {@code loveessential}) and looked up on every use: providers register late
  * (LoveEssential after the server has loaded), so a reference kept in a field would miss them.
  *
  * <p>When the chosen provider is not there, one warning names it and every NPC feature quietly does nothing
@@ -26,7 +27,10 @@ import java.util.function.Supplier;
  */
 public final class NpcBridge {
 
+    /** Provider used when LoveCore cannot answer: what the plugin did before the option existed. */
     public static final String DEFAULT_PROVIDER = "citizens";
+    /** Config value that follows {@code integrations.provider} of LoveCore. */
+    public static final String GLOBAL = "global";
     public static final String CONFIG_PATH = "integrations.npc-provider";
 
     private final Supplier<String> configured;
@@ -46,9 +50,18 @@ public final class NpcBridge {
         return new NpcBridge(configured, id -> LoveCore.provider(NpcProvider.class, id), warn);
     }
 
-    /** Lower-case, trimmed provider id; an empty or missing value means Citizens, as before the toggle existed. */
+    /**
+     * Lower-case, trimmed provider id. {@code global}, an empty or a missing value follows {@code integrations.provider}
+     * of LoveCore; without LoveCore that is Citizens, as before the toggle existed.
+     */
     public static String normalize(String raw) {
-        if (raw == null || raw.isBlank()) return DEFAULT_PROVIDER;
+        if (raw == null || raw.isBlank() || raw.trim().equalsIgnoreCase(GLOBAL)) {
+            try {
+                return LoveCore.providerId(ProviderKind.NPC, GLOBAL);
+            } catch (LinkageError coreMissingOrOld) {
+                return DEFAULT_PROVIDER;
+            }
+        }
         return raw.trim().toLowerCase(Locale.ROOT);
     }
 
