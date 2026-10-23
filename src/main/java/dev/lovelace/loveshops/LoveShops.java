@@ -75,7 +75,7 @@ public final class LoveShops extends JavaPlugin {
 
         // 3. Core Services & Managers
         // The NPC provider (integrations.npc-provider) is looked up on every use: providers register late.
-        this.npcBridge = NpcBridge.viaLoveCore(() -> getConfig().getString(NpcBridge.CONFIG_PATH, NpcBridge.DEFAULT_PROVIDER),
+        this.npcBridge = NpcBridge.viaLoveCore(() -> getConfig().getString(NpcBridge.CONFIG_PATH, NpcBridge.GLOBAL),
                 msg -> getLogger().warning(msg));
         this.pricesManager = new PricesManager(this);
         this.pricesManager.load();

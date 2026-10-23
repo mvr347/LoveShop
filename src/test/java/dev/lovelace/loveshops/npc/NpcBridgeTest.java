@@ -61,6 +61,8 @@ class NpcBridgeTest {
         assertEquals("citizens", NpcBridge.normalize(null));
         assertEquals("citizens", NpcBridge.normalize(""));
         assertEquals("citizens", NpcBridge.normalize("   "));
+        assertEquals("citizens", NpcBridge.normalize("global"), "without a core 'global' means citizens");
+        assertEquals("citizens", NpcBridge.normalize(" GLOBAL "));
         assertEquals("loveessential", NpcBridge.normalize("  LoveEssential "));
         configured = null;
         assertEquals("citizens", bridge().providerId());
