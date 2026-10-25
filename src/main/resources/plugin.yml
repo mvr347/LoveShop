@@ -5,15 +5,8 @@ api-version: '26.2'
 description: Advanced trading system with NPC merchants and player trade points
 author: Lovelace
 
-softdepend:
-  - LoveBehavior
-  - PlaceholderAPI
-  - ItemsAdder
-  - Citizens
-  - LoveEssential
-  - LoveCore
-  - LoveBrewing
-  - LoveClaims
+depend: [LoveCore, LoveEssential]
+softdepend: [LoveBehavior, PlaceholderAPI, ItemsAdder, Citizens, LoveBrewing, LoveClaims]
 
 commands:
   loveshops:
