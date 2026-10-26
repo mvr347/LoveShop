@@ -9,7 +9,6 @@ import dev.lovelace.loveshops.npc.NpcKeys;
 import dev.lovelace.loveshops.npc.NpcLookup;
 import dev.lovelace.loveshops.npc.NpcTags;
 import dev.lovelace.loveshops.npc.NpcText;
-import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -36,6 +35,9 @@ public class NpcManager {
     private final Map<UUID, String> trackedKeys = new ConcurrentHashMap<>();
     /** NPCs re-tagged from their DB row during the current spawnAllNpcs pass (legacy-tag fallback). */
     private int retagged;
+    private final Set<UUID> missingBindings = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> rebinding = ConcurrentHashMap.newKeySet();
+    private final Set<String> rebindingKeys = ConcurrentHashMap.newKeySet();
 
     /**
      * Event NPCs: the plugin creates the NPC itself when the event starts and destroys it when it
@@ -80,6 +82,7 @@ public class NpcManager {
                  PreparedStatement ps = conn.prepareStatement("SELECT * FROM shops_npcs")) {
                 ResultSet rs = ps.executeQuery();
                 loadedNpcs.clear();
+                missingBindings.clear();
                 while (rs.next()) {
                     NpcData npc = mapResultSet(rs);
                     loadedNpcs.put(npc.uuid(), npc);
@@ -169,6 +172,8 @@ public class NpcManager {
             return CompletableFuture.failedFuture(new IllegalStateException("NPC #" + npcKey + " не найден у провайдера '" + bridge().providerId() + "'"));
         }
         NpcHandle handle = found.get();
+        if (rebindingKeys.contains(handle.key()) || NpcLookup.carriesIdentity(handle))
+            return CompletableFuture.failedFuture(new IllegalStateException("Этот NPC уже занят другой привязкой."));
         String name = (displayNameOverride != null && !displayNameOverride.isBlank()) ? displayNameOverride : handle.name();
         Location loc = handle.location();
         if (loc == null || loc.getWorld() == null) {
@@ -200,6 +205,106 @@ public class NpcManager {
                 });
             }
         });
+    }
+
+    /**
+     * Reconnects an existing role without deleting its ID, prices, schedule or related bank data.
+     * Main thread only.
+     */
+    public CompletableFuture<NpcData> rebindNpc(int rowId, String providerKey) {
+        if (!Bukkit.isPrimaryThread())
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("Main thread required"));
+        NpcData before =
+                loadedNpcs.values().stream().filter(n -> n.id() == rowId).findFirst().orElse(null);
+        if (before == null)
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Запись NPC не найдена."));
+        if (isEphemeralType(before.type()))
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException(
+                            "Это точка события, а не постоянная привязка NPC."));
+        NpcHandle target = bridge().byKey(providerKey).orElse(null);
+        if (target == null)
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException(
+                            "NPC назначения не найден у выбранного провайдера."));
+        if (NpcLookup.claimedByOtherRole(target, before.uuid()))
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("NPC назначения уже занят другой ролью."));
+        Location at = target.location();
+        if (at == null || at.getWorld() == null)
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Местоположение NPC недоступно."));
+        if (!rebinding.add(before.uuid()))
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("Перепривязка уже выполняется."));
+        if (!rebindingKeys.add(target.key())) {
+            rebinding.remove(before.uuid());
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("NPC назначения занят другой перепривязкой."));
+        }
+        var after =
+                dev.lovelace.loveshops.npc.NpcRebind.target(
+                        before,
+                        target.key(),
+                        at.getWorld().getName(),
+                        at.getX(),
+                        at.getY(),
+                        at.getZ(),
+                        at.getYaw(),
+                        at.getPitch(),
+                        System.currentTimeMillis() / 1000);
+        NpcHandle previous = findHandle(before);
+        var result = new CompletableFuture<NpcData>();
+        Bukkit.getAsyncScheduler()
+                .runNow(
+                        plugin,
+                        task -> {
+                            Throwable failure = null;
+                            try (Connection connection =
+                                    plugin.getDatabaseManager().getConnection()) {
+                                dev.lovelace.loveshops.npc.NpcRebind.write(
+                                        connection, before, after);
+                            } catch (Exception e) {
+                                failure = e;
+                            }
+                            Throwable error = failure;
+                            Bukkit.getScheduler()
+                                    .runTask(
+                                            plugin,
+                                            () -> {
+                                                try {
+                                                    if (error != null) {
+                                                        result.completeExceptionally(error);
+                                                        return;
+                                                    }
+                                                    loadedNpcs.put(after.uuid(), after);
+                                                    trackedKeys.put(after.uuid(), target.key());
+                                                    spawnedEntities.remove(after.uuid());
+                                                    missingBindings.remove(after.uuid());
+                                                    if (previous != null
+                                                            && !previous.key().equals(target.key())
+                                                            && previous.tag(NpcTags.UUID)
+                                                                    .filter(
+                                                                            before.uuid().toString()
+                                                                                    ::equals)
+                                                                    .isPresent()) {
+                                                        previous.tag(NpcTags.UUID, null);
+                                                        previous.tag(NpcTags.TYPE, null);
+                                                    }
+                                                    applyTags(target, after.uuid(), after.type());
+                                                    spawnNpcEntity(after);
+                                                    result.complete(after);
+                                                } catch (Exception e) {
+                                                    result.completeExceptionally(e);
+                                                } finally {
+                                                    rebinding.remove(before.uuid());
+                                                    rebindingKeys.remove(target.key());
+                                                }
+                                            });
+                        });
+        return result;
     }
 
     private void applyTags(NpcHandle handle, UUID uuid, String type) {
@@ -254,6 +359,8 @@ public class NpcManager {
     }
 
     public CompletableFuture<Boolean> deleteNpc(UUID npcUuid) {
+        if (rebinding.contains(npcUuid))
+            return CompletableFuture.failedFuture(new IllegalStateException("Дождитесь перепривязки NPC."));
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         NpcData existing = loadedNpcs.get(npcUuid);
         String npcKey = existing != null ? existing.npcKey() : null;
@@ -265,6 +372,7 @@ public class NpcManager {
                 int rows = ps.executeUpdate();
                 if (rows > 0) {
                     loadedNpcs.remove(npcUuid);
+                    missingBindings.remove(npcUuid);
                     Bukkit.getScheduler().runTask(plugin, () -> destroyNpcEntity(npcUuid, npcKey));
                     future.complete(true);
                 } else {
@@ -343,14 +451,14 @@ public class NpcManager {
         String tracked = trackedKeys.get(npc.uuid());
         if (tracked != null) {
             Optional<NpcHandle> h = bridge().byKey(tracked);
-            if (h.isPresent()) return h.get();
+            if (h.isPresent() && NpcLookup.confirmsStoredBinding(h.get(), npc)) return h.get();
         }
         if (npc.npcKey() != null) {
             Optional<NpcHandle> h = bridge().byKey(npc.npcKey());
-            if (h.isPresent()) return h.get();
+            if (h.isPresent() && NpcLookup.confirmsStoredBinding(h.get(), npc)) return h.get();
         }
         List<NpcHandle> tagged = bridge().withTag(NpcTags.UUID, npc.uuid().toString());
-        return tagged.isEmpty() ? null : tagged.get(0);
+        return tagged.stream().filter(h -> !NpcLookup.claimedByOtherRole(h, npc.uuid())).findFirst().orElse(null);
     }
 
     /** Makes sure the NPC carries this row's tags; {@code true} when it had to be (re)tagged. */
@@ -364,9 +472,12 @@ public class NpcManager {
             boolean bound = npc.npcKey() != null;
 
             if (handle == null && bound) {
-                plugin.getLogger().warning("LoveShops NPC #" + npc.id() + " (" + npc.type()
-                    + ") привязан к NPC #" + npc.npcKey() + " провайдера '" + bridge().providerId()
-                    + "', но такого NPC нет. Удалите запись #" + npc.id());
+                if (missingBindings.add(npc.uuid()))
+                    plugin.getLogger().warning("LoveShops NPC #" + npc.id() + " (" + npc.type()
+                            + ") привязан к NPC #" + npc.npcKey() + " провайдера '" + bridge().providerId()
+                            + "', но NPC не найден или старая числовая привязка не подтверждена."
+                            + " Запись и настройки сохранены. Перепривязка без удаления:"
+                            + " /loveshopsadmin npc rebind " + npc.id() + " <номер или ключ NPC>");
                 return;
             }
             if (handle == null) {
@@ -377,6 +488,7 @@ public class NpcManager {
                 return;
             }
 
+            missingBindings.remove(npc.uuid());
             // An NPC bound before the tags moved to the provider's own storage carries none: tag it from the row.
             if (ensureTags(handle, npc)) retagged++;
             trackedKeys.put(npc.uuid(), handle.key());

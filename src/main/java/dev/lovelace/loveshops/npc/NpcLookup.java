@@ -61,6 +61,22 @@ public final class NpcLookup {
         return changed;
     }
 
+    /** Whether assigning this NPC to the given permanent role would steal another identity. */
+    public static boolean claimedByOtherRole(NpcHandle npc, UUID row) {
+        return npc.tag(NpcTags.UUID).filter(id -> !id.equals(row.toString())).isPresent()
+                || npc.tag(NpcTags.FEUDAL).isPresent() || npc.tag(NpcTags.STALL).isPresent()
+                || npc.tag(NpcTags.GUARD).isPresent();
+    }
+
+    /** A persisted visible number must not silently claim a new NPC after number reuse. */
+    public static boolean confirmsStoredBinding(NpcHandle npc, NpcData row) {
+        if (claimedByOtherRole(npc, row.uuid())) return false;
+        String key = row.npcKey();
+        boolean alias = "loveessential".equalsIgnoreCase(npc.providerId()) && key != null
+                && key.matches("[0-9]+") && !key.equals(npc.key());
+        return !alias || npc.tag(NpcTags.UUID).filter(row.uuid().toString()::equals).isPresent();
+    }
+
     /** Whether the NPC already has a LoveShops identity: a role row, a stall or guard post, or the landlord. */
     public static boolean carriesIdentity(NpcHandle npc) {
         return npc.tag(NpcTags.UUID).isPresent() || npc.tag(NpcTags.FEUDAL).isPresent()

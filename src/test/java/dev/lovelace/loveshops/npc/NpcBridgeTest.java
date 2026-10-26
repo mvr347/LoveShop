@@ -57,6 +57,24 @@ class NpcBridgeTest {
     }
 
     @Test
+    void startupGraceStillResolvesLateProvidersAndReportsARealLossImmediately() {
+        boolean[] graceDone = {false}, available = {false};
+        var provider = new FakeProvider("loveessential");
+        var bridge = new NpcBridge(() -> "loveessential", id -> available[0] ? Optional.of(provider) : Optional.empty(),
+                warnings::add, () -> graceDone[0]);
+        assertFalse(bridge.available());
+        assertTrue(warnings.isEmpty());
+        available[0] = true;
+        assertTrue(bridge.available());
+        available[0] = false;
+        assertFalse(bridge.available());
+        assertEquals(1, warnings.size());
+        graceDone[0] = true;
+        bridge.available();
+        assertEquals(1, warnings.size());
+    }
+
+    @Test
     void emptyOrMissingConfigMeansCitizens() {
         assertEquals("citizens", NpcBridge.normalize(null));
         assertEquals("citizens", NpcBridge.normalize(""));
