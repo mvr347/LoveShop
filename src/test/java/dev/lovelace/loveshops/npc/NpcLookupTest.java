@@ -25,6 +25,25 @@ class NpcLookupTest {
     }
 
     @Test
+    void aReusedVisibleNumberDoesNotSilentlyTakeOverTheBanker() {
+        var legacy = row(bankerId, "banker", "8");
+        var newNpc = new FakeNpc("loveessential", "ext-new");
+        assertFalse(NpcLookup.confirmsStoredBinding(newNpc, legacy));
+        newNpc.with(NpcTags.UUID, bankerId.toString());
+        assertTrue(NpcLookup.confirmsStoredBinding(newNpc, legacy));
+        assertTrue(NpcLookup.confirmsStoredBinding(new FakeNpc("citizens", "8"), legacy));
+    }
+
+    @Test
+    void permanentRoleRebindCannotTakeAnotherRoleOrMarketNpc() {
+        assertFalse(NpcLookup.claimedByOtherRole(new FakeNpc("loveessential", "ext-new"), bankerId));
+        assertFalse(NpcLookup.claimedByOtherRole(new FakeNpc("loveessential", "ext-own").with(NpcTags.UUID, bankerId.toString()), bankerId));
+        assertTrue(NpcLookup.claimedByOtherRole(new FakeNpc("loveessential", "ext-other").with(NpcTags.UUID, otherId.toString()), bankerId));
+        for (String tag : java.util.List.of(NpcTags.FEUDAL, NpcTags.STALL, NpcTags.GUARD))
+            assertTrue(NpcLookup.claimedByOtherRole(new FakeNpc("loveessential", "ext-market").with(tag, "owned"), bankerId));
+    }
+
+    @Test
     void tagWinsAndNeedsNoRetag() {
         FakeNpc npc = new FakeNpc("citizens", "99").with(NpcTags.UUID, bankerId.toString());
         NpcLookup.Resolution r = NpcLookup.resolve(rows, npc);

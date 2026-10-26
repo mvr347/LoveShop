@@ -37,7 +37,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
     // Extra spellings PricesManager#setNpcPrice already understands.
     private static final List<String> PRICE_TARGET_ALIASES = List.of("common", "war");
     private static final List<String> BANKER_ACTIONS = List.of("fee");
-    private static final List<String> NPC_ACTIONS = List.of("create", "bind", "delete", "tp", "list");
+    private static final List<String> NPC_ACTIONS = List.of("create", "bind", "rebind", "delete", "tp", "list");
     private static final List<String> NPC_TYPES = List.of("warmerchant", "wanderer", "banker", "caravaner", "commissioner", "lostcaravan", "feudal");
     private static final List<String> ITEM_ACTIONS = List.of("allow", "deny", "price");
     private static final List<String> EVENT_TYPES = List.of("daily", "lost", "wanderer");
@@ -111,16 +111,17 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleNpc(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|tp|list> ...</yellow>"));
+            sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|rebind|delete|tp|list> ...</yellow>"));
             return;
         }
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "create" -> handleNpcCreate(sender, args);
             case "bind" -> handleNpcBind(sender, args);
+            case "rebind" -> handleNpcRebind(sender, args);
             case "delete" -> handleNpcDelete(sender, args);
             case "tp" -> handleNpcTp(sender, args);
             case "list" -> handleNpcList(sender);
-            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|delete|tp|list> ...</yellow>"));
+            default -> sender.sendMessage(MessageUtils.parse("<yellow>Использование: /loveshopsadmin npc <create|bind|rebind|delete|tp|list> ...</yellow>"));
         }
     }
 
@@ -226,6 +227,64 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(MessageUtils.parse("<red>Не удалось привязать NPC: " + msg + "</red>"));
             return null;
         });
+    }
+
+    private void handleNpcRebind(CommandSender sender, String[] args) {
+        if (args.length < 3 || args.length > 4) {
+            sender.sendMessage(
+                    MessageUtils.parse(
+                            "<yellow>/loveshopsadmin npc rebind <номер записи> [номер или ключ"
+                                + " NPC]</yellow>"));
+            return;
+        }
+        int row;
+        try {
+            row = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            sender.sendMessage(
+                    MessageUtils.parse("<red>Укажите номер записи LoveShops из npc list.</red>"));
+            return;
+        }
+        String key;
+        if (args.length == 4) key = args[3];
+        else if (sender instanceof Player player) {
+            var selected = plugin.getNpcBridge().targeted(player);
+            if (selected.isEmpty()) {
+                sender.sendMessage(
+                        MessageUtils.parse(
+                                "<red>Посмотрите на NPC или укажите его номер четвёртым"
+                                    + " аргументом.</red>"));
+                return;
+            }
+            key = selected.get().key();
+        } else {
+            sender.sendMessage(
+                    MessageUtils.parse("<red>Из консоли укажите номер или ключ NPC.</red>"));
+            return;
+        }
+        plugin.getNpcManager()
+                .rebindNpc(row, key)
+                .thenAccept(
+                        npc ->
+                                sender.sendMessage(
+                                        MessageUtils.parse(
+                                                "<green>Запись #"
+                                                        + npc.id()
+                                                        + " перепривязана. Тип, настройки и"
+                                                        + " связанные данные сохранены.</green>")))
+                .exceptionally(
+                        error -> {
+                            String message =
+                                    error.getCause() == null
+                                            ? error.getMessage()
+                                            : error.getCause().getMessage();
+                            sender.sendMessage(
+                                    MessageUtils.parse(
+                                            "<red>Перепривязка не выполнена: "
+                                                    + message
+                                                    + "</red>"));
+                            return null;
+                        });
     }
 
     private String defaultNpcName(String type) {
@@ -806,6 +865,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(MessageUtils.parse("<yellow>• Управление NPC:</yellow>"));
         sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <create|bind> <тип> [имя]</gold> <gray>— создать или привязать NPC</gray>"));
         sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc <delete|tp|list> [id]</gold> <gray>— удалить, тп к NPC или список</gray>"));
+        sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin npc rebind <номер записи> [номер NPC]</gold> <gray>— восстановить привязку</gray>"));
         sender.sendMessage(MessageUtils.parse("  <gray>Доступные типы: <aqua>" + String.join(", ", NPC_TYPES) + "</aqua></gray>"));
         sender.sendMessage(MessageUtils.parse("<yellow>• Меню и банкир:</yellow>"));
         sender.sendMessage(MessageUtils.parse("  <gold>/loveshopsadmin open <тип> [игрок]</gold> <gray>— открыть меню магазина</gray>"));
@@ -840,6 +900,10 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
             return StringUtil.copyPartialMatches(args[1], NPC_ACTIONS, new ArrayList<>());
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("npc") && args[1].equalsIgnoreCase("rebind")) {
+            return StringUtil.copyPartialMatches(args[2], plugin.getNpcManager().getAllNpcs().stream()
+                    .map(n -> Integer.toString(n.id())).toList(), new ArrayList<>());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("npc") && (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("bind"))) {
             return StringUtil.copyPartialMatches(args[2], NPC_TYPES, new ArrayList<>());

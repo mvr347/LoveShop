@@ -149,6 +149,7 @@ public final class LoveShops extends JavaPlugin {
         // LoveCore fires its NPC events for every installed provider; the listener ignores all but the configured one.
         getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.listeners.NpcListener(this), this);
         getServer().getPluginManager().registerEvents(new dev.lovelace.loveshops.npc.NpcProviderWatcher(this, this::onNpcProviderReady), this);
+        getServer().getScheduler().runTaskLater(this, () -> npcBridge.provider(), 200L);
         if (npcBridge.present()) {
             getLogger().info("✓ NPC-провайдер '" + npcBridge.providerId() + "' активирован.");
         }

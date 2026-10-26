@@ -38,8 +38,16 @@ public final class NpcBridge {
     private final Consumer<String> warn;
     /** The provider id we already warned about; cleared once it shows up, so a later loss warns again. */
     private volatile String warnedFor;
+    private final java.util.function.BooleanSupplier warningsReady;
+    private volatile boolean seenReady;
 
     public NpcBridge(Supplier<String> configured, Function<String, Optional<NpcProvider>> resolver, Consumer<String> warn) {
+        this(configured, resolver, warn, () -> true);
+    }
+
+    public NpcBridge(Supplier<String> configured, Function<String, Optional<NpcProvider>> resolver,
+                     Consumer<String> warn, java.util.function.BooleanSupplier warningsReady) {
+        this.warningsReady = warningsReady;
         this.configured = configured;
         this.resolver = resolver;
         this.warn = warn;
@@ -47,7 +55,9 @@ public final class NpcBridge {
 
     /** Production wiring: providers come from LoveCore. */
     public static NpcBridge viaLoveCore(Supplier<String> configured, Consumer<String> warn) {
-        return new NpcBridge(configured, id -> LoveCore.provider(NpcProvider.class, id), warn);
+        int started = org.bukkit.Bukkit.getServer() == null ? 0 : org.bukkit.Bukkit.getCurrentTick();
+        return new NpcBridge(configured, id -> LoveCore.provider(NpcProvider.class, id), warn,
+                () -> org.bukkit.Bukkit.getServer() == null || org.bukkit.Bukkit.getCurrentTick() - started >= 200);
     }
 
     /**
@@ -81,7 +91,8 @@ public final class NpcBridge {
         }
         if (found.isPresent()) {
             warnedFor = null;
-        } else if (!id.equals(warnedFor)) {
+            seenReady = true;
+        } else if ((seenReady || warningsReady.getAsBoolean()) && !id.equals(warnedFor)) {
             warnedFor = id;
             warn.accept("NPC-провайдер '" + id + "' недоступен (integrations.npc-provider): плагин не установлен или ещё не "
                     + "поднялся. NPC-функции LoveShops отключены, пока он не появится.");
