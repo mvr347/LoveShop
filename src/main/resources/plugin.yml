@@ -25,6 +25,7 @@ commands:
     description: Административное управление торговыми точками
     aliases: [tpadmin, tpa]
     permission: loveshops.admin.point
+    permission-message: ""
     usage: /tradepointadmin <npc|create|wizard|delete|owner|lvl|price|list|info|reconcile>
 
 permissions:

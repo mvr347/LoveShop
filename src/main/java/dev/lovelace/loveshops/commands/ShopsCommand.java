@@ -134,8 +134,6 @@ public class ShopsCommand implements CommandExecutor, TabCompleter {
         if (sender.hasPermission(specificPermission) || sender.hasPermission("loveshops.admin")) {
             sender.sendMessage(plugin.getLangManager().getMessage("commands.admin-moved",
                 "<yellow>Эта команда переехала: используйте <gold>{command}</gold>.</yellow>", Map.of("command", newCommand)));
-        } else {
-            sender.sendMessage(plugin.getLangManager().getMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
         }
     }
 
