@@ -60,6 +60,7 @@ public class WandererWaitingGui {
 
         inv.setItem(13, waitingHead);
 
+        WandererHeadSale.apply(plugin, player, inv);
         player.openInventory(inv);
     }
 }

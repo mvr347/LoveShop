@@ -117,6 +117,7 @@ public class WandererShopGui {
             }
         }
 
+        WandererHeadSale.apply(plugin, player, inv);
         player.openInventory(inv);
     }
 
