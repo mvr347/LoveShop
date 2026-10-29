@@ -62,7 +62,6 @@ public final class MarketAdminCommands {
 
     private boolean allowed(CommandSender sender, String permission) {
         if (sender.hasPermission(permission) || sender.hasPermission("loveshops.admin")) return true;
-        sender.sendMessage(plugin.getLangManager().getAdminMessage("commands.no-permission", "<red>У вас нет прав!</red>"));
         return false;
     }
 
