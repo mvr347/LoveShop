@@ -39,6 +39,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class HeadSaleManager {
     public static final NamespacedKey HEAD_KEY = Objects.requireNonNull(NamespacedKey.fromString("lovehunt:delivered_head"));
 
+    public static final NamespacedKey DETAILS_KEY = Objects.requireNonNull(NamespacedKey.fromString("lovehunt:head_details"));
+
     public enum Result { SOLD, NO_HEAD, COOLDOWN, NO_ECONOMY, DISABLED }
 
     /** A priced head: what the Wanderer would pay for it. */
@@ -90,6 +92,14 @@ public final class HeadSaleManager {
 
     // ---- heads in the inventory ------------------------------------------------------------------------------------
 
+    /** How the player died and how long he was hunted, from the tag LoveHunt wrote on the head; null for an old head. */
+    public static HeadPriceRules.Details detailsOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        return HeadPriceRules.Details.parse(item.getItemMeta().getPersistentDataContainer().get(DETAILS_KEY, PersistentDataType.STRING));
+    }
+
     /** The victim a delivered head belongs to, or {@code null} when the item is not one. */
     public static UUID victimOf(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
@@ -125,15 +135,24 @@ public final class HeadSaleManager {
 
     // ---- price ----------------------------------------------------------------------------------------------------
 
-    public Quote quote(UUID victim) {
+    /** The price of one particular head: what its owner is, and how he died as written on this head. */
+    public Quote quote(ItemStack head) {
+        UUID victim = victimOf(head);
+        if (victim == null) {
+            throw new IllegalArgumentException("not a delivered head");
+        }
+        return quote(victim, detailsOf(head));
+    }
+
+    public Quote quote(UUID victim, HeadPriceRules.Details details) {
         OfflinePlayer owner = Bukkit.getOfflinePlayer(victim);
         String name = owner.getName() == null ? "?" : owner.getName();
-        long price = HeadPriceRules.price(subject(owner), params());
+        long price = HeadPriceRules.price(subject(owner, details), params());
         long left = HeadPriceRules.cooldownLeft(lastSold.getOrDefault(victim, 0L), System.currentTimeMillis(), cooldownMillis());
         return new Quote(victim, name, price, left);
     }
 
-    private Subject subject(OfflinePlayer owner) {
+    private Subject subject(OfflinePlayer owner, HeadPriceRules.Details details) {
         double hours = 0.0;
         int kills = 0;
         try {
@@ -150,7 +169,7 @@ public final class HeadSaleManager {
         } catch (Throwable ignored) {
             // The social services are optional.
         }
-        return new Subject(hours, kills, reputation, playstyle, BehaviorLevels.MAX_LEVEL);
+        return new Subject(hours, kills, reputation, playstyle, BehaviorLevels.MAX_LEVEL, details);
     }
 
     private Params params() {
@@ -167,7 +186,35 @@ public final class HeadSaleManager {
                 Math.max(low, high),
                 (c == null ? 40.0 : c.getDouble("notoriety-bonus-percent", 40.0)) / 100.0,
                 Money.scaled(c, "min-price", 200L),
-                Money.scaled(c, "max-price", 10000L));
+                Money.scaled(c, "max-price", 10000L),
+                circumstances(c == null ? null : c.getConfigurationSection("circumstances")));
+    }
+
+    private HeadPriceRules.Circumstances circumstances(ConfigurationSection c) {
+        if (c == null) {
+            return HeadPriceRules.Circumstances.NEUTRAL;
+        }
+        return new HeadPriceRules.Circumstances(
+                table(c.getConfigurationSection("cause")), c.getDouble("cause.default", 1.0),
+                table(c.getConfigurationSection("weapon")), c.getDouble("weapon.default", 1.0),
+                c.getDouble("armor-bonus-percent-per-point", 0.0) / 100.0,
+                c.getDouble("armor-bonus-cap-percent", 0.0) / 100.0,
+                c.getDouble("reward-share-percent", 0.0) / 100.0,
+                Money.scaled(c, "reward-cap", 0L),
+                c.getDouble("hunted-bonus-percent-per-day", 0.0) / 100.0,
+                c.getDouble("hunted-bonus-cap-percent", 0.0) / 100.0);
+    }
+
+    private static java.util.Map<String, Double> table(ConfigurationSection section) {
+        var out = new java.util.HashMap<String, Double>();
+        if (section != null) {
+            for (String key : section.getKeys(false)) {
+                if (!key.equals("default") && (section.isDouble(key) || section.isInt(key))) {
+                    out.put(key.toUpperCase(java.util.Locale.ROOT), section.getDouble(key));
+                }
+            }
+        }
+        return out;
     }
 
     private long cooldownMillis() {
@@ -185,10 +232,6 @@ public final class HeadSaleManager {
         if (economy == null) {
             return new Sale(Result.NO_ECONOMY, null);
         }
-        Quote quote = quote(victim);
-        if (quote.cooldownLeftMillis() > 0L) {
-            return new Sale(Result.COOLDOWN, quote);
-        }
         ItemStack head = null;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && victim.equals(victimOf(item))) {
@@ -197,7 +240,11 @@ public final class HeadSaleManager {
             }
         }
         if (head == null) {
-            return new Sale(Result.NO_HEAD, quote);
+            return new Sale(Result.NO_HEAD, quote(victim, null));
+        }
+        Quote quote = quote(head);
+        if (quote.cooldownLeftMillis() > 0L) {
+            return new Sale(Result.COOLDOWN, quote);
         }
         head.setAmount(head.getAmount() - 1);
         economy.give(player, quote.price());

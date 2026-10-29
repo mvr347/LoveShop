@@ -264,6 +264,47 @@ wanderer:
     min-price: "2i"
     max-price: "5g"
     victim-cooldown-days: 7
+    # 2026-10-29: обстоятельства, которые LoveHunt пишет на голову (тег lovehunt:head_details): как погиб игрок,
+    # чем убит, какая на нём была броня, сколько стоил заказ и как долго его охотили. Цена выше у трудной и
+    # «красивой» добычи (убит в бою, в броне, долго ускользал) и ниже у случайной (упал, сгорел). Множители
+    # причины и оружия перемножаются; оружие ищется по полному имени, затем по первой части (NETHERITE
+    # покрывает любой незеритовый инструмент). Броня и длительность охоты дают прибавку с потолком. Доля
+    # награды заказа тоже с потолком: иначе заказ на друга с огромной наградой превращался бы в монеты.
+    circumstances:
+      cause:
+        default: 1.0
+        ENTITY_ATTACK: 1.0
+        ENTITY_SWEEP_ATTACK: 1.0
+        PROJECTILE: 1.15
+        MAGIC: 1.1
+        ENTITY_EXPLOSION: 0.9
+        BLOCK_EXPLOSION: 0.9
+        FALL: 0.8
+        FIRE: 0.85
+        FIRE_TICK: 0.85
+        LAVA: 0.85
+        DROWNING: 0.8
+        VOID: 0.7
+        THORNS: 0.9
+      weapon:
+        default: 1.0
+        FIST: 1.25
+        NETHERITE: 1.2
+        DIAMOND: 1.1
+        IRON: 1.0
+        GOLDEN: 0.95
+        STONE: 0.9
+        WOODEN: 0.9
+        BOW: 1.05
+        CROSSBOW: 1.1
+        TRIDENT: 1.15
+        MACE: 1.15
+      armor-bonus-percent-per-point: 1.5
+      armor-bonus-cap-percent: 30
+      reward-share-percent: 10
+      reward-cap: "1g"
+      hunted-bonus-percent-per-day: 5
+      hunted-bonus-cap-percent: 25
 
   # Настройки договора (заказа предметов)
   deal:
