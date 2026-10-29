@@ -97,6 +97,7 @@ public class WandererDealGui {
             inv.setItem(SLOT_CATEGORY_REQUEST, buildCategoryButton(plugin, WandererRequestCategory.values()[0]));
         }
 
+        WandererHeadSale.apply(plugin, player, inv);
         player.openInventory(inv);
     }
 

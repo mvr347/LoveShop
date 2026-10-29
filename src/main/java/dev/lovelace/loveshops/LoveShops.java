@@ -42,6 +42,7 @@ public final class LoveShops extends JavaPlugin {
     private NpcDialogueManager npcDialogueManager;
     private WarMerchantManager warMerchantManager;
     private WandererManager wandererManager;
+    private dev.lovelace.loveshops.managers.HeadSaleManager headSaleManager;
     private BankerManager bankerManager;
     private NpcBridge npcBridge;
     private dev.lovelace.loveshops.managers.DailyCaravanManager dailyCaravanManager;
@@ -83,6 +84,8 @@ public final class LoveShops extends JavaPlugin {
         this.forbiddenManager.load();
         this.priceCalculator = new PriceCalculator(this);
         this.wandererManager = new WandererManager(this);
+        this.headSaleManager = new dev.lovelace.loveshops.managers.HeadSaleManager(this);
+        this.headSaleManager.load();
         this.npcManager = new NpcManager(this);
         this.npcDialogueManager = new NpcDialogueManager(this);
         this.warMerchantManager = new WarMerchantManager(this);
@@ -227,6 +230,7 @@ public final class LoveShops extends JavaPlugin {
     public NpcDialogueManager getNpcDialogueManager() { return npcDialogueManager; }
     public WarMerchantManager getWarMerchantManager() { return warMerchantManager; }
     public WandererManager getWandererManager() { return wandererManager; }
+    public dev.lovelace.loveshops.managers.HeadSaleManager getHeadSaleManager() { return headSaleManager; }
     public BankerManager getBankerManager() { return bankerManager; }
     public dev.lovelace.loveshops.managers.DailyCaravanManager getDailyCaravanManager() { return dailyCaravanManager; }
     public dev.lovelace.loveshops.managers.CommissionManager getCommissionManager() { return commissionManager; }

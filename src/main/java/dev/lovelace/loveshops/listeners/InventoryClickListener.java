@@ -104,6 +104,11 @@ public class InventoryClickListener implements Listener {
                 return;
             }
 
+            if (slot == dev.lovelace.loveshops.gui.WandererHeadSale.BUTTON_SLOT && isHeadSaleButton(event.getCurrentItem())) {
+                dev.lovelace.loveshops.gui.WandererHeadSale.onButtonClick(plugin, player);
+                return;
+            }
+
             if (slot == dev.lovelace.loveshops.gui.WandererDealGui.standardDealSlot(plugin)) {
                 startWandererDeal(player, null);
                 return;
@@ -142,7 +147,14 @@ public class InventoryClickListener implements Listener {
 
             if (slot == 26) {
                 player.closeInventory();
+            } else if (slot == dev.lovelace.loveshops.gui.WandererHeadSale.BUTTON_SLOT && isHeadSaleButton(event.getCurrentItem())) {
+                dev.lovelace.loveshops.gui.WandererHeadSale.onButtonClick(plugin, player);
             }
+        } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererHeadSale.CONFIRM_TITLE)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 9) return;
+            dev.lovelace.loveshops.gui.WandererHeadSale.onConfirmClick(plugin, player, slot, event.getCurrentItem());
         } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
@@ -150,6 +162,11 @@ public class InventoryClickListener implements Listener {
 
             if (slot == 53) {
                 player.closeInventory();
+                return;
+            }
+
+            if (slot == dev.lovelace.loveshops.gui.WandererHeadSale.BUTTON_SLOT && isHeadSaleButton(event.getCurrentItem())) {
+                dev.lovelace.loveshops.gui.WandererHeadSale.onButtonClick(plugin, player);
                 return;
             }
 
@@ -487,10 +504,16 @@ public class InventoryClickListener implements Listener {
                     || titleText.contains(WarMerchantGui.TITLE)
                     || titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)
                     || titleText.contains(dev.lovelace.loveshops.gui.WandererDealGui.TITLE)
-                    || titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)) {
+                    || titleText.contains(dev.lovelace.loveshops.gui.WandererWaitingGui.TITLE)
+                    || titleText.contains(dev.lovelace.loveshops.gui.WandererHeadSale.CONFIRM_TITLE)) {
                 event.setCancelled(true);
             }
         }
+    }
+
+    /** The Header glass in the sell-button slot is a filler, not a button: only the player-head button is clickable. */
+    private static boolean isHeadSaleButton(ItemStack item) {
+        return item != null && item.getType() == org.bukkit.Material.PLAYER_HEAD;
     }
 
     @EventHandler
