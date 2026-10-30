@@ -65,4 +65,60 @@ class HeadPriceRulesTest {
         assertEquals(0, HeadPriceRules.cooldownLeft(0, 5000, 7 * day));
         assertEquals(0, HeadPriceRules.cooldownLeft(1000, 1500, 0));
     }
+
+    // causes: PROJECTILE x1.2, FALL x0.8; weapons: NETHERITE x1.2, BOW x1.1, FIST x1.25; armor +2%/pt up to 30%,
+    // hunted +5%/day up to 25%; reward 10% up to 300
+    private static final HeadPriceRules.Circumstances C = new HeadPriceRules.Circumstances(
+            java.util.Map.of("PROJECTILE", 1.2, "FALL", 0.8), 1.0,
+            java.util.Map.of("NETHERITE", 1.2, "BOW", 1.1, "FIST", 1.25), 1.0,
+            0.02, 0.30, 0.10, 300L, 0.05, 0.25);
+    private static final Params PC = new Params(1000, 0, 0, 0, 0, 1.0, 1.0, 0, 0, 0, C);
+
+    private static Subject died(HeadPriceRules.Details details) {
+        return new Subject(0, 0, 50, -1, 6, details);
+    }
+
+    @Test
+    void anOldHeadWithoutDetailsIsPricedWithoutCircumstances() {
+        assertEquals(1000, HeadPriceRules.price(died(null), PC));
+    }
+
+    @Test
+    void causeAndWeaponMultiplyAndWeaponIsFoundByPrefix() {
+        assertEquals(1000 * 1.2 * 1.2, HeadPriceRules.price(died(new HeadPriceRules.Details("PROJECTILE", "NETHERITE_SWORD", 0, 0, 0)), PC), 1.0);
+        assertEquals(1000 * 0.8 * 1.25, HeadPriceRules.price(died(new HeadPriceRules.Details("FALL", "FIST", 0, 0, 0)), PC), 1.0);
+        // an unknown cause and weapon fall back to the defaults
+        assertEquals(1000, HeadPriceRules.price(died(new HeadPriceRules.Details("WITHER", "STICK", 0, 0, 0)), PC));
+    }
+
+    @Test
+    void armorAndTheLengthOfTheHuntAddUpToTheirCaps() {
+        assertEquals(1000 * 1.2, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 10, 0, 0)), PC), 1.0);
+        assertEquals(1000 * 1.3, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 20, 0, 0)), PC), 1.0);
+        assertEquals(1000 * 1.3, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 400, 0, 0)), PC), 1.0);
+        assertEquals(1000 * 1.1, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 0, 0, 2)), PC), 1.0);
+        assertEquals(1000 * 1.25, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 0, 0, 60)), PC), 1.0);
+        assertEquals(1000 * 1.55, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 20, 0, 60)), PC), 1.0);
+    }
+
+    @Test
+    void theRewardAddsAShareWithACap() {
+        assertEquals(1000 + 100, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 0, 1000, 0)), PC));
+        assertEquals(1000 + 300, HeadPriceRules.price(died(new HeadPriceRules.Details("X", "X", 0, 5_000_000, 0)), PC));
+    }
+
+    @Test
+    void parsesTheTagLoveHuntWrites() {
+        var d = HeadPriceRules.Details.parse("cause=PROJECTILE;weapon=BOW;armor=18.5;reward=4000;hunted=172800000");
+        assertEquals("PROJECTILE", d.cause());
+        assertEquals("BOW", d.weapon());
+        assertEquals(18.5, d.armor(), 1e-9);
+        assertEquals(4000L, d.reward());
+        assertEquals(2.0, d.huntedDays(), 1e-9);
+        assertEquals(null, HeadPriceRules.Details.parse(null));
+        var damaged = HeadPriceRules.Details.parse("cause=FALL;armor=oops;reward=-5;hunted=abc");
+        assertEquals(0.0, damaged.armor());
+        assertEquals(0L, damaged.reward());
+        assertEquals(0.0, damaged.huntedDays());
+    }
 }

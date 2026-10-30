@@ -48,14 +48,13 @@ public final class WandererHeadSale {
     }
 
     private static ItemStack button(LoveShops plugin, Player player, ItemStack head) {
-        UUID victim = HeadSaleManager.victimOf(head);
-        var quote = plugin.getHeadSaleManager().quote(victim);
+        var quote = plugin.getHeadSaleManager().quote(head);
         var lang = plugin.getLangManager();
         String count = String.valueOf(HeadSaleManager.countHeads(player));
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta meta = item.getItemMeta();
         if (meta instanceof SkullMeta skull) {
-            skull.setOwningPlayer(Bukkit.getOfflinePlayer(victim));
+            skull.setOwningPlayer(Bukkit.getOfflinePlayer(quote.victim()));
         }
         if (meta != null) {
             boolean blocked = quote.cooldownLeftMillis() > 0L;
@@ -78,8 +77,7 @@ public final class WandererHeadSale {
             player.closeInventory();
             return;
         }
-        UUID victim = HeadSaleManager.victimOf(head);
-        var quote = plugin.getHeadSaleManager().quote(victim);
+        var quote = plugin.getHeadSaleManager().quote(head);
         if (quote.cooldownLeftMillis() > 0L) {
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             MessageUtils.event(player, plugin.getLangManager().text("gui.wanderer.head-cooldown",
