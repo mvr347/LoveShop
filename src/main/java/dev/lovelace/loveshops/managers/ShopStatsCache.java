@@ -92,14 +92,17 @@ public final class ShopStatsCache {
                 }
                 double stars = 0;
                 int ratings = 0;
+                // Weighted like MarketRepository#ratingSummary, so fresh accounts do not outvote old ones
                 try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT COALESCE(AVG(r.stars),0), COUNT(r.id) FROM stall_ratings r "
+                        "SELECT COALESCE(SUM(r.stars * r.weight),0), COALESCE(SUM(r.weight),0), COUNT(*) FROM stall_ratings r "
                                 + "JOIN trade_points p ON p.claim_id = r.point_id WHERE p.owner_uuid = ? AND r.hidden = 0")) {
                     ps.setString(1, id);
                     try (ResultSet rs = ps.executeQuery()) {
                         rs.next();
-                        stars = rs.getDouble(1);
-                        ratings = rs.getInt(2);
+                        double weights = rs.getDouble(2);
+                        ratings = rs.getInt(3);
+                        stars = weights > 0 ? rs.getDouble(1) / weights : 0;
+                        if (weights <= 0) ratings = 0;
                     }
                 }
                 int level = 1;
