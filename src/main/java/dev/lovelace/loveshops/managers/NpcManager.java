@@ -9,6 +9,7 @@ import dev.lovelace.loveshops.npc.NpcKeys;
 import dev.lovelace.loveshops.npc.NpcLookup;
 import dev.lovelace.loveshops.npc.NpcTags;
 import dev.lovelace.loveshops.npc.NpcText;
+import dev.lovelace.loveshops.npc.NpcNames;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -615,16 +616,33 @@ public class NpcManager {
     /** Removes the event NPC for good (not hidden): open menus are closed first. */
     private void destroyEphemeral(NpcData npc) {
         closeMenus(npc.type());
-        String key = trackedKeys.remove(npc.uuid());
+        String key = trackedKeys.get(npc.uuid());
         if (key == null && bridge().available()) {
             List<NpcHandle> tagged = bridge().withTag(NpcTags.UUID, npc.uuid().toString());
             if (!tagged.isEmpty()) key = tagged.get(0).key();
         }
         if (key == null) return;
+        NpcHandle current = bridge().byKey(key).orElse(null);
+        if (current != null && !rememberName(npc, current)) return;
         try {
             bridge().remove(key);
+            trackedKeys.remove(npc.uuid(), key);
         } catch (Exception e) {
             plugin.getLogger().warning("Не удалось убрать NPC события " + npc.type() + ": " + e.getMessage());
+        }
+    }
+
+    /** Capture provider edits before an event NPC is destroyed; a failed save keeps it for retry. */
+    private boolean rememberName(NpcData row, NpcHandle handle) {
+        String name = handle.name();
+        if (!NpcNames.changed(row, name)) return true;
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            NpcData saved = NpcNames.write(conn, row, name);
+            loadedNpcs.put(saved.uuid(), saved);
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Не удалось сохранить имя NPC #" + row.id() + ": " + e.getMessage());
+            return false;
         }
     }
 
@@ -657,6 +675,13 @@ public class NpcManager {
         for (NpcData npc : new ArrayList<>(loadedNpcs.values())) {
             if (!isEphemeralType(npc.type()) || npc.npcKey() == null) continue;
             NpcHandle handle = bridge().byKey(npc.npcKey()).orElse(null);
+            if (handle != null) {
+                if (!rememberName(npc, handle)) {
+                    trackedKeys.put(npc.uuid(), handle.key());
+                    continue;
+                }
+                npc = loadedNpcs.get(npc.uuid());
+            }
             // The NPC's own skin name is kept; the row keeps its skin when the NPC has none (a texture or no skin).
             String skin = handle != null ? handle.skinName().filter(s -> !s.isBlank()).orElse(npc.skinOwner()) : npc.skinOwner();
             Location where = handle != null ? handle.location() : null;
@@ -701,6 +726,11 @@ public class NpcManager {
         List<NpcHandle> tagged = bridge().withTag(NpcTags.EPHEMERAL);
         Set<String> live = new HashSet<>(trackedKeys.values());
         for (NpcHandle orphan : orphans(tagged, h -> live.contains(h.key()))) {
+            NpcData row = NpcLookup.resolve(loadedNpcs, orphan).data();
+            if (row != null && !rememberName(row, orphan)) {
+                trackedKeys.put(row.uuid(), orphan.key());
+                continue;
+            }
             try {
                 bridge().remove(orphan.key());
             } catch (Exception e) {
