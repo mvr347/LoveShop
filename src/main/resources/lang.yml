@@ -1,4 +1,4 @@
-prefix: "<gradient:#FF5555:#FFAA00>[LoveShops]</gradient> "
+prefix: "<gradient:#FF5555:#FFAA00>Торговля</gradient> <white>»</white> "
 
 # 2026-10-19: версия языкового файла. copyDefaults не обновляет уже существующие строки, поэтому тексты меню,
 # переписанные под стандарт gui-gen-6, не дошли бы до серверов со старым lang.yml. При переходе на новую версию
