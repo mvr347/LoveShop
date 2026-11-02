@@ -108,8 +108,9 @@ public class NpcListener implements Listener {
 
             switch (npcData.type().toLowerCase()) {
                 case "banker" -> {
-                    dialogue.sayBankerGreeting(player);
                     new BankerGui(plugin, player).open();
+                    // Opening the bank is silent: no greeting or random reputation small talk.
+                    return;
                 }
                 case "caravaner" -> {
                     if (plugin.getDailyCaravanManager() != null) {
