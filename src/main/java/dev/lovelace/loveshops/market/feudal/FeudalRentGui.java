@@ -39,7 +39,7 @@ public final class FeudalRentGui extends MarketGui {
 
     @Override
     public UUID pointId() {
-        return null;
+        return point.claimId();
     }
 
     private ClaimsLink claims() {
@@ -56,7 +56,7 @@ public final class FeudalRentGui extends MarketGui {
         long cost = claims().rentCost(point.claimId(), weeks);
         long periodDays = Math.max(1L, claims().periodMillis() / 86_400_000L);
 
-        inventory.setItem(0, tile(HeadTextures.MARKET_OPEN, "gui-feudal-rent-head", "gui-feudal-rent-head-lore",
+        inventory.setItem(0, tile(HeadTextures.FEUDAL_FREE, "gui-feudal-rent-head", "gui-feudal-rent-head-lore",
                 "id", id, "level", String.valueOf(point.level())));
 
         List<String> costLines = new ArrayList<>();
@@ -70,7 +70,7 @@ public final class FeudalRentGui extends MarketGui {
                 new Control(head(HeadTextures.BUTTON_PLUS, t("gui-feudal-rent-weeks"),
                         lines("gui-feudal-rent-weeks-lore", "weeks", String.valueOf(weeks), "max", String.valueOf(max),
                                 "days", String.valueOf(weeks * periodDays), "bar", ProgressBarUtil.bar(weeks, max))), this::clickWeeks),
-                new Control(head(HeadTextures.HEAD_CONFIRM, t("gui-feudal-rent-confirm"), confirmLore), e -> rent())
+                purchaseControl(cost, confirmLore)
         ));
         footer(() -> new FeudalListGui(plugin, viewer).open());
         refreshClient();
@@ -84,6 +84,40 @@ public final class FeudalRentGui extends MarketGui {
             weeks = Math.min(max, weeks + 1);
         }
         render();
+    }
+
+    private Control purchaseControl(long cost, List<String> lore) {
+        var economy = plugin.getEconomy();
+        boolean available = !point.hasOwner() && claims().point(point.claimId()).isPresent()
+                && cost >= 0 && economy.isPresent() && economy.get().has(viewer, cost);
+        if (!available) {
+            String reason = point.hasOwner() ? "gui-feudal-rent-taken"
+                    : economy.isEmpty() ? "economy-down" : "feudal-no-funds";
+            var unavailable = new ArrayList<>(lore);
+            // Do not advertise a click that cannot succeed.
+            unavailable = new ArrayList<>(unavailable.subList(0, Math.max(0,
+                    unavailable.size() - lines("gui-feudal-rent-confirm-bottom").size())));
+            unavailable.add(t(reason, "cost", plugin.getMarketStyle().money(cost)));
+            return new Control(head(HeadTextures.MARKET_CLOSED, t("gui-purchase-unavailable"), unavailable), null);
+        }
+        return new Control(head(HeadTextures.HEAD_CONFIRM, t("gui-feudal-rent-confirm"), lore), e -> {
+            int quotedWeeks = weeks;
+            long quotedCost = cost;
+            new dev.lovelace.loveshops.market.gui.StallConfirmGui(plugin, viewer, point.claimId(),
+                    t("gui-feudal-rent-confirm-title"),
+                    List.of(t("gui-feudal-rent-confirm-summary", "id", plugin.getTradePointManager().nameOf(point),
+                            "weeks", String.valueOf(quotedWeeks)), plugin.getMarketStyle().money(quotedCost)),
+                    () -> {
+                        // Never charge a changed quote or a second click from an old inventory.
+                        if (claims().rentCost(point.claimId(), quotedWeeks) != quotedCost) {
+                            plugin.getMarketMessages().send(viewer, "gui-feudal-rent-price-changed");
+                            open();
+                            return;
+                        }
+                        weeks = quotedWeeks;
+                        rent();
+                    }, this::open).open();
+        });
     }
 
     private void rent() {

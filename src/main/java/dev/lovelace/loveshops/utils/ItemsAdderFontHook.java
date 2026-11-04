@@ -71,7 +71,8 @@ public final class ItemsAdderFontHook {
             String[] candidates = {
                     "dev.beer.itemsadder.api.FontImages",
                     "beer.devs.itemsadder.api.FontImages",
-                    "dev.lone.itemsadder.api.FontImages"
+                    "dev.lone.itemsadder.api.FontImages",
+                    "dev.lone.itemsadder.api.FontImages.FontImageWrapper"
             };
             for (String candidate : candidates) {
                 try {
@@ -80,20 +81,24 @@ public final class ItemsAdderFontHook {
                 } catch (ClassNotFoundException ignored) {}
             }
             if (fontImagesClass == null) {
-                return withTags;
+                return text;
             }
-            try {
-                Object result = fontImagesClass.getMethod("replacePlaceholders", Player.class, String.class)
-                        .invoke(null, player, withTags);
-                return result instanceof String resolved ? resolved : withTags;
-            } catch (NoSuchMethodException noPlayerOverload) {
-                Object result = fontImagesClass.getMethod("replacePlaceholders", String.class)
-                        .invoke(null, withTags);
-                return result instanceof String resolved ? resolved : withTags;
+            for (String method : new String[]{"replacePlaceholders", "replaceFontImages"}) {
+                try {
+                    Object result = fontImagesClass.getMethod(method, Player.class, String.class)
+                            .invoke(null, player, withTags);
+                    return result instanceof String resolved ? resolved : text;
+                } catch (NoSuchMethodException noPlayerOverload) {
+                    try {
+                        Object result = fontImagesClass.getMethod(method, String.class).invoke(null, withTags);
+                        return result instanceof String resolved ? resolved : text;
+                    } catch (NoSuchMethodException nextName) { /* Next supported API generation. */ }
+                }
             }
+            return text;
         } catch (ReflectiveOperationException exception) {
             LOGGER.log(Level.FINEST, "ItemsAdder FontImages resolution failed: " + exception.getMessage());
-            return withTags;
+            return text;
         }
     }
 }

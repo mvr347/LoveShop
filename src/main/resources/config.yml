@@ -1019,6 +1019,14 @@ market:
 # ========================================================
 # СИСТЕМЫ КАРАВАНОВ (Ежедневный Караванщик и Потерянные Караваны)
 # ========================================================
+  # ID изображений шрифта ItemsAdder, а не ID предметов. Ключ — имя предмета монеты без namespace.
+  # Пример: gold_coin: mynamespace:gold_coin_image
+  coin-fonts:
+    copper_coin: copper_coin
+    iron_coin: iron_coin
+    gold_coin: gold_coin
+    diamond_coin: diamond_coin
+    netherite_coin: netherite_coin
 caravan:
   daily:
     enabled: true

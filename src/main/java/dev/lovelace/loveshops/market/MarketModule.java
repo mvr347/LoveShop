@@ -12,6 +12,7 @@ import org.bukkit.event.HandlerList;
 public final class MarketModule {
 
     private final LoveShops plugin;
+    private MarketSignProtection signProtection;
     private MarketRepository repo;
     private TradePointManager manager;
     private StallTradeService trade;
@@ -76,6 +77,8 @@ public final class MarketModule {
             Bukkit.getPluginManager().registerEvents(prompts, plugin);
             Bukkit.getPluginManager().registerEvents(guiListener, plugin);
             Bukkit.getPluginManager().registerEvents(wizard, plugin);
+            signProtection = new MarketSignProtection(manager::all);
+            Bukkit.getPluginManager().registerEvents(signProtection, plugin);
             manager.enable();
             // Finish what a crash left half-way, then keep an eye on trades that got stuck.
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -96,6 +99,7 @@ public final class MarketModule {
     }
 
     public void stop() {
+        if (signProtection != null) { HandlerList.unregisterAll(signProtection); signProtection = null; }
         if (reconcileTask != null) {
             reconcileTask.cancel();
             reconcileTask = null;

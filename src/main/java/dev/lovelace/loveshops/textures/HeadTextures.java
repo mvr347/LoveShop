@@ -8,6 +8,16 @@ package dev.lovelace.loveshops.textures;
  * одних и тех же строк в разных классах.
  */
 public final class HeadTextures {
+    public static final String FEUDAL_RETURN = HeadsConfig.get("tradepoint-return", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjdmYzRkZmE1ZjY1MmY2ZTFjMWIxOWZiODc2NTU5NjdlYjgyZmI1ZmE3MTkwNDJmOGM4MDVjYWQ3ZjAxZTQ4NyJ9fX0=");
+
+    public static final String FEUDAL_GUARD = HeadsConfig.get("tradepoint-guard", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNWM4ZWVkNTc0Nzg5ZGUyMWM0NDhhN2M1OGFkNjk1NmFmZjFiYzgyMjkxOGNjMjM4ODhhMTY3NzkxNDYwYjg5ZSJ9fX0=");
+
+    public static final String FEUDAL_MANAGE = HeadsConfig.get("tradepoint-manage", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTMzZmM5YTQ1YmUxM2NhNTdhNzhiMjE3NjJjNmUxMjYyZGFlNDExZjEzMDQ4Yjk2M2Q5NzJhMjllMDcwOTZhYiJ9fX0=");
+
+    public static final String FEUDAL_TAKEN = HeadsConfig.get("tradepoint-taken", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDI3ZmQxMDBkYTM3MWRmMjE3ZjRlNzkzMjY4ZWZlZDNiZTRlNmI3NzRjOWFmZDJhMmI1NzFkYTQxZWEwNWRmOCJ9fX0=");
+
+    public static final String FEUDAL_FREE = HeadsConfig.get("tradepoint-free", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzdiMjBlZmQ5MmZmZGE5ZTZkN2Q4NTliOTZiYjc5MjgwZTFkZjViMzdiZDM5YTJiNWI2OTFkYTRkODU5MjVlZiJ9fX0=");
+
 
     private HeadTextures() {
         // Утилитарный класс-константа, инстанцирование не предполагается

@@ -146,7 +146,7 @@ public final class StallNpcService {
         org.bukkit.block.Block block = loc.getBlock();
         if (!point.open()) {
             if (!(block.getState() instanceof org.bukkit.block.Sign)) {
-                block.setType(org.bukkit.Material.OAK_SIGN);
+                block.setType(org.bukkit.Material.OAK_SIGN, false);
             }
             if (block.getState() instanceof org.bukkit.block.Sign sign) {
                 List<String> lines = plugin.getMarketConfig().closedSignLines();
@@ -155,7 +155,8 @@ public final class StallNpcService {
                     String line = i < lines.size() ? lines.get(i).replace("{owner}", owner) : "";
                     sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
                 }
-                sign.update(true);
+                sign.setWaxed(true);
+                sign.update(true, false);
             }
         } else {
             if (plugin.getMarketConfig().closedSignRemoveOnOpen()) {
@@ -182,7 +183,8 @@ public final class StallNpcService {
                     .replace("{status}", status == null ? "" : status) : "";
             sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
         }
-        sign.update(true);
+        sign.setWaxed(true);
+        sign.update(true, false);
     }
 
     /** The point is gone for good: take its "closed" sign down too, so no orphan sign is left in the world. */
