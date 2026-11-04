@@ -1,0 +1,72 @@
+# Обновление 04.11.2026: исходные файлы копируются в .pre-style-20261104.bak; свои значения сохраняются.
+version: 20261104
+updates:
+- file: config.yml
+  path: market.coin-fonts
+  before: null
+  value:
+    copper_coin: copper_coin
+    iron_coin: iron_coin
+    gold_coin: gold_coin
+    diamond_coin: diamond_coin
+    netherite_coin: netherite_coin
+  preserve-custom: true
+- file: heads.yml
+  path: tradepoint-free
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzdiMjBlZmQ5MmZmZGE5ZTZkN2Q4NTliOTZiYjc5MjgwZTFkZjViMzdiZDM5YTJiNWI2OTFkYTRkODU5MjVlZiJ9fX0=
+  preserve-custom: true
+- file: heads.yml
+  path: tradepoint-taken
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDI3ZmQxMDBkYTM3MWRmMjE3ZjRlNzkzMjY4ZWZlZDNiZTRlNmI3NzRjOWFmZDJhMmI1NzFkYTQxZWEwNWRmOCJ9fX0=
+  preserve-custom: true
+- file: heads.yml
+  path: tradepoint-manage
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTMzZmM5YTQ1YmUxM2NhNTdhNzhiMjE3NjJjNmUxMjYyZGFlNDExZjEzMDQ4Yjk2M2Q5NzJhMjllMDcwOTZhYiJ9fX0=
+  preserve-custom: true
+- file: heads.yml
+  path: tradepoint-guard
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNWM4ZWVkNTc0Nzg5ZGUyMWM0NDhhN2M1OGFkNjk1NmFmZjFiYzgyMjkxOGNjMjM4ODhhMTY3NzkxNDYwYjg5ZSJ9fX0=
+  preserve-custom: true
+- file: heads.yml
+  path: tradepoint-return
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjdmYzRkZmE1ZjY1MmY2ZTFjMWIxOWZiODc2NTU5NjdlYjgyZmI1ZmE3MTkwNDJmOGM4MDVjYWQ3ZjAxZTQ4NyJ9fX0=
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-feudal-rent-confirm-bottom
+  before:
+  - <dark_gray><st>─────────────────────</st>
+  - <green>ЛКМ <dark_gray>— <gray>оплатить и арендовать
+  value:
+  - <dark_gray><st>─────────────────────</st>
+  - <green>ЛКМ <dark_gray>— <gray>проверить и подтвердить аренду
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-purchase-unavailable
+  before: null
+  value: <red>Покупка недоступна</red>
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-feudal-rent-taken
+  before: null
+  value: <red>Точка уже занята.</red>
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-feudal-rent-confirm-title
+  before: null
+  value: <white>Подтверждение аренды</white>
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-feudal-rent-confirm-summary
+  before: null
+  value: <gray>Точка <white>{id}</white> на <white>{weeks}</white> нед.</gray>
+  preserve-custom: true
+- file: lang.yml
+  path: market.gui-feudal-rent-price-changed
+  before: null
+  value: <yellow>Стоимость изменилась. Проверьте новое предложение.</yellow>
+  preserve-custom: true

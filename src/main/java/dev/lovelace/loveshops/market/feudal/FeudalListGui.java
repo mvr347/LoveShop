@@ -65,8 +65,8 @@ public final class FeudalListGui extends MarketGui {
         // В 52 слоте Управление арендой
         java.util.Optional<TradePoint> mine = manager.byOwner(viewer.getUniqueId());
         ItemStack manageTile = mine.isPresent()
-                ? tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-manage", "gui-feudal-manage-lore", "id", manager.nameOf(mine.get()))
-                : tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-manage", "gui-feudal-manage-none-lore");
+                ? tile(HeadTextures.FEUDAL_MANAGE, "gui-feudal-manage", "gui-feudal-manage-lore", "id", manager.nameOf(mine.get()))
+                : tile(HeadTextures.FEUDAL_MANAGE, "gui-feudal-manage", "gui-feudal-manage-none-lore");
         button(52, manageTile, e -> {
             java.util.Optional<TradePoint> p = manager.byOwner(viewer.getUniqueId());
             if (p.isPresent()) {
@@ -88,12 +88,12 @@ public final class FeudalListGui extends MarketGui {
         long price = manager.infoOf(point).map(ClaimsLink.PointInfo::price).orElse(0L);
         String money = plugin.getMarketStyle().money(price);
         if (!point.hasOwner()) {
-            return head(HeadTextures.MARKET_OPEN, t("gui-feudal-point-free", "id", id),
+            return head(HeadTextures.FEUDAL_FREE, t("gui-feudal-point-free", "id", id),
                     lines("gui-feudal-point-free-lore", "price", money, "level", String.valueOf(point.level())));
         }
         long left = manager.rentEnd(point) - System.currentTimeMillis();
         String time = left > 0 ? duration(left) : t("gui-feudal-overdue");
-        return head(HeadTextures.MARKET_CLOSED, t("gui-feudal-point-taken", "id", id),
+        return head(HeadTextures.FEUDAL_TAKEN, t("gui-feudal-point-taken", "id", id),
                 lines("gui-feudal-point-taken-lore", "owner", point.ownerName() == null ? "?" : point.ownerName(),
                         "time", time, "price", money));
     }

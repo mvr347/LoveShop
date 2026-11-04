@@ -23,7 +23,10 @@ public final class CoinFormat {
         String id = den.itemId();
         int colon = id.indexOf(':');
         String tag = colon >= 0 ? id.substring(colon + 1) : id;
-        return "<white>%img_" + tag + "%</white>";
+        LoveShops plugin = LoveShops.getInstance();
+        String font = plugin == null ? tag : plugin.getConfig().getString("market.coin-fonts." + tag, tag);
+        if (font == null || !font.matches("[a-zA-Z0-9_:]+")) font = tag;
+        return "<white>%img_" + font + "%</white>";
     }
 
     public static String getCoinName(Denomination den) {

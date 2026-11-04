@@ -276,7 +276,7 @@ public final class WizardService implements Listener {
         if (wizard.idSign() != null) {
             Location sign = blockLoc(world, wizard.idSign());
             point.idSignLocation(sign);
-            if (!(sign.getBlock().getState() instanceof Sign)) sign.getBlock().setType(Material.OAK_SIGN);
+            if (!(sign.getBlock().getState() instanceof Sign)) sign.getBlock().setType(Material.OAK_SIGN, false);
         }
         if (wizard.teleport() != null) {
             Pos t = wizard.teleport();

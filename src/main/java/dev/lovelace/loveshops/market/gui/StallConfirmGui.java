@@ -26,6 +26,7 @@ public final class StallConfirmGui extends MarketGui {
     private final List<String> summary;
     private final Runnable onConfirm;
     private final Runnable onCancel;
+    private boolean resolved;
 
     public StallConfirmGui(LoveShops plugin, Player viewer, UUID pointId, String title, List<String> summary,
                            Runnable onConfirm, Runnable onCancel) {
@@ -66,7 +67,10 @@ public final class StallConfirmGui extends MarketGui {
 
     @Override
     public void handleClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+        if (resolved || viewer.getOpenInventory().getTopInventory() != inventory) return;
         int slot = event.getRawSlot();
+        if (slot == CONFIRM_SLOT || slot == CANCEL_SLOT) resolved = true;
         if (slot == CONFIRM_SLOT) {
             viewer.closeInventory();
             onConfirm.run();

@@ -1588,8 +1588,8 @@ market:
     - ""
     - "<dark_gray>▪ <gray>К оплате:"
   gui-feudal-rent-confirm-bottom:
-    - "<dark_gray><st>─────────────────────</st>"
-    - "<green>ЛКМ <dark_gray>— <gray>оплатить и арендовать"
+  - <dark_gray><st>─────────────────────</st>
+  - <green>ЛКМ <dark_gray>— <gray>проверить и подтвердить аренду
   gui-feudal-mine-title: "<gold>Управление арендой"
   gui-feudal-mine-head: "<gold>Точка {id} <dark_gray>| <white>{time}"
   gui-feudal-mine-head-lore:
@@ -1699,3 +1699,8 @@ market:
   feudal-bad-weeks: "<red>Столько недель оплатить нельзя.</red>"
   feudal-prepaid-max: "<yellow>Аренда уже оплачена на максимальный срок.</yellow>"
   feudal-returned: "{i_stall} <yellow>Вы вернули точку <white>{id}</white>.</yellow> <gray>Возврат за остаток аренды:</gray> {refund}"
+  gui-purchase-unavailable: <red>Покупка недоступна</red>
+  gui-feudal-rent-taken: <red>Точка уже занята.</red>
+  gui-feudal-rent-confirm-title: <white>Подтверждение аренды</white>
+  gui-feudal-rent-confirm-summary: <gray>Точка <white>{id}</white> на <white>{weeks}</white> нед.</gray>
+  gui-feudal-rent-price-changed: <yellow>Стоимость изменилась. Проверьте новое предложение.</yellow>

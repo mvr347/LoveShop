@@ -78,7 +78,7 @@ public final class FeudalMyPointGui extends MarketGui {
         String costDayStr = plugin.getMarketStyle().money(dayCost);
         String costWeekStr = plugin.getMarketStyle().money(weekCost);
 
-        String rentTexture = inGrace ? HeadTextures.FEUDAL_RENT_OVERDUE : HeadTextures.FEUDAL_RENT_NORMAL;
+        String rentTexture = HeadTextures.FEUDAL_MANAGE;
         ItemStack rentItem = inGrace
                 ? tile(rentTexture, "gui-feudal-rent-overdue-btn", "gui-feudal-rent-overdue-lore",
                 "time", time, "cost_day", costDayStr, "cost_week", costWeekStr)
@@ -94,14 +94,14 @@ public final class FeudalMyPointGui extends MarketGui {
         String guardDayStr = plugin.getMarketStyle().money(guardDayCost);
         String guardWeekStr = plugin.getMarketStyle().money(guardWeekCost);
 
-        String guardTexture = guardActive ? HeadTextures.FEUDAL_GUARD_ACTIVE : HeadTextures.FEUDAL_GUARD_INACTIVE;
+        String guardTexture = HeadTextures.FEUDAL_GUARD;
         ItemStack guardItem = tile(guardTexture, "gui-feudal-guard-btn", "gui-feudal-guard-btn-lore",
                 "time", guardTime, "cost_day", guardDayStr, "cost_week", guardWeekStr, "status", guardStatus);
 
         // 3. Продать торговую точку феодалу (75% возврат + ресурсы)
         long refund = refund();
         int percent = plugin.getMarketConfig().feudalRefundPercent();
-        ItemStack sellItem = tile(HeadTextures.MARKET_CLOSED, "gui-feudal-sell-point", "gui-feudal-sell-point-lore",
+        ItemStack sellItem = tile(HeadTextures.FEUDAL_RETURN, "gui-feudal-sell-point", "gui-feudal-sell-point-lore",
                 "refund", plugin.getMarketStyle().money(refund), "percent", String.valueOf(percent));
 
         rowButtons(9, List.of(
