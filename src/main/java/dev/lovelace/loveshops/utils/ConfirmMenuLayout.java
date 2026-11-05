@@ -39,11 +39,21 @@ public final class ConfirmMenuLayout {
         return false;
     }
 
-    /** True when the background glyph and the invisible item can both be produced on this server. */
-    public static boolean available() {
+    /**
+     * True when the background glyph and the invisible item can both be produced for this viewer. The title is
+     * resolved here too: if the font image is missing or its placeholder stays unresolved, the invisible buttons
+     * would have no background and no visible labels, so the visible 9-slot window must be kept.
+     */
+    public static boolean available(Player viewer) {
         return Bukkit.getPluginManager().isPluginEnabled("ItemsAdder")
                 && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")
-                && ItemResolver.resolveItemsAdder(INVISIBLE_ITEM) != null;
+                && ItemResolver.resolveItemsAdder(INVISIBLE_ITEM) != null
+                && backgroundResolved(ItemsAdderFontHook.resolve(viewer, TITLE));
+    }
+
+    /** A title counts as resolved when no unresolved {@code %placeholder%} is left in it. */
+    public static boolean backgroundResolved(String resolved) {
+        return resolved != null && !resolved.contains("%img_") && !resolved.contains("%offset") && !resolved.isBlank();
     }
 
     public static Component title(Player viewer) {

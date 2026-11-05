@@ -59,7 +59,7 @@ public class CommissionConfirmGui implements InventoryHolder {
     public void open() {
         String titleStr = TITLE + ": " + (action == ConfirmAction.BUY ? "Покупка лота" : "Снятие лота");
         // The server's 27-slot confirm menu when its background and invisible item exist, otherwise 9 slots.
-        this.inventory = ConfirmMenuLayout.available()
+        this.inventory = ConfirmMenuLayout.available(player)
                 ? Bukkit.createInventory(this, ConfirmMenuLayout.SIZE, ConfirmMenuLayout.title(player))
                 : Bukkit.createInventory(this, 9, MessageUtils.parse("<dark_gray>" + titleStr + "</dark_gray>"));
         render();

@@ -41,7 +41,7 @@ public final class StallConfirmGui extends MarketGui {
 
     public void open() {
         // The server's 27-slot confirm menu when its background and invisible item exist, otherwise 9 slots.
-        if (ConfirmMenuLayout.available()) {
+        if (ConfirmMenuLayout.available(viewer)) {
             show(Bukkit.createInventory(this, ConfirmMenuLayout.SIZE, ConfirmMenuLayout.title(viewer)));
         } else {
             show(Bukkit.createInventory(this, 9, MessageUtils.parse(viewer, title)));

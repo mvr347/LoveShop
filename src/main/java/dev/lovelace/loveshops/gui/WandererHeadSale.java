@@ -100,7 +100,7 @@ public final class WandererHeadSale {
 
     private static void openConfirm(LoveShops plugin, Player player, HeadSaleManager.Quote quote) {
         var lang = plugin.getLangManager();
-        if (ConfirmMenuLayout.available()) {
+        if (ConfirmMenuLayout.available(player)) {
             openLargeConfirm(plugin, player, quote);
             return;
         }
