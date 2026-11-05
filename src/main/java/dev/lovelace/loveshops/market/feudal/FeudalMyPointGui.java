@@ -65,7 +65,7 @@ public final class FeudalMyPointGui extends MarketGui {
         };
 
         // 0 слот — информация
-        inventory.setItem(0, tile(HeadTextures.BANKER_INFO, "gui-feudal-mine-head", "gui-feudal-mine-head-lore",
+        inventory.setItem(0, tile(HeadTextures.NPC_HEADER, "gui-feudal-mine-head", "gui-feudal-mine-head-lore",
                 "id", manager.nameOf(point), "time", time, "guard", guardStatus));
 
         // 1. Аренда: ЛКМ +1 день, Shift+ЛКМ +7 дней

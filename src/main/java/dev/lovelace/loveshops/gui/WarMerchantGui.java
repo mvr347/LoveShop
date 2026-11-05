@@ -48,7 +48,7 @@ public class WarMerchantGui {
             inv.setItem(i, filler);
         }
 
-        inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
+        inv.setItem(0, GuiUtils.createNpcHeader(plugin.getLangManager(), "gui.npc.war-merchant"));
         inv.setItem(26, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, plugin.getLangManager().text("gui.close"),
             plugin.getLangManager().lines("gui.close-lore")));
 

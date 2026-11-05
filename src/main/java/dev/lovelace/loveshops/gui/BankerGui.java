@@ -38,7 +38,7 @@ public class BankerGui {
     public static final String DENOM_KEY = "banker_denom_value";
     public static final String ACTION_KEY = "banker_action";
     public static final int SLOT_DEPOSIT = 11;
-    public static final int SLOT_INFO = 34;
+    public static final int SLOT_INFO = 0;
     public static final int SLOT_CLOSE = 35;
     public static final int[] OPTION_SLOTS = {13, 14, 15, 16, 22, 23, 24, 25};
 
@@ -73,7 +73,7 @@ public class BankerGui {
             ItemStack filler = GuiUtils.createFiller();
             for (int i = 0; i <= 8; i++) inv.setItem(i, filler);
             for (int i = 27; i < 36; i++) inv.setItem(i, filler);
-            inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
+            // Slot 0 is the banker NPC head and also the rules / rates switch (renderContent fills it).
             inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, lang().text("gui.close"),
                     lang().lines("gui.banker.close-lore")));
             renderContent(inv, economy, session);
@@ -195,7 +195,7 @@ public class BankerGui {
             lore.addAll(lang().lines("gui.banker.rules-lore", "fee", String.valueOf(feePercent),
                     "personal", personal ? lang().text("gui.banker.fee-personal") : ""));
         }
-        ItemStack item = GuiUtils.createCustomHead(HeadTextures.BANKER_INFO, title, lore);
+        ItemStack item = GuiUtils.createCustomHead(HeadTextures.NPC_HEADER, title, lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.getPersistentDataContainer().set(actionKey(), PersistentDataType.STRING, "info");

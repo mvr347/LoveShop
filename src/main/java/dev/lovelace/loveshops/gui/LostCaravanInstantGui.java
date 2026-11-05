@@ -76,7 +76,7 @@ public class LostCaravanInstantGui implements InventoryHolder {
         }
 
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.CARAVAN_LOST_INFO,
+                HeadTextures.NPC_HEADER,
                 lang().text("gui.lost.instant-info"),
                 lang().lines("gui.lost.instant-info-lore")
         );

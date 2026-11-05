@@ -96,7 +96,7 @@ public class CommissionAgentGui implements InventoryHolder {
         int feePercent = manager.getFeePercent();
 
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.BUTTON_BACK,
+                HeadTextures.NPC_HEADER,
                 lang().text("gui.commission.info"),
                 lang().lines("gui.commission.info-lore", "fee", String.valueOf(feePercent),
                         "max", String.valueOf(manager.getMaxLotsPerPlayer()))

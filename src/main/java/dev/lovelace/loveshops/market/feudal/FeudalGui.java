@@ -42,9 +42,9 @@ public final class FeudalGui extends MarketGui {
 
         // The tenant's rent card rides on the slot-0 head, so the work row holds buttons only.
         inventory.setItem(0, mine.isPresent()
-                ? tile(HeadTextures.BANKER_INFO, "gui-feudal-card-mine", "gui-feudal-card-mine-lore",
+                ? tile(HeadTextures.NPC_HEADER, "gui-feudal-card-mine", "gui-feudal-card-mine-lore",
                         "id", manager.nameOf(mine.get()), "time", rentLeft(mine.get()))
-                : tile(HeadTextures.TAB_SELLER, "gui-feudal-head", "gui-feudal-head-lore"));
+                : tile(HeadTextures.NPC_HEADER, "gui-feudal-head", "gui-feudal-head-lore"));
 
         List<Control> controls = new ArrayList<>();
         controls.add(new Control(tile(HeadTextures.MARKET_OPEN, "gui-feudal-list", "gui-feudal-list-lore",

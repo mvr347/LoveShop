@@ -1,5 +1,7 @@
 package dev.lovelace.loveshops.utils;
 
+import dev.lovelace.loveshops.textures.HeadTextures;
+
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.destroystokyo.paper.profile.ProfileProperty;
 import net.kyori.adventure.text.Component;
@@ -44,6 +46,15 @@ public class GuiUtils {
             filler.setItemMeta(meta);
         }
         return filler;
+    }
+
+    /**
+     * Slot 0 of an NPC menu: the common NPC head with a short description from lang.yml
+     * ({@code <langKey>.name} and {@code <langKey>.lore}).
+     */
+    public static ItemStack createNpcHeader(dev.lovelace.loveshops.managers.LangManager lang, String langKey, String... replacements) {
+        return createCustomHead(HeadTextures.NPC_HEADER, lang.text(langKey + ".name", replacements),
+                lang.lines(langKey + ".lore", replacements));
     }
 
     public static ItemStack createPlayerProfileHead(Player player) {

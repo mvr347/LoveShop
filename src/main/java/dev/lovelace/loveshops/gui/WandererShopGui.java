@@ -70,7 +70,7 @@ public class WandererShopGui {
         String expireStr = TimeUtils.formatRemainingTime(expireRemaining);
 
         var lang = plugin.getLangManager();
-        inv.setItem(0, GuiUtils.createCustomHead(INFO_HEAD_BASE64, lang.text("gui.wanderer.shop-info"),
+        inv.setItem(0, GuiUtils.createCustomHead(HeadTextures.NPC_HEADER, lang.text("gui.wanderer.shop-info"),
             lang.lines("gui.wanderer.shop-info-lore", "time", expireStr)));
 
         // Slot 51: Reset / Complete Deal button

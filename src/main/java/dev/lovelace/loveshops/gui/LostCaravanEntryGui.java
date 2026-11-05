@@ -84,7 +84,7 @@ public class LostCaravanEntryGui implements InventoryHolder {
         int refund = plugin.getConfig().getInt("caravan.lost.entry-fee.refund-percent-if-no-win", 50);
         String feeText = CoinFormat.formatGlyphs(eco, fee);
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.CARAVAN_LOST_INFO,
+                HeadTextures.NPC_HEADER,
                 lang().text("gui.lost.entry-info"),
                 lang().lines("gui.lost.entry-info-lore", "fee", feeText, "percent", String.valueOf(refund),
                         "min", String.valueOf(plugin.getConfig().getInt("caravan.lost.min-players-for-auction", 6)),
