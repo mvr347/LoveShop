@@ -114,7 +114,7 @@ public final class ItemResolver {
     }
 
     @Nullable
-    private static ItemStack resolveItemsAdder(String id) {
+    public static ItemStack resolveItemsAdder(String id) {
         initItemsAdder();
         if (iaGetInstance == null || iaGetItemStack == null) return null;
         try {

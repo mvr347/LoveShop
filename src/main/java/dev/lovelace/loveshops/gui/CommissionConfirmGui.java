@@ -5,6 +5,7 @@ import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.managers.CommissionManager;
 import dev.lovelace.loveshops.models.commission.CommissionLot;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.ConfirmMenuLayout;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
@@ -57,7 +58,10 @@ public class CommissionConfirmGui implements InventoryHolder {
 
     public void open() {
         String titleStr = TITLE + ": " + (action == ConfirmAction.BUY ? "Покупка лота" : "Снятие лота");
-        this.inventory = Bukkit.createInventory(this, 9, MessageUtils.parse("<dark_gray>" + titleStr + "</dark_gray>"));
+        // The server's 27-slot confirm menu when its background and invisible item exist, otherwise 9 slots.
+        this.inventory = ConfirmMenuLayout.available()
+                ? Bukkit.createInventory(this, ConfirmMenuLayout.SIZE, ConfirmMenuLayout.title(player))
+                : Bukkit.createInventory(this, 9, MessageUtils.parse("<dark_gray>" + titleStr + "</dark_gray>"));
         render();
         player.openInventory(inventory);
     }
@@ -85,6 +89,10 @@ public class CommissionConfirmGui implements InventoryHolder {
 
     public void render() {
         inventory.clear();
+        if (inventory.getSize() == ConfirmMenuLayout.SIZE) {
+            renderLarge();
+            return;
+        }
         ItemStack filler = GuiUtils.createFiller();
         for (int i = 0; i < 9; i++) {
             inventory.setItem(i, filler);
@@ -111,16 +119,30 @@ public class CommissionConfirmGui implements InventoryHolder {
         ));
     }
 
+    /** The 27-slot confirm menu: the lot and the price are in the lore of the confirm zone. */
+    private void renderLarge() {
+        LoveEconomy eco = plugin.getEconomy().orElse(null);
+        boolean buy = action == ConfirmAction.BUY;
+        ItemStack yes = withLotLine(ConfirmMenuLayout.button(player,
+                lang().text(buy ? "gui.confirm.buy" : "gui.confirm.cancel-own"),
+                lang().lines(buy ? "gui.confirm.buy-lore" : "gui.confirm.cancel-own-lore", "price", CoinFormat.formatGlyphs(eco, lot.price()))));
+        ItemStack no = ConfirmMenuLayout.button(player, lang().text("gui.confirm.cancel"), lang().lines("gui.confirm.cancel-lore"));
+        ConfirmMenuLayout.fill(inventory, yes, no);
+    }
+
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {
         if (openInv.getHolder() instanceof CommissionConfirmGui gui) {
-            if (rawSlot == SLOT_CANCEL) {
+            boolean large = openInv.getSize() == ConfirmMenuLayout.SIZE;
+            boolean cancel = large ? ConfirmMenuLayout.isCancel(rawSlot) : rawSlot == SLOT_CANCEL;
+            boolean confirm = large ? ConfirmMenuLayout.isConfirm(rawSlot) : rawSlot == SLOT_CONFIRM;
+            if (cancel) {
                 // Отмена
                 player.closeInventory();
                 Bukkit.getScheduler().runTask(plugin, () -> new CommissionAgentGui(plugin, player, plugin.getCommissionManager(), 0).open());
                 return;
             }
 
-            if (rawSlot == SLOT_CONFIRM) {
+            if (confirm) {
                 // Подтверждение
                 player.closeInventory();
                 CommissionManager manager = plugin.getCommissionManager();

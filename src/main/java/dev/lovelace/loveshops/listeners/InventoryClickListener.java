@@ -150,10 +150,11 @@ public class InventoryClickListener implements Listener {
             } else if (slot == dev.lovelace.loveshops.gui.WandererHeadSale.BUTTON_SLOT && isHeadSaleButton(event.getCurrentItem())) {
                 dev.lovelace.loveshops.gui.WandererHeadSale.onButtonClick(plugin, player);
             }
-        } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererHeadSale.CONFIRM_TITLE)) {
+        } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererHeadSale.CONFIRM_TITLE)
+                || event.getView().getTopInventory().getHolder() instanceof dev.lovelace.loveshops.gui.WandererHeadSale.ConfirmHolder) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
-            if (slot < 0 || slot >= 9) return;
+            if (slot < 0 || slot >= event.getView().getTopInventory().getSize()) return;
             dev.lovelace.loveshops.gui.WandererHeadSale.onConfirmClick(plugin, player, slot, event.getCurrentItem());
         } else if (titleText.contains(dev.lovelace.loveshops.gui.WandererShopGui.TITLE)) {
             event.setCancelled(true);
@@ -491,6 +492,7 @@ public class InventoryClickListener implements Listener {
             return;
         }
         if (holder instanceof dev.lovelace.loveshops.gui.CommissionConfirmGui
+                || holder instanceof dev.lovelace.loveshops.gui.WandererHeadSale.ConfirmHolder
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanEntryGui
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanAuctionGui
                 || holder instanceof dev.lovelace.loveshops.gui.LostCaravanInstantGui) {

@@ -1,6 +1,7 @@
 package dev.lovelace.loveshops.gui;
 
 import dev.lovelace.loveshops.LoveShops;
+import dev.lovelace.loveshops.utils.ConfirmMenuLayout;
 import dev.lovelace.loveshops.managers.HeadSaleManager;
 import dev.lovelace.loveshops.utils.CoinFormat;
 import dev.lovelace.loveshops.utils.GuiUtils;
@@ -33,6 +34,16 @@ public final class WandererHeadSale {
     private static final String VICTIM_KEY = "head_victim";
 
     private WandererHeadSale() {
+    }
+
+    /** Holder of the server's 27-slot confirm menu (its title is only a background glyph, so it cannot be routed by name). */
+    public static final class ConfirmHolder implements org.bukkit.inventory.InventoryHolder {
+        private Inventory inventory;
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
     }
 
     /** Puts the sell button into slot 4 of a Wanderer menu when the player has a head to sell; otherwise the slot is left as it is. */
@@ -89,6 +100,10 @@ public final class WandererHeadSale {
 
     private static void openConfirm(LoveShops plugin, Player player, HeadSaleManager.Quote quote) {
         var lang = plugin.getLangManager();
+        if (ConfirmMenuLayout.available()) {
+            openLargeConfirm(plugin, player, quote);
+            return;
+        }
         Inventory inv = Bukkit.createInventory(null, 9, Component.text(CONFIRM_TITLE).color(net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE));
         ItemStack filler = GuiUtils.createFiller();
         for (int slot : new int[] {0, 1, 2, 4, 6, 7, 8}) {
@@ -107,13 +122,34 @@ public final class WandererHeadSale {
         player.openInventory(inv);
     }
 
-    /** Click in the confirmation menu. */
+    private static void openLargeConfirm(LoveShops plugin, Player player, HeadSaleManager.Quote quote) {
+        var lang = plugin.getLangManager();
+        var holder = new ConfirmHolder();
+        Inventory inv = Bukkit.createInventory(holder, ConfirmMenuLayout.SIZE, ConfirmMenuLayout.title(player));
+        holder.inventory = inv;
+        String price = CoinFormat.formatGlyphs(quote.price());
+        ItemStack yes = ConfirmMenuLayout.button(player, lang.text("gui.wanderer.head-confirm-yes"),
+                lang.lines("gui.wanderer.head-confirm-yes-lore", "name", quote.name(), "price", price));
+        ItemStack no = ConfirmMenuLayout.button(player, lang.text("gui.wanderer.head-confirm-no"),
+                lang.lines("gui.wanderer.head-confirm-no-lore"));
+        ItemMeta meta = yes.getItemMeta();
+        meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, VICTIM_KEY),
+                org.bukkit.persistence.PersistentDataType.STRING, quote.victim().toString());
+        yes.setItemMeta(meta);
+        ConfirmMenuLayout.fill(inv, yes, no);
+        player.openInventory(inv);
+    }
+
+    /** Click in the confirmation menu (9-slot layout or the server's 27-slot one). */
     public static void onConfirmClick(LoveShops plugin, Player player, int slot, ItemStack clicked) {
-        if (slot == CONFIRM_NO) {
+        boolean large = player.getOpenInventory().getTopInventory().getHolder() instanceof ConfirmHolder;
+        boolean no = large ? ConfirmMenuLayout.isCancel(slot) : slot == CONFIRM_NO;
+        boolean yesSlot = large ? ConfirmMenuLayout.isConfirm(slot) : slot == CONFIRM_YES;
+        if (no) {
             player.closeInventory();
             return;
         }
-        if (slot != CONFIRM_YES || clicked == null || !clicked.hasItemMeta()) {
+        if (!yesSlot || clicked == null || !clicked.hasItemMeta()) {
             return;
         }
         String raw = clicked.getItemMeta().getPersistentDataContainer().get(
