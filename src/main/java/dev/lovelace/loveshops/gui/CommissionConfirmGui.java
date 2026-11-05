@@ -65,13 +65,22 @@ public class CommissionConfirmGui implements InventoryHolder {
     static final int SLOT_CONFIRM = 3;
     static final int SLOT_CANCEL = 5;
 
-    /** Name and amount of the lot, as a lore line under the first line of the confirm button. */
-    private List<String> withLotLine(List<String> lore) {
-        String name = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                .serialize(lot.item().displayName());
-        List<String> out = new ArrayList<>(lore);
-        out.add(Math.min(1, out.size()), "<gray>" + name + " <white>x" + lot.item().getAmount() + "</white></gray>");
-        return out;
+    /**
+     * Adds the lot (name and amount) under the first lore line of the confirm button. The name stays an Adventure
+     * component so the client translates an unrenamed item ("Diamond") instead of showing its translation key.
+     */
+    private ItemStack withLotLine(ItemStack button) {
+        ItemMeta meta = button.getItemMeta();
+        if (meta == null) return button;
+        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        Component line = Component.text("  ").append(lot.item().effectiveName())
+                .append(Component.text(" x" + lot.item().getAmount()))
+                .colorIfAbsent(net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false);
+        lore.add(Math.min(1, lore.size()), line);
+        meta.lore(lore);
+        button.setItemMeta(meta);
+        return button;
     }
 
     public void render() {
@@ -88,11 +97,11 @@ public class CommissionConfirmGui implements InventoryHolder {
         boolean buy = action == ConfirmAction.BUY;
         // Owner decision 2026-11-05: the two buttons sit in slots 3 and 5, everything else is glass; the lot
         // preview that used to fill slot 4 is now part of the confirm button's lore.
-        inventory.setItem(SLOT_CONFIRM, GuiUtils.createCustomHead(
+        inventory.setItem(SLOT_CONFIRM, withLotLine(GuiUtils.createCustomHead(
                 HeadTextures.CONFIRM_YES,
                 lang().text(buy ? "gui.confirm.buy" : "gui.confirm.cancel-own"),
-                withLotLine(lang().lines(buy ? "gui.confirm.buy-lore" : "gui.confirm.cancel-own-lore", "price", CoinFormat.formatGlyphs(eco, lot.price())))
-        ));
+                lang().lines(buy ? "gui.confirm.buy-lore" : "gui.confirm.cancel-own-lore", "price", CoinFormat.formatGlyphs(eco, lot.price()))
+        )));
 
         // Слот 7: Отмена
         inventory.setItem(SLOT_CANCEL, GuiUtils.createCustomHead(
