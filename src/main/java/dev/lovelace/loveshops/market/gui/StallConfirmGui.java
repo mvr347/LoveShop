@@ -13,13 +13,13 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Yes/No confirmation (gui_gen exception 1): 9 slots, {@code [С][✓][С][П][П][П][С][✗][С]}.
- * The summary of what is being confirmed is in the tick's lore; the middle stays empty as the standard says.
+ * Yes/No confirmation: 9 slots, {@code [С][С][С][✓][С][✗][С][С][С]} (owner decision 2026-11-05: the two buttons sit
+ * one slot apart, everything else is glass). The summary of what is confirmed is in the tick's lore.
  */
 public final class StallConfirmGui extends MarketGui {
 
-    private static final int CONFIRM_SLOT = 1;
-    private static final int CANCEL_SLOT = 7;
+    private static final int CONFIRM_SLOT = 3;
+    private static final int CANCEL_SLOT = 5;
 
     private final UUID pointId;
     private final String title;
@@ -51,9 +51,9 @@ public final class StallConfirmGui extends MarketGui {
     public void render() {
         inventory.clear();
         ItemStack glass = GuiUtils.createFiller();
-        for (int slot : new int[]{0, 2, 6, 8}) inventory.setItem(slot, glass);
-        inventory.setItem(CONFIRM_SLOT, head(HeadTextures.MARKET_OPEN, t("gui-confirm-ok"), confirmLore()));
-        inventory.setItem(CANCEL_SLOT, head(HeadTextures.MARKET_CLOSED, t("gui-confirm-cancel"), lines("gui-confirm-cancel-lore")));
+        for (int slot : new int[]{0, 1, 2, 4, 6, 7, 8}) inventory.setItem(slot, glass);
+        inventory.setItem(CONFIRM_SLOT, head(HeadTextures.CONFIRM_YES, t("gui-confirm-ok"), confirmLore()));
+        inventory.setItem(CANCEL_SLOT, head(HeadTextures.CONFIRM_NO, t("gui-confirm-cancel"), lines("gui-confirm-cancel-lore")));
     }
 
     private List<String> confirmLore() {

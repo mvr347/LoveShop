@@ -100,7 +100,7 @@ public final class FeudalRentGui extends MarketGui {
             unavailable.add(t(reason, "cost", plugin.getMarketStyle().money(cost)));
             return new Control(head(HeadTextures.MARKET_CLOSED, t("gui-purchase-unavailable"), unavailable), null);
         }
-        return new Control(head(HeadTextures.HEAD_CONFIRM, t("gui-feudal-rent-confirm"), lore), e -> {
+        return new Control(head(HeadTextures.RENT_BUTTON, t("gui-feudal-rent-confirm"), lore), e -> {
             int quotedWeeks = weeks;
             long quotedCost = cost;
             new dev.lovelace.loveshops.market.gui.StallConfirmGui(plugin, viewer, point.claimId(),
