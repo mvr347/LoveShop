@@ -41,7 +41,7 @@ public final class FeudalListGui extends MarketGui {
                 .sorted(Comparator.comparing(manager::nameOf, String.CASE_INSENSITIVE_ORDER)).toList();
 
         // 0 слот: кнопка с описанием
-        inventory.setItem(0, tile(HeadTextures.TAB_SELLER, "gui-feudal-list-head", "gui-feudal-list-head-lore",
+        inventory.setItem(0, tile(HeadTextures.NPC_HEADER, "gui-feudal-list-head", "gui-feudal-list-head-lore",
                 "total", String.valueOf(points.size())));
 
         if (points.isEmpty()) {

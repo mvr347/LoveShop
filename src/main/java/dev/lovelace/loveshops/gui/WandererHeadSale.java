@@ -28,8 +28,8 @@ import java.util.UUID;
 public final class WandererHeadSale {
     public static final int BUTTON_SLOT = 4;
     public static final String CONFIRM_TITLE = "Странник (Продажа головы)";
-    public static final int CONFIRM_YES = 1;
-    public static final int CONFIRM_NO = 7;
+    public static final int CONFIRM_YES = 3;
+    public static final int CONFIRM_NO = 5;
     private static final String VICTIM_KEY = "head_victim";
 
     private WandererHeadSale() {
@@ -91,18 +91,18 @@ public final class WandererHeadSale {
         var lang = plugin.getLangManager();
         Inventory inv = Bukkit.createInventory(null, 9, Component.text(CONFIRM_TITLE).color(net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE));
         ItemStack filler = GuiUtils.createFiller();
-        for (int slot : new int[] {0, 2, 6, 8}) {
+        for (int slot : new int[] {0, 1, 2, 4, 6, 7, 8}) {
             inv.setItem(slot, filler);
         }
         String price = CoinFormat.formatGlyphs(quote.price());
-        ItemStack yes = GuiUtils.createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.HEAD_CONFIRM,
+        ItemStack yes = GuiUtils.createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.CONFIRM_YES,
                 lang.text("gui.wanderer.head-confirm-yes"), lang.lines("gui.wanderer.head-confirm-yes-lore", "name", quote.name(), "price", price));
         ItemMeta meta = yes.getItemMeta();
         meta.getPersistentDataContainer().set(dev.lovelace.loveshops.utils.Keys.of(plugin, VICTIM_KEY),
                 org.bukkit.persistence.PersistentDataType.STRING, quote.victim().toString());
         yes.setItemMeta(meta);
         inv.setItem(CONFIRM_YES, yes);
-        inv.setItem(CONFIRM_NO, GuiUtils.createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.HEAD_DELETE_NO,
+        inv.setItem(CONFIRM_NO, GuiUtils.createCustomHead(dev.lovelace.loveshops.textures.HeadTextures.CONFIRM_NO,
                 lang.text("gui.wanderer.head-confirm-no"), lang.lines("gui.wanderer.head-confirm-no-lore")));
         player.openInventory(inv);
     }

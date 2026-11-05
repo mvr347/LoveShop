@@ -74,7 +74,7 @@ public class WandererDealGui {
         }
 
         // Slot 0: Player Profile Head (Golden Rule 2)
-        inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
+        inv.setItem(0, GuiUtils.createNpcHeader(plugin.getLangManager(), "gui.npc.wanderer-deal"));
 
         // Slot 26: Close button ALWAYS in corner for 27-slot menu
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, plugin.getLangManager().text("gui.close"),

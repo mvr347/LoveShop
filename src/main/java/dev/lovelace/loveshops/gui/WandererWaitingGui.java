@@ -45,7 +45,7 @@ public class WandererWaitingGui {
         }
 
         // Slot 0: Player Profile Head
-        inv.setItem(0, GuiUtils.createPlayerProfileHead(player));
+        inv.setItem(0, GuiUtils.createNpcHeader(plugin.getLangManager(), "gui.npc.wanderer-waiting"));
 
         // Slot 26: Close button
         inv.setItem(26, GuiUtils.createCustomHead(GuiUtils.BTN_CLOSE_BASE64, plugin.getLangManager().text("gui.close"),

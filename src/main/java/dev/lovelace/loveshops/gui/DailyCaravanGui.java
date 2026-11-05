@@ -85,7 +85,7 @@ public class DailyCaravanGui implements InventoryHolder {
         String timeLeftStr = hours > 0 ? (hours + " ч. " + minutes + " мин.") : (minutes + " мин.");
 
         ItemStack infoItem = GuiUtils.createCustomHead(
-                HeadTextures.BUTTON_BACK,
+                HeadTextures.NPC_HEADER,
                 lang().text("gui.daily.info"),
                 lang().lines("gui.daily.info-lore", "time", timeLeftStr)
         );

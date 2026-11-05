@@ -56,7 +56,7 @@ public final class FeudalRentGui extends MarketGui {
         long cost = claims().rentCost(point.claimId(), weeks);
         long periodDays = Math.max(1L, claims().periodMillis() / 86_400_000L);
 
-        inventory.setItem(0, tile(HeadTextures.FEUDAL_FREE, "gui-feudal-rent-head", "gui-feudal-rent-head-lore",
+        inventory.setItem(0, tile(HeadTextures.NPC_HEADER, "gui-feudal-rent-head", "gui-feudal-rent-head-lore",
                 "id", id, "level", String.valueOf(point.level())));
 
         List<String> costLines = new ArrayList<>();
@@ -100,7 +100,7 @@ public final class FeudalRentGui extends MarketGui {
             unavailable.add(t(reason, "cost", plugin.getMarketStyle().money(cost)));
             return new Control(head(HeadTextures.MARKET_CLOSED, t("gui-purchase-unavailable"), unavailable), null);
         }
-        return new Control(head(HeadTextures.HEAD_CONFIRM, t("gui-feudal-rent-confirm"), lore), e -> {
+        return new Control(head(HeadTextures.RENT_BUTTON, t("gui-feudal-rent-confirm"), lore), e -> {
             int quotedWeeks = weeks;
             long quotedCost = cost;
             new dev.lovelace.loveshops.market.gui.StallConfirmGui(plugin, viewer, point.claimId(),

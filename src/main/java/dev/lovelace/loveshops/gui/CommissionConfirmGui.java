@@ -62,6 +62,27 @@ public class CommissionConfirmGui implements InventoryHolder {
         player.openInventory(inventory);
     }
 
+    static final int SLOT_CONFIRM = 3;
+    static final int SLOT_CANCEL = 5;
+
+    /**
+     * Adds the lot (name and amount) under the first lore line of the confirm button. The name stays an Adventure
+     * component so the client translates an unrenamed item ("Diamond") instead of showing its translation key.
+     */
+    private ItemStack withLotLine(ItemStack button) {
+        ItemMeta meta = button.getItemMeta();
+        if (meta == null) return button;
+        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        Component line = Component.text("  ").append(lot.item().effectiveName())
+                .append(Component.text(" x" + lot.item().getAmount()))
+                .colorIfAbsent(net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false);
+        lore.add(Math.min(1, lore.size()), line);
+        meta.lore(lore);
+        button.setItemMeta(meta);
+        return button;
+    }
+
     public void render() {
         inventory.clear();
         ItemStack filler = GuiUtils.createFiller();
@@ -71,34 +92,20 @@ public class CommissionConfirmGui implements InventoryHolder {
 
         LoveEconomy eco = plugin.getEconomy().orElse(null);
 
-        // Слот 4: превью предмета (середина стандартного подтверждения)
-        ItemStack preview = lot.item().clone();
-        ItemMeta meta = preview.getItemMeta();
-        if (meta != null) {
-            List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-            String price = CoinFormat.formatGlyphs(eco, lot.price());
-            for (String line : action == ConfirmAction.CANCEL_OWN
-                    ? lang().lines("gui.confirm.preview-cancel-own", "price", price)
-                    : lang().lines("gui.confirm.preview-buy", "price", price, "seller", String.valueOf(Bukkit.getOfflinePlayer(lot.sellerUuid()).getName()))) {
-                lore.add(GuiUtils.line(player, line));
-            }
-            meta.lore(lore);
-            preview.setItemMeta(meta);
-        }
-        inventory.setItem(4, preview);
-
         // Слот 1: Подтвердить
         // The price goes into the lore, never into the name (gui-gen-6)
         boolean buy = action == ConfirmAction.BUY;
-        inventory.setItem(1, GuiUtils.createCustomHead(
-                HeadTextures.HEAD_CONFIRM,
+        // Owner decision 2026-11-05: the two buttons sit in slots 3 and 5, everything else is glass; the lot
+        // preview that used to fill slot 4 is now part of the confirm button's lore.
+        inventory.setItem(SLOT_CONFIRM, withLotLine(GuiUtils.createCustomHead(
+                HeadTextures.CONFIRM_YES,
                 lang().text(buy ? "gui.confirm.buy" : "gui.confirm.cancel-own"),
                 lang().lines(buy ? "gui.confirm.buy-lore" : "gui.confirm.cancel-own-lore", "price", CoinFormat.formatGlyphs(eco, lot.price()))
-        ));
+        )));
 
         // Слот 7: Отмена
-        inventory.setItem(7, GuiUtils.createCustomHead(
-                HeadTextures.HEAD_DELETE_NO,
+        inventory.setItem(SLOT_CANCEL, GuiUtils.createCustomHead(
+                HeadTextures.CONFIRM_NO,
                 lang().text("gui.confirm.cancel"),
                 lang().lines("gui.confirm.cancel-lore")
         ));
@@ -106,14 +113,14 @@ public class CommissionConfirmGui implements InventoryHolder {
 
     public static void handleClick(LoveShops plugin, Player player, int rawSlot, ClickType clickType, Inventory openInv) {
         if (openInv.getHolder() instanceof CommissionConfirmGui gui) {
-            if (rawSlot == 7) {
+            if (rawSlot == SLOT_CANCEL) {
                 // Отмена
                 player.closeInventory();
                 Bukkit.getScheduler().runTask(plugin, () -> new CommissionAgentGui(plugin, player, plugin.getCommissionManager(), 0).open());
                 return;
             }
 
-            if (rawSlot == 1) {
+            if (rawSlot == SLOT_CONFIRM) {
                 // Подтверждение
                 player.closeInventory();
                 CommissionManager manager = plugin.getCommissionManager();

@@ -116,7 +116,7 @@ public class LostCaravanAuctionGui implements InventoryHolder {
         int totalLots = manager.getActiveLots().size();
 
         put(SLOT_INFO, GuiUtils.createCustomHead(
-                HeadTextures.CARAVAN_LOST_INFO,
+                HeadTextures.NPC_HEADER,
                 lang().text("gui.lost.auction-info", "lot", String.valueOf(lotIdx), "total", String.valueOf(totalLots)),
                 lang().lines("gui.lost.auction-info-lore", "lot", String.valueOf(lotIdx), "total", String.valueOf(totalLots),
                         "players", String.valueOf(session != null ? session.participantCount() : 0),
