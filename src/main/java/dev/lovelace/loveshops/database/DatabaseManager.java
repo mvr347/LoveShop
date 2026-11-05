@@ -655,8 +655,8 @@ public class DatabaseManager {
         if (pool == null) {
             File dbFile = new File(plugin.getDataFolder(), "database.db");
             String base = "jdbc:sqlite:" + dbFile.getAbsolutePath() + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=true";
-            pool = new ConnectionPool(() -> DriverManager.getConnection(base), 4);
-            immediatePool = new ConnectionPool(() -> DriverManager.getConnection(base + "&transaction_mode=IMMEDIATE"), 2);
+            pool = new ConnectionPool(() -> org.sqlite.JDBC.createConnection(base, new java.util.Properties()), 4);
+            immediatePool = new ConnectionPool(() -> org.sqlite.JDBC.createConnection(base + "&transaction_mode=IMMEDIATE", new java.util.Properties()), 2);
         }
         return immediate ? immediatePool : pool;
     }
