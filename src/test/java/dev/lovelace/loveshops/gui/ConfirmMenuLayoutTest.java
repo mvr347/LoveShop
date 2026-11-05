@@ -32,6 +32,7 @@ class ConfirmMenuLayoutTest {
         assertTrue(ConfirmMenuLayout.backgroundResolved("\uE001\uE002"));
         assertFalse(ConfirmMenuLayout.backgroundResolved("%img_confirm_menu%"));
         assertFalse(ConfirmMenuLayout.backgroundResolved("<white>%img_offset_-8%</white>"));
+        assertFalse(ConfirmMenuLayout.backgroundResolved("<white>\uE001</white><white>:confirm_menu:</white>"));
         assertFalse(ConfirmMenuLayout.backgroundResolved(""));
         assertFalse(ConfirmMenuLayout.backgroundResolved(null));
     }

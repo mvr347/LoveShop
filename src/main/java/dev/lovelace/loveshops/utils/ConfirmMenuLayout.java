@@ -23,6 +23,8 @@ public final class ConfirmMenuLayout {
     public static final String TITLE = "<white>%img_offset_-8%%img_confirm_menu%";
     public static final String INVISIBLE_ITEM = "itemsadder-voidcore:invisible";
 
+    private static final java.util.regex.Pattern COLON_TOKEN = java.util.regex.Pattern.compile(":[A-Za-z0-9_\\-]{2,}:");
+
     private ConfirmMenuLayout() {
     }
 
@@ -53,7 +55,10 @@ public final class ConfirmMenuLayout {
 
     /** A title counts as resolved when no unresolved {@code %placeholder%} is left in it. */
     public static boolean backgroundResolved(String resolved) {
-        return resolved != null && !resolved.contains("%img_") && !resolved.contains("%offset") && !resolved.isBlank();
+        return resolved != null && !resolved.isBlank()
+                && !resolved.contains("%img_") && !resolved.contains("%offset")
+                // ItemsAdderFontHook rewrites a placeholder it could not resolve into the ":name:" form.
+                && !COLON_TOKEN.matcher(resolved).find();
     }
 
     public static Component title(Player viewer) {
