@@ -53,8 +53,8 @@
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
-            <version>3.47.0.0</version>
-            <scope>compile</scope>
+            <version>3.50.3.0</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>me.clip</groupId>
@@ -93,10 +93,6 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <relocations>
-                                <relocation>
-                                    <pattern>org.sqlite</pattern>
-                                    <shadedPattern>dev.lovelace.loveshops.libs.sqlite</shadedPattern>
-                                </relocation>
                             </relocations>
                         </configuration>
                     </execution>
