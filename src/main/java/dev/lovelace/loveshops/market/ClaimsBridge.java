@@ -66,10 +66,10 @@ public final class ClaimsBridge implements ClaimsLink, Listener {
     }
 
     @Override
-    public List<PointInfo> tradePoints() {
+    public Optional<List<PointInfo>> tradePoints() {
         LoveClaimsAPI api = api();
-        if (api == null) return List.of();
-        return api.getTradePoints().stream().map(c -> info(api, c)).toList();
+        if (api == null) return Optional.empty();
+        return Optional.of(api.getTradePoints().stream().map(c -> info(api, c)).toList());
     }
 
     @Override
