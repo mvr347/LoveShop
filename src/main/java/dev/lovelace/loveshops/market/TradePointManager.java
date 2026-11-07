@@ -155,18 +155,19 @@ public final class TradePointManager {
         switch (ClaimSync.orphans(true, infos.size(), orphans.size(), confirmed)) {
             case RECHECK_LATER -> {
                 plugin.getLogger().warning("Торговые точки не найдены в LoveClaims (" + orphans.size()
-                        + "), повторная проверка через 5 минут; пока они сохранены.");
+                        + "), повторная проверка через 5 минут; пока они сохранены: " + describe(orphans));
                 Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt, true), ORPHAN_RECHECK_TICKS);
             }
             case KEEP_NO_DATA -> {
                 plugin.getLogger().warning("LoveClaims не вернул ни одной торговой точки: "
-                        + orphans.size() + " точек LoveShops сохранены без удаления.");
+                        + orphans.size() + " точек LoveShops сохранены без удаления: " + describe(orphans));
                 // Its claims may still be loading: ask again, so tenants and traders are reconciled once they are there.
                 if (attempt < SYNC_ATTEMPTS) {
                     Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt + 1, confirmed), SYNC_RETRY_TICKS);
                 }
             }
             case FORGET -> {
+                plugin.getLogger().warning("Торговые точки удалены: их участков нет в LoveClaims: " + describe(orphans));
                 for (TradePoint p : orphans) {
                     if (p.hasOwner()) releaseInternal(p, "CLAIM_REMOVED");
                     try {
@@ -181,6 +182,22 @@ public final class TradePointManager {
         }
         reconcileNpcs();
         upkeep();
+    }
+
+    /**
+     * Which points a sync warning is about: short claim id, tenant and the world of the closed sign,
+     * so the log tells whether a world loaded late or a claim was deleted.
+     */
+    private static String describe(List<TradePoint> points) {
+        var out = new StringBuilder();
+        for (TradePoint p : points) {
+            if (!out.isEmpty()) out.append(", ");
+            out.append(p.claimId().toString(), 0, 8);
+            if (p.ownerName() != null) out.append(" (").append(p.ownerName()).append(')');
+            if (p.idSignLocation() != null && p.idSignLocation().getWorld() != null)
+                out.append(" [").append(p.idSignLocation().getWorld().getName()).append(']');
+        }
+        return out.toString();
     }
 
     /** Re-creates/removes trader and guard NPCs to match the data (after a hire, a firing, a release). */
