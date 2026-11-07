@@ -52,4 +52,30 @@ class LangKeysTest {
         }
         assertTrue(missing.isEmpty(), "keys missing from lang.yml (market.*): " + missing);
     }
+
+    private static final Pattern NO_ARGS = Pattern.compile("\\b(?:t|lines)\\(\"([a-z0-9_-]+)\"\\s*\\)");
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([a-z_]+)}");
+
+    /** A text with a {placeholder} asked for without any argument shows the raw "{weeks}" in game. */
+    @Test
+    void aTextWithPlaceholdersIsNeverRequestedWithoutArguments() throws IOException {
+        YamlConfiguration lang = YamlConfiguration.loadConfiguration(
+                Path.of("src/main/resources/lang.yml").toFile());
+        List<String> bad = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(Path.of("src/main/java"))) {
+            for (Path file : files.filter(f -> f.toString().endsWith(".java")).toList()) {
+                Matcher m = NO_ARGS.matcher(Files.readString(file, StandardCharsets.UTF_8));
+                while (m.find()) {
+                    Object value = lang.get("market." + m.group(1));
+                    String text = value instanceof List<?> list ? String.join(" ", list.stream().map(String::valueOf).toList())
+                            : String.valueOf(value);
+                    Matcher ph = PLACEHOLDER.matcher(text);
+                    while (ph.find()) {
+                        if (!ph.group(1).startsWith("i_")) bad.add(file.getFileName() + ": " + m.group(1) + " {" + ph.group(1) + "}");
+                    }
+                }
+            }
+        }
+        assertTrue(bad.isEmpty(), "texts with placeholders requested without arguments: " + bad);
+    }
 }
