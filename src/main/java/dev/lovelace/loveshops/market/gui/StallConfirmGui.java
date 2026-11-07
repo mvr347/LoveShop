@@ -2,6 +2,7 @@ package dev.lovelace.loveshops.market.gui;
 
 import dev.lovelace.loveshops.LoveShops;
 import dev.lovelace.loveshops.textures.HeadTextures;
+import dev.lovelace.loveshops.utils.ConfirmMenuLayout;
 import dev.lovelace.loveshops.utils.GuiUtils;
 import dev.lovelace.loveshops.utils.MessageUtils;
 import org.bukkit.Bukkit;
@@ -39,7 +40,12 @@ public final class StallConfirmGui extends MarketGui {
     }
 
     public void open() {
-        show(Bukkit.createInventory(this, 9, MessageUtils.parse(viewer, title)));
+        // The server's 27-slot confirm menu when its background and invisible item exist, otherwise 9 slots.
+        if (ConfirmMenuLayout.available(viewer)) {
+            show(Bukkit.createInventory(this, ConfirmMenuLayout.SIZE, ConfirmMenuLayout.title(viewer)));
+        } else {
+            show(Bukkit.createInventory(this, 9, MessageUtils.parse(viewer, title)));
+        }
     }
 
     @Override
@@ -50,6 +56,14 @@ public final class StallConfirmGui extends MarketGui {
     @Override
     public void render() {
         inventory.clear();
+        if (inventory.getSize() == ConfirmMenuLayout.SIZE) {
+            ItemStack yes = ConfirmMenuLayout.button(viewer, t("gui-confirm-ok"), confirmLore());
+            ItemStack no = ConfirmMenuLayout.button(viewer, t("gui-confirm-cancel"), lines("gui-confirm-cancel-lore"));
+            if (yes != null && no != null) {
+                ConfirmMenuLayout.fill(inventory, yes, no);
+                return;
+            }
+        }
         ItemStack glass = GuiUtils.createFiller();
         for (int slot : new int[]{0, 1, 2, 4, 6, 7, 8}) inventory.setItem(slot, glass);
         inventory.setItem(CONFIRM_SLOT, head(HeadTextures.CONFIRM_YES, t("gui-confirm-ok"), confirmLore()));
@@ -70,11 +84,14 @@ public final class StallConfirmGui extends MarketGui {
         event.setCancelled(true);
         if (resolved || viewer.getOpenInventory().getTopInventory() != inventory) return;
         int slot = event.getRawSlot();
-        if (slot == CONFIRM_SLOT || slot == CANCEL_SLOT) resolved = true;
-        if (slot == CONFIRM_SLOT) {
+        boolean large = inventory.getSize() == ConfirmMenuLayout.SIZE;
+        boolean yes = large ? ConfirmMenuLayout.isConfirm(slot) : slot == CONFIRM_SLOT;
+        boolean no = large ? ConfirmMenuLayout.isCancel(slot) : slot == CANCEL_SLOT;
+        if (yes || no) resolved = true;
+        if (yes) {
             viewer.closeInventory();
             onConfirm.run();
-        } else if (slot == CANCEL_SLOT) {
+        } else if (no) {
             viewer.closeInventory();
             if (onCancel != null) onCancel.run();
         }

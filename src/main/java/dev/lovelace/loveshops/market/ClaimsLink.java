@@ -32,7 +32,11 @@ public interface ClaimsLink {
         public boolean ok() { return status == CreateStatus.OK; }
     }
 
-    List<PointInfo> tradePoints();
+    /**
+     * Every trade point LoveClaims knows, or empty when LoveClaims is not reachable (not enabled, API missing).
+     * "Not reachable" must never read as "no points": the start-up sync would delete every point (2026-11-06).
+     */
+    Optional<List<PointInfo>> tradePoints();
 
     Optional<PointInfo> point(UUID claimId);
 

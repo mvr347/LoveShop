@@ -93,7 +93,7 @@ public final class TradePointManager {
         }
         claims.register(this);
         // The NPC provider (Citizens) loads its NPCs in its own onEnable; give the world a moment before reconciling.
-        Bukkit.getScheduler().runTaskLater(plugin, this::syncWithClaims, 60L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(0, false), 60L);
         upkeepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::upkeep, 600L, 600L);
     }
 
@@ -108,10 +108,31 @@ public final class TradePointManager {
         lastNpcClick.clear();
     }
 
-    /** Puts the shop data in line with LoveClaims after a start (rents may have changed while we were off). */
-    private void syncWithClaims() {
+    /** How often the start-up sync waits for LoveClaims before giving up, and how long between tries (ticks). */
+    private static final int SYNC_ATTEMPTS = 6;
+    private static final long SYNC_RETRY_TICKS = 200L;
+    /** A point missing from LoveClaims is only forgotten when it is still missing this long after the first look. */
+    private static final long ORPHAN_RECHECK_TICKS = 6000L;
+
+    /**
+     * Puts the shop data in line with LoveClaims after a start (rents may have changed while we were off).
+     * 2026-11-06: nothing is deleted on a first look. An unreachable LoveClaims, an empty answer (its claims
+     * load per world, a world that is not loaded yet hides its points) or a point missing for a moment must
+     * not wipe a tenant's shop at a restart: such points are kept, and forgotten only if they are still
+     * missing after {@link #ORPHAN_RECHECK_TICKS}.
+     */
+    private void syncWithClaims(int attempt, boolean confirmed) {
+        var known = claims.tradePoints();
+        if (known.isEmpty()) {
+            if (attempt < SYNC_ATTEMPTS) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt + 1, confirmed), SYNC_RETRY_TICKS);
+            } else {
+                plugin.getLogger().warning("LoveClaims недоступен: торговые точки не сверены и не удалены.");
+            }
+            return;
+        }
         Map<UUID, ClaimsLink.PointInfo> infos = new HashMap<>();
-        for (ClaimsLink.PointInfo info : claims.tradePoints()) infos.put(info.claimId(), info);
+        for (ClaimsLink.PointInfo info : known.get()) infos.put(info.claimId(), info);
 
         for (ClaimsLink.PointInfo info : infos.values()) {
             TradePoint p = points.get(info.claimId());
@@ -128,17 +149,35 @@ public final class TradePointManager {
                 rentInternal(p, info.tenant());
             }
         }
-        // A point whose claim was deleted: give the goods back and forget it.
-        for (TradePoint p : new ArrayList<>(points.values())) {
-            if (!infos.containsKey(p.claimId())) {
-                if (p.hasOwner()) releaseInternal(p, "CLAIM_REMOVED");
-                try {
-                    repo.deletePoint(p.claimId());
-                } catch (SQLException e) {
-                    plugin.getLogger().warning("Не удалось удалить строку точки " + p.claimId() + ": " + e.getMessage());
-                }
-                points.remove(p.claimId());
+        // A point whose claim is gone: give the goods back and forget it, but only once the absence is confirmed.
+        var orphans = new ArrayList<TradePoint>();
+        for (TradePoint p : points.values()) if (!infos.containsKey(p.claimId())) orphans.add(p);
+        switch (ClaimSync.orphans(true, infos.size(), orphans.size(), confirmed)) {
+            case RECHECK_LATER -> {
+                plugin.getLogger().warning("Торговые точки не найдены в LoveClaims (" + orphans.size()
+                        + "), повторная проверка через 5 минут; пока они сохранены.");
+                Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt, true), ORPHAN_RECHECK_TICKS);
             }
+            case KEEP_NO_DATA -> {
+                plugin.getLogger().warning("LoveClaims не вернул ни одной торговой точки: "
+                        + orphans.size() + " точек LoveShops сохранены без удаления.");
+                // Its claims may still be loading: ask again, so tenants and traders are reconciled once they are there.
+                if (attempt < SYNC_ATTEMPTS) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt + 1, confirmed), SYNC_RETRY_TICKS);
+                }
+            }
+            case FORGET -> {
+                for (TradePoint p : orphans) {
+                    if (p.hasOwner()) releaseInternal(p, "CLAIM_REMOVED");
+                    try {
+                        repo.deletePoint(p.claimId());
+                    } catch (SQLException e) {
+                        plugin.getLogger().warning("Не удалось удалить строку точки " + p.claimId() + ": " + e.getMessage());
+                    }
+                    points.remove(p.claimId());
+                }
+            }
+            default -> { }
         }
         reconcileNpcs();
         upkeep();
