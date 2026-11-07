@@ -36,4 +36,12 @@ class ConfirmMenuLayoutTest {
         assertFalse(ConfirmMenuLayout.backgroundResolved(""));
         assertFalse(ConfirmMenuLayout.backgroundResolved(null));
     }
+
+    @Test
+    void theInvisibleItemIsAnItemsAdderIdWithoutTheDeluxeMenusPrefix() {
+        assertEquals("voidcore:invisible", ConfirmMenuLayout.INVISIBLE_ITEM);
+        assertEquals("voidcore:invisible", ConfirmMenuLayout.itemId("itemsadder-voidcore:invisible"));
+        assertEquals("voidcore:invisible", ConfirmMenuLayout.itemId("voidcore:invisible"));
+        assertNull(ConfirmMenuLayout.itemId(null));
+    }
 }

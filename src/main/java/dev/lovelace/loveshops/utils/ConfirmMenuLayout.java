@@ -21,7 +21,10 @@ public final class ConfirmMenuLayout {
     public static final int[] CONFIRM_ZONE = {1, 2, 3, 10, 11, 12, 19, 20, 21};
     public static final int[] CANCEL_ZONE = {5, 6, 7, 14, 15, 16, 23, 24, 25};
     public static final String TITLE = "<white>%img_offset_-8%%img_confirm_menu%";
-    public static final String INVISIBLE_ITEM = "itemsadder-voidcore:invisible";
+    /** ItemsAdder namespaced id. "itemsadder-" is only the DeluxeMenus prefix; ItemsAdder itself does not know it. */
+    public static final String INVISIBLE_ITEM = "voidcore:invisible";
+
+    private static boolean fallbackLogged;
 
     private static final java.util.regex.Pattern COLON_TOKEN = java.util.regex.Pattern.compile(":[A-Za-z0-9_\\-]{2,}:");
 
@@ -47,10 +50,28 @@ public final class ConfirmMenuLayout {
      * would have no background and no visible labels, so the visible 9-slot window must be kept.
      */
     public static boolean available(Player viewer) {
-        return Bukkit.getPluginManager().isPluginEnabled("ItemsAdder")
-                && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")
-                && ItemResolver.resolveItemsAdder(INVISIBLE_ITEM) != null
-                && backgroundResolved(ItemsAdderFontHook.resolve(viewer, TITLE));
+        String why = unavailableReason(viewer);
+        if (why != null && !fallbackLogged) {
+            fallbackLogged = true;
+            Bukkit.getLogger().warning("[LoveShops] Confirm menu: the 27-slot window is not used, the 9-slot window is shown instead: " + why);
+        }
+        return why == null;
+    }
+
+    /** Why the 27-slot window cannot be shown, or null when it can. */
+    static String unavailableReason(Player viewer) {
+        if (!Bukkit.getPluginManager().isPluginEnabled("ItemsAdder")) return "ItemsAdder is not enabled";
+        if (!Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) return "PlaceholderAPI is not enabled";
+        if (ItemResolver.resolveItemsAdder(itemId(INVISIBLE_ITEM)) == null)
+            return "ItemsAdder has no item '" + itemId(INVISIBLE_ITEM) + "'";
+        if (!backgroundResolved(ItemsAdderFontHook.resolve(viewer, TITLE)))
+            return "the background glyph in '" + TITLE + "' does not resolve (font image missing?)";
+        return null;
+    }
+
+    /** The id as ItemsAdder knows it: the DeluxeMenus prefix "itemsadder-" is dropped. */
+    public static String itemId(String id) {
+        return id != null && id.startsWith("itemsadder-") ? id.substring("itemsadder-".length()) : id;
     }
 
     /** A title counts as resolved when no unresolved {@code %placeholder%} is left in it. */
@@ -68,7 +89,7 @@ public final class ConfirmMenuLayout {
     /** The invisible item with a name and lore, or null when ItemsAdder does not know it. */
     @Nullable
     public static ItemStack button(Player viewer, String name, List<String> lore) {
-        ItemStack item = ItemResolver.resolveItemsAdder(INVISIBLE_ITEM);
+        ItemStack item = ItemResolver.resolveItemsAdder(itemId(INVISIBLE_ITEM));
         if (item == null) return null;
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
