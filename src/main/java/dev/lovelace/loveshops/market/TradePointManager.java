@@ -158,8 +158,14 @@ public final class TradePointManager {
                         + "), повторная проверка через 5 минут; пока они сохранены.");
                 Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt, true), ORPHAN_RECHECK_TICKS);
             }
-            case KEEP_NO_DATA -> plugin.getLogger().warning("LoveClaims не вернул ни одной торговой точки: "
-                    + orphans.size() + " точек LoveShops сохранены без удаления.");
+            case KEEP_NO_DATA -> {
+                plugin.getLogger().warning("LoveClaims не вернул ни одной торговой точки: "
+                        + orphans.size() + " точек LoveShops сохранены без удаления.");
+                // Its claims may still be loading: ask again, so tenants and traders are reconciled once they are there.
+                if (attempt < SYNC_ATTEMPTS) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> syncWithClaims(attempt + 1, confirmed), SYNC_RETRY_TICKS);
+                }
+            }
             case FORGET -> {
                 for (TradePoint p : orphans) {
                     if (p.hasOwner()) releaseInternal(p, "CLAIM_REMOVED");
