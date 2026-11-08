@@ -632,16 +632,47 @@ public class NpcManager {
         }
     }
 
-    /** Capture provider edits before an event NPC is destroyed; a failed save keeps it for retry. */
+    /**
+     * Capture provider edits before an event NPC is destroyed; a failed save keeps it for retry. Both the name and
+     * the skin (the player whose skin the NPC wears) are remembered, so the NPC comes back looking the way it was
+     * set up; before only the name survived and the chosen skin was lost with every event.
+     */
     private boolean rememberName(NpcData row, NpcHandle handle) {
         String name = handle.name();
-        if (!NpcNames.changed(row, name)) return true;
+        String skin = handle.skinName().filter(s -> !s.isBlank()).orElse(null);
+        boolean nameChanged = NpcNames.changed(row, name);
+        boolean skinChanged = skin != null && !skin.equals(row.skinOwner());
+        if (!nameChanged && !skinChanged) return true;
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            NpcData saved = NpcNames.write(conn, row, name);
+            // Name and skin are saved together or not at all, so a failed retry never meets a half-written row.
+            conn.setAutoCommit(false);
+            NpcData saved;
+            try {
+                saved = NpcNames.write(conn, row, name);
+                if (skinChanged) {
+                    long now = System.currentTimeMillis() / 1000;
+                    try (var update = conn.prepareStatement("UPDATE shops_npcs SET skin_owner=?,updated_at=? WHERE uuid=?")) {
+                        update.setString(1, skin);
+                        update.setLong(2, now);
+                        update.setString(3, saved.uuid().toString());
+                        update.executeUpdate();
+                    }
+                    saved = new NpcData(saved.id(), saved.uuid(), saved.type(), saved.world(), saved.x(), saved.y(), saved.z(),
+                            saved.yaw(), saved.pitch(), saved.name(), saved.displayName(), skin, saved.npcKey(),
+                            saved.createdAt(), now);
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                // The connection may be shared or pooled: hand it back in autocommit mode.
+                conn.setAutoCommit(true);
+            }
             loadedNpcs.put(saved.uuid(), saved);
             return true;
         } catch (SQLException e) {
-            plugin.getLogger().warning("Не удалось сохранить имя NPC #" + row.id() + ": " + e.getMessage());
+            plugin.getLogger().warning("Не удалось сохранить имя и скин NPC #" + row.id() + ": " + e.getMessage());
             return false;
         }
     }
