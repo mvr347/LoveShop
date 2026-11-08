@@ -644,18 +644,30 @@ public class NpcManager {
         boolean skinChanged = skin != null && !skin.equals(row.skinOwner());
         if (!nameChanged && !skinChanged) return true;
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            NpcData saved = NpcNames.write(conn, row, name);
-            if (skinChanged) {
-                long now = System.currentTimeMillis() / 1000;
-                try (var update = conn.prepareStatement("UPDATE shops_npcs SET skin_owner=?,updated_at=? WHERE uuid=?")) {
-                    update.setString(1, skin);
-                    update.setLong(2, now);
-                    update.setString(3, saved.uuid().toString());
-                    update.executeUpdate();
+            // Name and skin are saved together or not at all, so a failed retry never meets a half-written row.
+            conn.setAutoCommit(false);
+            NpcData saved;
+            try {
+                saved = NpcNames.write(conn, row, name);
+                if (skinChanged) {
+                    long now = System.currentTimeMillis() / 1000;
+                    try (var update = conn.prepareStatement("UPDATE shops_npcs SET skin_owner=?,updated_at=? WHERE uuid=?")) {
+                        update.setString(1, skin);
+                        update.setLong(2, now);
+                        update.setString(3, saved.uuid().toString());
+                        update.executeUpdate();
+                    }
+                    saved = new NpcData(saved.id(), saved.uuid(), saved.type(), saved.world(), saved.x(), saved.y(), saved.z(),
+                            saved.yaw(), saved.pitch(), saved.name(), saved.displayName(), skin, saved.npcKey(),
+                            saved.createdAt(), now);
                 }
-                saved = new NpcData(saved.id(), saved.uuid(), saved.type(), saved.world(), saved.x(), saved.y(), saved.z(),
-                        saved.yaw(), saved.pitch(), saved.name(), saved.displayName(), skin, saved.npcKey(),
-                        saved.createdAt(), now);
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                // The connection may be shared or pooled: hand it back in autocommit mode.
+                conn.setAutoCommit(true);
             }
             loadedNpcs.put(saved.uuid(), saved);
             return true;
