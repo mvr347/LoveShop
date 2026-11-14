@@ -30,7 +30,7 @@ import dev.lovelace.loveshops.placeholders.LoveShopsPlaceholder;
 
 import java.util.Optional;
 
-public final class LoveShops extends JavaPlugin {
+public class LoveShops extends JavaPlugin {
 
     private static LoveShops instance;
     private DatabaseManager databaseManager;
@@ -211,6 +211,7 @@ public final class LoveShops extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        dev.lovelace.loveshops.gui.BankerGui.shutdown(this);
         if (dailyCaravanManager != null) {
             dailyCaravanManager.stop();
         }

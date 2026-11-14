@@ -49,6 +49,18 @@ public class BankerGui {
     private static Method iaGetItemStack = null;
     private static boolean iaChecked = false;
 
+    public static final class Holder implements org.bukkit.inventory.InventoryHolder {
+        private final UUID owner;
+        private Inventory inventory;
+        private Holder(UUID owner) { this.owner = owner; }
+        @Override public Inventory getInventory() { return inventory; }
+    }
+
+    public static boolean owns(Inventory inventory, Player player) {
+        return inventory != null && inventory.getHolder() instanceof Holder holder
+                && holder.owner.equals(player.getUniqueId());
+    }
+
     private final LoveShops plugin;
     private final Player player;
 
@@ -69,7 +81,10 @@ public class BankerGui {
             return;
         }
         try {
-            Inventory inv = Bukkit.createInventory(null, 36, MessageUtils.parse("<dark_green>" + TITLE + "</dark_green>"));
+            Holder holder = new Holder(player.getUniqueId());
+            Inventory inv = Bukkit.createInventory(holder, 36, MessageUtils.parse("<dark_green>" + TITLE + "</dark_green>"));
+            holder.inventory = inv;
+            session.economy = economy;
             ItemStack filler = GuiUtils.createFiller();
             for (int i = 0; i <= 8; i++) inv.setItem(i, filler);
             for (int i = 27; i < 36; i++) inv.setItem(i, filler);
@@ -77,46 +92,29 @@ public class BankerGui {
             inv.setItem(SLOT_CLOSE, GuiUtils.createCustomHead(HeadTextures.BUTTON_CLOSE, lang().text("gui.close"),
                     lang().lines("gui.banker.close-lore")));
             renderContent(inv, economy, session);
-            // The flag swallows the InventoryCloseEvent Bukkit fires for the banker view this call replaces.
-            // When no banker view is open that event never comes, and an unconditional flag ate the player's
-            // first real close instead: the deposited coins were not refunded until a second close or quit.
-            session.ignoreNextClose = isBankerViewOpen(player);
-            player.openInventory(inv);
+            // Mark the replacement before Bukkit closes the old view. Only the active
+            // inventory may settle this escrow; a boolean cannot identify delayed closes.
+            session.inventory = inv;
+            try {
+                player.openInventory(inv);
+            } finally {
+                // Another plugin may cancel InventoryOpenEvent after closing the old
+                // view. Any retained escrow must then be returned immediately.
+                if (player.getOpenInventory().getTopInventory() != inv) onClose(plugin, player);
+            }
         } finally {
             session.lock.set(false);
         }
     }
 
-    private static boolean isBankerViewOpen(Player player) {
-        var title = player.getOpenInventory().title();
-        return title != null
-                && net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                        .serialize(title).contains(TITLE);
-    }
-
     public static void refresh(LoveShops plugin, Player player) {
-        if (player.getOpenInventory().title() == null) {
-            new BankerGui(plugin, player).open();
-            return;
-        }
-        String title = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                .serialize(player.getOpenInventory().title());
-        if (!title.contains(TITLE)) {
-            new BankerGui(plugin, player).open();
-            return;
-        }
-        LoveEconomy economy = plugin.getEconomy().orElse(null);
         Session session = SESSIONS.get(player.getUniqueId());
-        if (economy == null || session == null) {
-            new BankerGui(plugin, player).open();
-            return;
-        }
-        Inventory inv = player.getOpenInventory().getTopInventory();
-        if (inv.getSize() < 36) {
-            new BankerGui(plugin, player).open();
-            return;
-        }
-        new BankerGui(plugin, player).renderContent(inv, economy, session);
+        Inventory inventory = player.getOpenInventory().getTopInventory();
+        // A queued refresh must not reopen a menu the player has already closed.
+        if (session == null || session.inventory != inventory || !owns(inventory, player)) return;
+        LoveEconomy economy = plugin.getEconomy().orElse(session.economy);
+        if (economy == null) return;
+        new BankerGui(plugin, player).renderContent(inventory, economy, session);
         player.updateInventory();
     }
 
@@ -375,12 +373,16 @@ public class BankerGui {
         long unit = economy.valueOf(stack);
         if (unit <= 0) return 0;
         int amount = stack.getAmount();
+        if (amount <= 0 || unit > Long.MAX_VALUE / amount) return 0;
         long add = unit * (long) amount;
         if (add <= 0) return 0;
-        Session session = SESSIONS.computeIfAbsent(player.getUniqueId(), id -> new Session());
+        Session session = SESSIONS.get(player.getUniqueId());
+        if (session == null || session.inventory != player.getOpenInventory().getTopInventory()
+                || !owns(session.inventory, player)) return 0;
         if (!session.lock.compareAndSet(false, true)) return 0;
         try {
             if (session.deposited > Long.MAX_VALUE - add) return 0;
+            session.economy = economy;
             session.deposited += add;
             if (session.minInputUnit == 0 || unit < session.minInputUnit) {
                 session.minInputUnit = unit;
@@ -482,24 +484,33 @@ public class BankerGui {
         } finally { session.lock.set(false); }
     }
 
+    public static void onClose(LoveShops plugin, Player player, Inventory closed) {
+        Session session = SESSIONS.get(player.getUniqueId());
+        if (session == null || session.inventory != closed || !owns(closed, player)) return;
+        onClose(plugin, player);
+    }
+
+    /** Quit/disable also settle the session, regardless of which view is currently open. */
     public static void onClose(LoveShops plugin, Player player) {
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null) return;
-        if (session.ignoreNextClose) { session.ignoreNextClose = false; return; }
-        SESSIONS.remove(player.getUniqueId());
-        long left = session.deposited;
-        session.deposited = 0;
-        session.maxInputUnit = 0;
-        session.minInputUnit = 0;
-        if (left <= 0) {
-            plugin.getNpcDialogueManager().sayBankerClose(player);
+        LoveEconomy economy = plugin.getEconomy().orElse(session.economy);
+        if (session.deposited > 0 && economy == null) {
+            plugin.getLogger().severe("Cannot refund banker escrow for " + player.getUniqueId()
+                    + ": economy unavailable; escrow retained");
             return;
         }
-        LoveEconomy economy = plugin.getEconomy().orElse(null);
-        if (economy != null) {
-            economy.give(player, left);
-        }
-        plugin.getNpcDialogueManager().sayBankerClose(player);
+        if (!SESSIONS.remove(player.getUniqueId(), session)) return;
+        long left = session.deposited;
+        session.deposited = 0;
+        session.inventory = null;
+        if (left > 0) economy.give(player, left);
+        if (plugin.isEnabled() && plugin.getNpcDialogueManager() != null)
+            plugin.getNpcDialogueManager().sayBankerClose(player);
+    }
+
+    public static void shutdown(LoveShops plugin) {
+        for (Player player : List.copyOf(Bukkit.getOnlinePlayers())) onClose(plugin, player);
     }
 
     public static boolean isOptionSlot(int slot) {
@@ -512,7 +523,8 @@ public class BankerGui {
         private long maxInputUnit;
         private long minInputUnit;
         private boolean showExchangeRates;
-        private boolean ignoreNextClose;
+        private Inventory inventory;
+        private LoveEconomy economy;
         private final AtomicBoolean lock = new AtomicBoolean(false);
     }
 }
