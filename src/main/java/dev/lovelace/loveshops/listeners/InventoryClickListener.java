@@ -239,7 +239,7 @@ public class InventoryClickListener implements Listener {
                     }
                 }
             }
-        } else if (titleText.contains(BankerGui.TITLE)) {
+        } else if (BankerGui.owns(event.getView().getTopInventory(), player)) {
             event.setCancelled(true);
             handleBankerClick(player, event);
         } else {
@@ -458,6 +458,10 @@ public class InventoryClickListener implements Listener {
         if (!targetsTop) return;
 
         var holder = top.getHolder();
+        if (holder instanceof BankerGui.Holder) {
+            event.setCancelled(true);
+            return;
+        }
         // A drag over several slots is the usual way to drop a stack on a menu: the first menu slot it touched
         // that can take the item decides. The event itself is cancelled; the real cursor (not the event's copy,
         // whose amount a partial submit would leave untouched) is used on the next tick, after the client was
@@ -521,10 +525,7 @@ public class InventoryClickListener implements Listener {
     @EventHandler
     public void onBankerClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (event.getView().title() == null) return;
-        String titleText = serializer.serialize(event.getView().title());
-        if (!titleText.contains(BankerGui.TITLE)) return;
-        BankerGui.onClose(plugin, player);
+        BankerGui.onClose(plugin, player, event.getInventory());
     }
 
     @EventHandler
