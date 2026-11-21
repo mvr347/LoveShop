@@ -24,8 +24,6 @@ public final class FeudalService {
     public static final String KEY_FEUDAL = NpcTags.FEUDAL;
 
     private final LoveShops plugin;
-    /** The name-based adoption of a pre-tag landlord is attempted once per run. */
-    private volatile boolean legacyChecked;
 
     public FeudalService(LoveShops plugin) {
         this.plugin = plugin;
@@ -44,35 +42,10 @@ public final class FeudalService {
         if (!available()) return found;
         try {
             found.addAll(plugin.getNpcBridge().withTag(KEY_FEUDAL));
-            if (!legacyChecked) {
-                legacyChecked = true;
-                if (found.isEmpty() && plugin.getNpcBridge().ownsProvider("citizens")) found.addAll(adoptLegacy());
-            }
         } catch (Throwable t) {
             plugin.getLogger().warning("Поиск Феодала не удался: " + t.getMessage());
         }
         return found;
-    }
-
-    /**
-     * One-time fallback for a landlord made before tags moved into the provider's own storage: it left no row
-     * to look up (that is the point of tagging it), so the only trace is its name. An NPC named exactly like the
-     * configured landlord and carrying no LoveShops identity is tagged as the landlord. Names are not used
-     * for anything else.
-     */
-    private List<NpcHandle> adoptLegacy() {
-        List<NpcHandle> adopted = new ArrayList<>();
-        String name = NpcText.plainAmp(plugin.getMarketConfig().feudalName());
-        if (name.isBlank()) return adopted;
-        for (NpcHandle npc : plugin.getNpcBridge().all()) {
-            if (!NpcLookup.isLegacyLandlord(npc, name)) continue;
-            npc.tag(KEY_FEUDAL, "true");
-            adopted.add(npc);
-        }
-        if (!adopted.isEmpty()) {
-            plugin.getLogger().info("Феодал: найдено NPC со старой меткой по имени «" + name + "» и помечено заново: " + adopted.size());
-        }
-        return adopted;
     }
 
     /** Creates a landlord at {@code loc}; {@code false} when no NPC provider is available. */
@@ -114,8 +87,6 @@ public final class FeudalService {
 
     /** A right click on an NPC: opens the landlord menu when it is one. */
     public boolean handleClick(Player player, NpcHandle npc) {
-        // The first click of a run also looks for a landlord made before tags moved to the provider.
-        if (!isFeudal(npc) && !legacyChecked) all();
         if (!isFeudal(npc)) return false;
         new FeudalListGui(plugin, player).open();
         return true;

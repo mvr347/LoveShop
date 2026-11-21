@@ -6,7 +6,7 @@ description: Advanced trading system with NPC merchants and player trade points
 author: Lovelace
 
 depend: [LoveCore, LoveEssential]
-softdepend: [LoveBehavior, PlaceholderAPI, ItemsAdder, Citizens, LoveBrewing, LoveClaims]
+softdepend: [LoveBehavior, PlaceholderAPI, ItemsAdder, LoveBrewing, LoveClaims]
 
 commands:
   loveshops:

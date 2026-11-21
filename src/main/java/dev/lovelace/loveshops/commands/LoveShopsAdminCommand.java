@@ -157,7 +157,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
         if (!plugin.getNpcBridge().available()) {
             player.sendMessage(MessageUtils.parse("<red>NPC-провайдер '" + plugin.getNpcBridge().providerId()
-                    + "' недоступен! Для создания NPC нужен выбранный в integrations.npc-provider плагин.</red>"));
+                    + "' недоступен! Для создания NPC нужен LoveEssential.</red>"));
             return;
         }
 
@@ -202,7 +202,7 @@ public class LoveShopsAdminCommand implements CommandExecutor, TabCompleter {
 
         if (!plugin.getNpcBridge().available()) {
             player.sendMessage(MessageUtils.parse("<red>NPC-провайдер '" + plugin.getNpcBridge().providerId()
-                    + "' недоступен! Для привязки нужен выбранный в integrations.npc-provider плагин.</red>"));
+                    + "' недоступен! Для привязки нужен LoveEssential.</red>"));
             return;
         }
 

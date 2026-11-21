@@ -16,9 +16,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
 /**
- * Clicks on, and the spawn veto for, the NPCs of the configured NPC provider. LoveCore fires its NPC events for
- * every provider that is installed, so each handler first checks that the NPC belongs to the provider chosen in
- * {@code integrations.npc-provider} and ignores the rest.
+ * Clicks on, and the spawn veto for, LoveEssential NPCs. LoveCore fires its NPC events for every provider, so each
+ * handler first checks that the NPC belongs to LoveEssential and ignores the rest.
  */
 public class NpcListener implements Listener {
 

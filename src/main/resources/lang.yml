@@ -1430,7 +1430,7 @@ market:
   tpa-usage-price: "<yellow>Использование: /tpa price <id> <цена за неделю></yellow>"
   tpa-usage-info: "<yellow>Использование: /tpa info <id></yellow>"
   tpa-npc-created: "<green>NPC <white>{type}</white> создан на вашем месте.</green>"
-  tpa-npc-failed: "<red>Не удалось создать NPC <white>{type}</white>.</red> <gray>Нужен NPC-провайдер (Citizens или LoveEssential, см. integrations.npc-provider).</gray>"
+  tpa-npc-failed: "<red>Не удалось создать NPC <white>{type}</white>.</red> <gray>Нужен LoveEssential с модулем NPC.</gray>"
   tpa-npc-removed: "<green>NPC <white>{type}</white> удалён: <white>{count}</white>.</green>"
   tpa-npc-none: "<yellow>NPC <white>{type}</white> не найден.</yellow>"
   tpa-teleported: "<green>Вы у NPC <white>{type}</white>.</green>"

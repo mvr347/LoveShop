@@ -85,9 +85,9 @@ public class LoveShops extends JavaPlugin {
         this.databaseManager.initialize();
 
         // 3. Core Services & Managers
-        // The NPC provider (integrations.npc-provider) is looked up on every use: providers register late.
-        this.npcBridge = NpcBridge.viaLoveCore(() -> getConfig().getString(NpcBridge.CONFIG_PATH, NpcBridge.GLOBAL),
-                msg -> getLogger().warning(msg));
+        // The NPC provider (LoveEssential) is looked up on every use: it registers late.
+        this.npcBridge = NpcBridge.viaLoveCore(msg -> getLogger().warning(msg));
+        warnAboutIgnoredNpcProvider();
         this.pricesManager = new PricesManager(this);
         this.pricesManager.load();
         this.forbiddenManager = new ForbiddenManager(this);
@@ -229,6 +229,16 @@ public class LoveShops extends JavaPlugin {
             databaseManager.close();
         }
         getLogger().info("LoveShops отключён.");
+    }
+
+    /** 2026-11-21: the provider switch is gone; a leftover value in config.yml is ignored and reported once. */
+    private void warnAboutIgnoredNpcProvider() {
+        String leftover = getConfig().getString("integrations.npc-provider", null);
+        if (leftover == null) return;
+        String value = leftover.trim();
+        if (value.isEmpty() || value.equalsIgnoreCase("global") || value.equalsIgnoreCase(NpcBridge.PROVIDER_ID)) return;
+        getLogger().warning("integrations.npc-provider: значение '" + value + "' игнорируется, NPC берутся только из "
+                + "LoveEssential; удалите ключ из config.yml.");
     }
 
     public static LoveShops getInstance() { return instance; }

@@ -4,36 +4,30 @@ import dev.lovelace.lovecore.api.LoveCore;
 import dev.lovelace.lovecore.api.npc.NpcHandle;
 import dev.lovelace.lovecore.api.npc.NpcProvider;
 import dev.lovelace.lovecore.api.npc.NpcSpec;
-import dev.lovelace.lovecore.api.provider.ProviderKind;
+import dev.lovelace.lovecore.api.provider.Providers;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
- * The only door from LoveShops to NPCs. The provider is chosen by {@code integrations.npc-provider}
- * ({@code global}, {@code citizens} or {@code loveessential}) and looked up on every use: providers register late
- * (LoveEssential after the server has loaded), so a reference kept in a field would miss them.
+ * The only door from LoveShops to NPCs. The provider is always LoveEssential (2026-11-21: the provider switch
+ * was removed) and is looked up on every use: it registers late (after the server has loaded), so a reference
+ * kept in a field would miss it.
  *
- * <p>When the chosen provider is not there, one warning names it and every NPC feature quietly does nothing
+ * <p>When LoveEssential is not there, one warning names it and every NPC feature quietly does nothing
  * until it appears; nothing throws.</p>
  */
 public final class NpcBridge {
 
-    /** Provider used when LoveCore cannot answer: what the plugin did before the option existed. */
-    public static final String DEFAULT_PROVIDER = "citizens";
-    /** Config value that follows {@code integrations.provider} of LoveCore. */
-    public static final String GLOBAL = "global";
-    public static final String CONFIG_PATH = "integrations.npc-provider";
+    /** The only supported provider. */
+    public static final String PROVIDER_ID = Providers.LOVE_ESSENTIAL;
 
-    private final Supplier<String> configured;
     private final Function<String, Optional<NpcProvider>> resolver;
     private final Consumer<String> warn;
     /** The provider id we already warned about; cleared once it shows up, so a later loss warns again. */
@@ -41,45 +35,29 @@ public final class NpcBridge {
     private final java.util.function.BooleanSupplier warningsReady;
     private volatile boolean seenReady;
 
-    public NpcBridge(Supplier<String> configured, Function<String, Optional<NpcProvider>> resolver, Consumer<String> warn) {
-        this(configured, resolver, warn, () -> true);
+    public NpcBridge(Function<String, Optional<NpcProvider>> resolver, Consumer<String> warn) {
+        this(resolver, warn, () -> true);
     }
 
-    public NpcBridge(Supplier<String> configured, Function<String, Optional<NpcProvider>> resolver,
+    public NpcBridge(Function<String, Optional<NpcProvider>> resolver,
                      Consumer<String> warn, java.util.function.BooleanSupplier warningsReady) {
         this.warningsReady = warningsReady;
-        this.configured = configured;
         this.resolver = resolver;
         this.warn = warn;
     }
 
     /** Production wiring: providers come from LoveCore. */
-    public static NpcBridge viaLoveCore(Supplier<String> configured, Consumer<String> warn) {
+    public static NpcBridge viaLoveCore(Consumer<String> warn) {
         int started = org.bukkit.Bukkit.getServer() == null ? 0 : org.bukkit.Bukkit.getCurrentTick();
-        return new NpcBridge(configured, id -> LoveCore.provider(NpcProvider.class, id), warn,
+        return new NpcBridge(id -> LoveCore.provider(NpcProvider.class, id), warn,
                 () -> org.bukkit.Bukkit.getServer() == null || org.bukkit.Bukkit.getCurrentTick() - started >= 200);
     }
 
-    /**
-     * Lower-case, trimmed provider id. {@code global}, an empty or a missing value follows {@code integrations.provider}
-     * of LoveCore; without LoveCore that is Citizens, as before the toggle existed.
-     */
-    public static String normalize(String raw) {
-        if (raw == null || raw.isBlank() || raw.trim().equalsIgnoreCase(GLOBAL)) {
-            try {
-                return LoveCore.providerId(ProviderKind.NPC, GLOBAL);
-            } catch (LinkageError coreMissingOrOld) {
-                return DEFAULT_PROVIDER;
-            }
-        }
-        return raw.trim().toLowerCase(Locale.ROOT);
-    }
-
     public String providerId() {
-        return normalize(configured.get());
+        return PROVIDER_ID;
     }
 
-    /** The configured provider if it is registered right now. */
+    /** LoveEssential if it is registered right now. */
     public Optional<NpcProvider> provider() {
         String id = providerId();
         Optional<NpcProvider> found;
@@ -94,7 +72,7 @@ public final class NpcBridge {
             seenReady = true;
         } else if ((seenReady || warningsReady.getAsBoolean()) && !id.equals(warnedFor)) {
             warnedFor = id;
-            warn.accept("NPC-провайдер '" + id + "' недоступен (integrations.npc-provider): плагин не установлен или ещё не "
+            warn.accept("NPC-провайдер '" + id + "' недоступен: плагин не установлен или ещё не "
                     + "поднялся. NPC-функции LoveShops отключены, пока он не появится.");
         }
         return found;
@@ -113,7 +91,7 @@ public final class NpcBridge {
         }
     }
 
-    /** Whether an NPC belongs to the configured provider; events fire for every provider and must be filtered. */
+    /** Whether an NPC belongs to LoveEssential; events fire for every provider and must be filtered. */
     public boolean owns(NpcHandle npc) {
         return npc != null && providerId().equalsIgnoreCase(npc.providerId());
     }

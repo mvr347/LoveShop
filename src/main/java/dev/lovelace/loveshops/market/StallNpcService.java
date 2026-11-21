@@ -293,37 +293,6 @@ public final class StallNpcService {
     }
 
     /**
-     * One-time fallback for NPCs made before tags moved into the provider's own storage (Citizens): such an NPC
-     * carries none of our tags, but the point row still names it. It is tagged from the row so the tag scan below
-     * finds it. Only the Citizens provider ever stored the old tags, and only an NPC with no LoveShops identity
-     * at all is adopted - a stale id that now points at someone else's NPC is left alone.
-     */
-    private void adoptLegacy(java.util.Collection<TradePoint> points, Map<UUID, List<NpcHandle>> stalls,
-                             Map<UUID, List<NpcHandle>> guards) {
-        if (!plugin.getNpcBridge().ownsProvider("citizens")) return;
-        int adopted = 0;
-        for (TradePoint p : points) {
-            if (!p.hasOwner()) continue;
-            adopted += adoptOne(p.npcKey(), KEY_STALL, p.claimId(), stalls);
-            adopted += adoptOne(p.guardKey(), KEY_GUARD, p.claimId(), guards);
-        }
-        if (adopted > 0) {
-            plugin.getLogger().info("Рынок: повторно помечено NPC торговых точек по записям БД (метки старого формата): " + adopted);
-        }
-    }
-
-    private int adoptOne(String key, String tag, UUID pointId, Map<UUID, List<NpcHandle>> byPoint) {
-        if (key == null || !byPoint.getOrDefault(pointId, List.of()).isEmpty()) return 0;
-        Optional<NpcHandle> npc = plugin.getNpcBridge().byKey(key);
-        if (npc.isEmpty()) return 0;
-        NpcHandle handle = npc.get();
-        if (NpcLookup.carriesIdentity(handle)) return 0;
-        handle.tag(tag, pointId.toString());
-        byPoint.computeIfAbsent(pointId, k -> new ArrayList<>()).add(handle);
-        return 1;
-    }
-
-    /**
      * Shows an NPC of an open point that the provider keeps hidden (the previous build despawned the NPCs of closed
      * points). Only in a loaded chunk: spawning into an unloaded one would load it for a trader nobody is near.
      */
@@ -344,7 +313,6 @@ public final class StallNpcService {
             stallPointOf(npc).ifPresent(id -> stalls.computeIfAbsent(id, k -> new ArrayList<>()).add(npc));
             guardPointOf(npc).ifPresent(id -> guards.computeIfAbsent(id, k -> new ArrayList<>()).add(npc));
         }
-        adoptLegacy(points, stalls, guards);
 
         List<NpcHandle> toDestroy = new ArrayList<>();
         Map<UUID, TradePoint> byId = new HashMap<>();
