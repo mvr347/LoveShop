@@ -116,14 +116,4 @@ class NpcLookupTest {
         assertTrue(NpcLookup.claimedByOther(new FakeNpc("citizens", "5").with(NpcTags.UUID, bankerId.toString()), point));
         assertTrue(NpcLookup.claimedByOther(new FakeNpc("citizens", "5").with(NpcTags.FEUDAL, "true"), point));
     }
-
-    @Test
-    void legacyLandlordIsMatchedByExactNameAndNoIdentity() {
-        assertTrue(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "Феодал"), "Феодал"));
-        assertFalse(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "Феодал 2"), "Феодал"));
-        assertFalse(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "феодал"), "Феодал"));
-        assertFalse(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "Феодал").with(NpcTags.UUID, "x"), "Феодал"));
-        assertFalse(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "Феодал"), ""));
-        assertFalse(NpcLookup.isLegacyLandlord(new FakeNpc("citizens", "3", "Феодал"), null));
-    }
 }

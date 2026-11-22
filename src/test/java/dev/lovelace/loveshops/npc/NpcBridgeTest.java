@@ -48,19 +48,19 @@ class NpcBridgeTest {
         @Override public Collection<NpcHandle> all() { return new ArrayList<>(npcs.values()); }
     }
 
+    private static final String ID = "loveessential";
     private final List<String> warnings = new ArrayList<>();
-    private String configured = "citizens";
     private final Map<String, FakeProvider> registered = new HashMap<>();
 
     private NpcBridge bridge() {
-        return new NpcBridge(() -> configured, id -> Optional.ofNullable(registered.get(id)), warnings::add);
+        return new NpcBridge(id -> Optional.ofNullable(registered.get(id)), warnings::add);
     }
 
     @Test
     void startupGraceStillResolvesLateProvidersAndReportsARealLossImmediately() {
         boolean[] graceDone = {false}, available = {false};
-        var provider = new FakeProvider("loveessential");
-        var bridge = new NpcBridge(() -> "loveessential", id -> available[0] ? Optional.of(provider) : Optional.empty(),
+        var provider = new FakeProvider(ID);
+        var bridge = new NpcBridge(id -> available[0] ? Optional.of(provider) : Optional.empty(),
                 warnings::add, () -> graceDone[0]);
         assertFalse(bridge.available());
         assertTrue(warnings.isEmpty());
@@ -75,29 +75,20 @@ class NpcBridgeTest {
     }
 
     @Test
-    void emptyOrMissingConfigMeansCitizens() {
-        assertEquals("citizens", NpcBridge.normalize(null));
-        assertEquals("citizens", NpcBridge.normalize(""));
-        assertEquals("citizens", NpcBridge.normalize("   "));
-        assertEquals("citizens", NpcBridge.normalize("global"), "without a core 'global' means citizens");
-        assertEquals("citizens", NpcBridge.normalize(" GLOBAL "));
-        assertEquals("loveessential", NpcBridge.normalize("  LoveEssential "));
-        configured = null;
-        assertEquals("citizens", bridge().providerId());
+    void theProviderIsAlwaysLoveEssential() {
+        assertEquals("loveessential", bridge().providerId());
+        assertEquals("loveessential", NpcBridge.PROVIDER_ID);
     }
 
     @Test
-    void picksTheConfiguredProviderOnly() {
-        FakeProvider citizens = new FakeProvider("citizens");
-        FakeProvider essential = new FakeProvider("loveessential");
-        citizens.add("5", null, null);
+    void onlyLoveEssentialIsAsked() {
+        FakeProvider other = new FakeProvider("other");
+        FakeProvider essential = new FakeProvider(ID);
+        other.add("5", null, null);
         essential.add("ext-1", null, null);
-        registered.put("citizens", citizens);
-        registered.put("loveessential", essential);
+        registered.put("other", other);
+        registered.put(ID, essential);
 
-        assertTrue(bridge().byKey("5").isPresent());
-        assertTrue(bridge().byKey("ext-1").isEmpty());
-        configured = "loveessential";
         assertTrue(bridge().byKey("ext-1").isPresent());
         assertTrue(bridge().byKey("5").isEmpty());
         assertTrue(warnings.isEmpty());
@@ -105,7 +96,6 @@ class NpcBridgeTest {
 
     @Test
     void missingProviderWarnsOnceAndFeaturesDoNothing() {
-        configured = "loveessential";
         NpcBridge bridge = bridge();
         assertFalse(bridge.available());
         assertTrue(bridge.byKey("ext-1").isEmpty());
@@ -121,7 +111,7 @@ class NpcBridgeTest {
         NpcBridge bridge = bridge();
         assertFalse(bridge.available());
         assertEquals(1, warnings.size());
-        registered.put("citizens", new FakeProvider("citizens"));
+        registered.put(ID, new FakeProvider(ID));
         assertTrue(bridge.available());
         registered.clear();
         assertFalse(bridge.available());
@@ -132,15 +122,15 @@ class NpcBridgeTest {
     void providerRegisteringLateIsPickedUp() {
         NpcBridge bridge = bridge();
         assertFalse(bridge.available());
-        FakeProvider late = new FakeProvider("citizens");
+        FakeProvider late = new FakeProvider(ID);
         late.add("3", null, null);
-        registered.put("citizens", late);
+        registered.put(ID, late);
         assertTrue(bridge.byKey("3").isPresent());
     }
 
     @Test
     void aBrokenLookupCountsAsMissing() {
-        NpcBridge bridge = new NpcBridge(() -> "citizens", id -> { throw new NoClassDefFoundError("dev/lovelace/lovecore/api/LoveCore"); }, warnings::add);
+        NpcBridge bridge = new NpcBridge(id -> { throw new NoClassDefFoundError("dev/lovelace/lovecore/api/LoveCore"); }, warnings::add);
         assertFalse(bridge.available());
         assertEquals(1, warnings.size());
     }
@@ -148,21 +138,21 @@ class NpcBridgeTest {
     @Test
     void ownsComparesProviderIds() {
         NpcBridge bridge = bridge();
-        assertTrue(bridge.owns(new FakeNpc("citizens", "1")));
-        assertTrue(bridge.owns(new FakeNpc("Citizens", "1")));
-        assertFalse(bridge.owns(new FakeNpc("loveessential", "ext-1")));
+        assertTrue(bridge.owns(new FakeNpc(ID, "ext-1")));
+        assertTrue(bridge.owns(new FakeNpc("LoveEssential", "ext-1")));
+        assertFalse(bridge.owns(new FakeNpc("other", "1")));
         assertFalse(bridge.owns(null));
-        assertTrue(bridge.ownsProvider("citizens"));
-        assertFalse(bridge.ownsProvider("loveessential"));
+        assertTrue(bridge.ownsProvider(ID));
+        assertFalse(bridge.ownsProvider("other"));
     }
 
     @Test
     void tagLookupFindsOnlyMatchingNpcs() {
-        FakeProvider citizens = new FakeProvider("citizens");
-        citizens.add("1", "loveshops_uuid", "aaa");
-        citizens.add("2", "loveshops_uuid", "bbb");
-        citizens.add("3", null, null);
-        registered.put("citizens", citizens);
+        FakeProvider provider = new FakeProvider(ID);
+        provider.add("1", "loveshops_uuid", "aaa");
+        provider.add("2", "loveshops_uuid", "bbb");
+        provider.add("3", null, null);
+        registered.put(ID, provider);
         assertEquals(List.of("2"), bridge().withTag("loveshops_uuid", "bbb").stream().map(NpcHandle::key).toList());
         assertEquals(2, bridge().withTag("loveshops_uuid").size());
         assertTrue(bridge().withTag("loveshops_uuid", null).isEmpty());
@@ -170,11 +160,11 @@ class NpcBridgeTest {
 
     @Test
     void removeGoesToTheProvider() {
-        FakeProvider citizens = new FakeProvider("citizens");
-        citizens.add("4", null, null);
-        registered.put("citizens", citizens);
+        FakeProvider provider = new FakeProvider(ID);
+        provider.add("4", null, null);
+        registered.put(ID, provider);
         assertTrue(bridge().remove(" 4 "));
-        assertEquals(List.of("4"), citizens.removed);
+        assertEquals(List.of("4"), provider.removed);
         assertFalse(bridge().remove("4"));
         assertFalse(bridge().remove(null));
     }

@@ -93,9 +93,4 @@ public final class NpcLookup {
         return npc.tag(NpcTags.STALL).filter(v -> !v.equals(id)).isPresent()
                 || npc.tag(NpcTags.GUARD).filter(v -> !v.equals(id)).isPresent();
     }
-
-    /** A pre-tag landlord: named exactly like the configured one and without any LoveShops identity. */
-    public static boolean isLegacyLandlord(NpcHandle npc, String plainName) {
-        return plainName != null && !plainName.isBlank() && plainName.equals(npc.name()) && !carriesIdentity(npc);
-    }
 }
