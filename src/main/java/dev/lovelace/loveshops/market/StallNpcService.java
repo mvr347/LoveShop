@@ -110,7 +110,7 @@ public final class StallNpcService {
         if (npc == null || point == null) return;
         var manager = plugin.getTradePointManager();
         String ownerName = point.ownerName() == null ? "?" : point.ownerName();
-        String id = manager == null ? "?" : manager.nameOf(point);
+        String id = manager == null ? "?" : manager.displayNameOf(point);
         npc.setName(NpcText.amp(statusText(point)));
 
         String format = legacy(plugin.getMarketConfig().npcNameFormat()).replace("{owner}", ownerName).replace("{id}", id);
@@ -151,8 +151,10 @@ public final class StallNpcService {
             if (block.getState() instanceof org.bukkit.block.Sign sign) {
                 List<String> lines = plugin.getMarketConfig().closedSignLines();
                 String owner = point.ownerName() == null ? "" : point.ownerName();
+                var manager = plugin.getTradePointManager();
+                String id = manager == null ? "?" : manager.displayNameOf(point);
                 for (int i = 0; i < 4; i++) {
-                    String line = i < lines.size() ? lines.get(i).replace("{owner}", owner) : "";
+                    String line = i < lines.size() ? lines.get(i).replace("{owner}", owner).replace("{id}", id) : "";
                     sign.line(i, net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(line));
                 }
                 sign.setWaxed(true);

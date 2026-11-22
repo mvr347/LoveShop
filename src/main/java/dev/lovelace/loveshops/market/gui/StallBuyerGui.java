@@ -61,7 +61,7 @@ public final class StallBuyerGui extends MarketGui {
             plugin.getMarketMessages().send(viewer, "blacklist-refused");
             return;
         }
-        Component title = MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point.ownerName()));
+        Component title = MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point, point.ownerName()));
         show(Bukkit.createInventory(this, size, title));
     }
 

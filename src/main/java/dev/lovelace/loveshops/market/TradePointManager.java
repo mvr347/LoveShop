@@ -213,10 +213,10 @@ public final class TradePointManager {
         for (TradePoint p : points.values()) updateIdSign(p);
     }
 
-    /** Rewrites the id sign of a point (id and "free" / tenant name). */
+    /** Rewrites the id sign of a point (id/display name and "free" / tenant name). */
     public void updateIdSign(TradePoint p) {
         if (p.idSignLocation() == null) return;
-        String id = nameOf(p);
+        String id = displayNameOf(p);
         String status = p.hasOwner()
                 ? "&c" + (p.ownerName() == null ? "?" : p.ownerName())
                 : plugin.getMarketMessages().raw("id-sign-free");
@@ -228,6 +228,38 @@ public final class TradePointManager {
     /** The id (plot name) of a point, as LoveClaims knows it. */
     public String nameOf(TradePoint p) {
         return claims.point(p.claimId()).map(ClaimsLink.PointInfo::name).orElse(p.claimId().toString().substring(0, 8));
+    }
+
+    /** Custom display name if set, otherwise the LoveClaims plot id. */
+    public String displayNameOf(TradePoint p) {
+        if (p == null) return "?";
+        String custom = p.displayName();
+        return custom != null && !custom.isBlank() ? custom : nameOf(p);
+    }
+
+    /**
+     * Sets or clears the trade point's custom display name (supports Russian and spaces, max 32 chars).
+     * Returns the normalized name, empty string if cleared, or {@code null} if invalid/DB error.
+     */
+    public String setDisplayName(TradePoint p, String raw) {
+        if (p == null) return null;
+        String cleaned = raw == null ? "" : raw.replace('<', ' ').replace('>', ' ').replace('§', ' ').replace('&', ' ').trim();
+        if (cleaned.equals("-") || cleaned.equalsIgnoreCase("reset") || cleaned.equalsIgnoreCase("сброс")) {
+            cleaned = "";
+        }
+        if (cleaned.length() > 32) return null;
+        String value = cleaned.isEmpty() ? null : cleaned;
+        try {
+            repo.updateDisplayName(p.claimId(), value);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Не удалось обновить название точки " + p.claimId() + ": " + e.getMessage());
+            return null;
+        }
+        p.displayName(value);
+        updateIdSign(p);
+        updateNpc(p);
+        refreshViewers(p.claimId());
+        return value == null ? "" : value;
     }
 
     /** A point by its id (the plot name, any case). */
@@ -416,6 +448,7 @@ public final class TradePointManager {
         }
         p.ownerUuid(null);
         p.ownerName(null);
+        p.displayName(null);
         p.npcKey(null);
         p.guardKey(null);
         p.level(1);

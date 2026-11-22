@@ -54,7 +54,7 @@ public final class FeudalListGui extends MarketGui {
                 TradePoint point = points.get(start + i);
                 button(content[i], pointTile(point), e -> {
                     if (point.hasOwner()) {
-                        plugin.getMarketMessages().send(viewer, "feudal-taken", "id", manager.nameOf(point));
+                        plugin.getMarketMessages().send(viewer, "feudal-taken", "id", manager.displayNameOf(point));
                     } else {
                         new FeudalRentGui(plugin, viewer, point).open();
                     }
@@ -65,7 +65,7 @@ public final class FeudalListGui extends MarketGui {
         // В 52 слоте Управление арендой
         java.util.Optional<TradePoint> mine = manager.byOwner(viewer.getUniqueId());
         ItemStack manageTile = mine.isPresent()
-                ? tile(HeadTextures.FEUDAL_MANAGE, "gui-feudal-manage", "gui-feudal-manage-lore", "id", manager.nameOf(mine.get()))
+                ? tile(HeadTextures.FEUDAL_MANAGE, "gui-feudal-manage", "gui-feudal-manage-lore", "id", manager.displayNameOf(mine.get()))
                 : tile(HeadTextures.FEUDAL_MANAGE, "gui-feudal-manage", "gui-feudal-manage-none-lore");
         button(52, manageTile, e -> {
             java.util.Optional<TradePoint> p = manager.byOwner(viewer.getUniqueId());
@@ -84,7 +84,7 @@ public final class FeudalListGui extends MarketGui {
 
     private ItemStack pointTile(TradePoint point) {
         var manager = plugin.getTradePointManager();
-        String id = manager.nameOf(point);
+        String id = manager.displayNameOf(point);
         long price = manager.infoOf(point).map(ClaimsLink.PointInfo::price).orElse(0L);
         String money = plugin.getMarketStyle().money(price);
         if (!point.hasOwner()) {

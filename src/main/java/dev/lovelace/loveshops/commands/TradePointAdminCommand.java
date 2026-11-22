@@ -37,7 +37,7 @@ import java.util.Optional;
  */
 public final class TradePointAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("npc", "create", "wizard", "delete", "owner", "lvl", "price", "list", "info", "reconcile");
+    private static final List<String> SUBS = List.of("npc", "create", "wizard", "delete", "owner", "lvl", "price", "name", "list", "info", "reconcile");
     private static final List<String> NPC_ACTIONS = List.of("create", "remove", "tp");
     private static final List<String> NPC_TYPES = List.of("taxer", "seller", "feudal", "stall");
     private static final List<String> WIZARD_ACTIONS = List.of("set", "back", "skip", "finish", "cancel", "status");
@@ -75,6 +75,7 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
             case "owner" -> owner(sender, manager, args);
             case "lvl" -> level(sender, manager, args);
             case "price" -> price(sender, manager, args);
+            case "name" -> name(sender, manager, args);
             case "list" -> list(sender, manager);
             case "info" -> info(sender, manager, args);
             case "reconcile" -> {
@@ -346,6 +347,24 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
         }
     }
 
+    private void name(CommandSender sender, TradePointManager manager, String[] args) {
+        if (args.length < 3) {
+            msg(sender, "tpa-usage-name");
+            return;
+        }
+        Optional<TradePoint> point = point(sender, manager, args[1]);
+        if (point.isEmpty()) return;
+        String joined = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+        String res = manager.setDisplayName(point.get(), joined);
+        if (res == null) {
+            msg(sender, "name-invalid");
+        } else if (res.isEmpty()) {
+            msg(sender, "tpa-name-reset", "id", manager.nameOf(point.get()));
+        } else {
+            msg(sender, "tpa-name-set", "id", manager.nameOf(point.get()), "name", res);
+        }
+    }
+
     private void info(CommandSender sender, TradePointManager manager, String[] args) {
         if (args.length < 2) {
             msg(sender, "tpa-usage-info");
@@ -395,7 +414,7 @@ public final class TradePointAdminCommand implements CommandExecutor, TabComplet
                 case 3 -> sub.equals("delete") ? StringUtil.copyPartialMatches(args[2], List.of("confirm"), new ArrayList<>()) : List.of();
                 default -> List.of();
             };
-            case "price" -> args.length == 2 ? StringUtil.copyPartialMatches(args[1], pointIds(), new ArrayList<>()) : List.of();
+            case "price", "name" -> args.length == 2 ? StringUtil.copyPartialMatches(args[1], pointIds(), new ArrayList<>()) : List.of();
             case "owner" -> switch (args.length) {
                 case 2 -> StringUtil.copyPartialMatches(args[1], List.of("set", "remove"), new ArrayList<>());
                 case 3 -> args[1].equalsIgnoreCase("set") ? StringUtil.copyPartialMatches(args[2], online, new ArrayList<>())

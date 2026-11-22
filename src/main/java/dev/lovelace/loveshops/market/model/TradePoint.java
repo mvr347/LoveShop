@@ -11,6 +11,7 @@ public final class TradePoint {
     private final UUID claimId;
     private UUID ownerUuid;
     private String ownerName;
+    private String displayName;
     /** Key of the trader NPC in the configured NPC provider (a Citizens id written as text for Citizens). */
     private String npcKey;
     private String guardKey;
@@ -50,6 +51,9 @@ public final class TradePoint {
 
     public String ownerName() { return ownerName; }
     public void ownerName(String ownerName) { this.ownerName = ownerName; }
+
+    public String displayName() { return displayName; }
+    public void displayName(String displayName) { this.displayName = displayName; }
 
     public String npcKey() { return npcKey; }
     public void npcKey(String key) { this.npcKey = key; }
