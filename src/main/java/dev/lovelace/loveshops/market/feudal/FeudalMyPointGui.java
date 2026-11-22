@@ -66,7 +66,7 @@ public final class FeudalMyPointGui extends MarketGui {
 
         // 0 слот — информация
         inventory.setItem(0, tile(HeadTextures.NPC_HEADER, "gui-feudal-mine-head", "gui-feudal-mine-head-lore",
-                "id", manager.nameOf(point), "time", time, "guard", guardStatus));
+                "id", manager.displayNameOf(point), "time", time, "guard", guardStatus));
 
         // 1. Аренда: ЛКМ +1 день, Shift+ЛКМ +7 дней
         long dayCost = claims().dayCost(point.claimId());
@@ -150,7 +150,7 @@ public final class FeudalMyPointGui extends MarketGui {
 
     private void confirmReturn() {
         long refund = refund();
-        List<String> summary = lines("gui-feudal-sell-summary", "id", plugin.getTradePointManager().nameOf(point),
+        List<String> summary = lines("gui-feudal-sell-summary", "id", plugin.getTradePointManager().displayNameOf(point),
                 "refund", plugin.getMarketStyle().money(refund), "percent", String.valueOf(plugin.getMarketConfig().feudalRefundPercent()));
         new StallConfirmGui(plugin, viewer, point.claimId(), t("gui-feudal-sell-title"), summary,
                 () -> giveBack(refund), () -> new FeudalMyPointGui(plugin, viewer, point).open()).open();
@@ -166,7 +166,7 @@ public final class FeudalMyPointGui extends MarketGui {
         long refund = refund();
         claims().release(point.claimId(), "ABANDONED");
         manager.refundToReturns(viewer.getUniqueId(), refund, "refund-landlord");
-        plugin.getMarketMessages().send(viewer, "feudal-returned", "id", manager.nameOf(point),
+        plugin.getMarketMessages().send(viewer, "feudal-returned", "id", manager.displayNameOf(point),
                 "refund", plugin.getMarketStyle().money(refund));
         viewer.closeInventory();
     }

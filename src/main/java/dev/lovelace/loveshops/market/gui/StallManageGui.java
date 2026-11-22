@@ -75,6 +75,8 @@ public final class StallManageGui extends MarketGui {
                         "count", String.valueOf(blacklisted), "max", String.valueOf(plugin.getMarketConfig().blacklistMaxEntries()),
                         "bar", ProgressBarUtil.bar(blacklisted, plugin.getMarketConfig().blacklistMaxEntries())),
                         e -> new StallBlacklistGui(plugin, viewer, point).open()),
+                new Control(tile(HeadTextures.BANKER_INFO, "gui-manage-name", "gui-manage-name-lore",
+                        "name", plugin.getTradePointManager().displayNameOf(point)), e -> promptRename()),
                 // The guard is hired at the landlord; here only its state is shown (no click action).
                 new Control(guardTile(), e -> { })
         ));
@@ -194,6 +196,19 @@ public final class StallManageGui extends MarketGui {
                 plugin.getMarketMessages().send(target, "transfer-received", "player", viewer.getName());
             } else {
                 plugin.getMarketMessages().send(viewer, "transfer-failed");
+            }
+        });
+    }
+
+    private void promptRename() {
+        promptText("prompt-point-name", this::open, text -> {
+            String res = plugin.getTradePointManager().setDisplayName(point, text);
+            if (res == null) {
+                plugin.getMarketMessages().send(viewer, "name-invalid");
+            } else if (res.isEmpty()) {
+                plugin.getMarketMessages().send(viewer, "name-reset");
+            } else {
+                plugin.getMarketMessages().send(viewer, "name-set", "name", res);
             }
         });
     }

@@ -36,7 +36,7 @@ public final class StallOwnerGui extends MarketGui {
 
     public void open() {
         show(Bukkit.createInventory(this, SIZE,
-                MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(viewer.getName()))));
+                MessageUtils.parse(viewer, plugin.getMarketStyle().stallTitle(point, viewer.getName()))));
     }
 
     @Override

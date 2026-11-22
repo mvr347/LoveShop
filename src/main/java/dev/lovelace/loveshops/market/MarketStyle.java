@@ -55,4 +55,12 @@ public final class MarketStyle {
         String name = ownerName == null || ownerName.isBlank() ? "?" : ownerName;
         return icon(Icon.STALL) + " <gradient:#E67E22:#D35400>Торговая точка</gradient> <white>" + name.replace('<', ' ') + "</white>";
     }
+
+    /** Stall title using the trade point's custom display name if set, else falling back to ownerName. */
+    public String stallTitle(dev.lovelace.loveshops.market.model.TradePoint point, String fallbackOwner) {
+        if (point != null && point.displayName() != null && !point.displayName().isBlank()) {
+            return icon(Icon.STALL) + " <gradient:#E67E22:#D35400>" + point.displayName().replace('<', ' ') + "</gradient>";
+        }
+        return stallTitle(fallbackOwner);
+    }
 }

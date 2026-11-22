@@ -38,7 +38,7 @@ import java.util.UUID;
  */
 public final class TradePointCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("tp", "menu", "returns", "transfer", "blacklist", "discount", "mode", "help");
+    private static final List<String> SUBS = List.of("tp", "menu", "returns", "transfer", "blacklist", "discount", "mode", "name", "help");
     private static final List<String> BLACKLIST_SUBS = List.of("add", "remove", "list");
     private static final List<String> DISCOUNT_SUBS = List.of("set", "remove");
     private static final List<String> MODE_SUBS = List.of("BOTH", "SELL_ONLY", "BUY_ONLY");
@@ -82,6 +82,7 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
             case "blacklist" -> handleBlacklist(player, manager, args);
             case "discount" -> handleDiscount(player, manager, args);
             case "mode" -> handleMode(player, manager, args);
+            case "name", "название" -> handleName(player, manager, args);
             default -> sendHelp(player);
         }
         return true;
@@ -297,6 +298,24 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(MessageUtils.parse(player, "<green>Вы телепортированы к торговой точке.</green>"));
     }
 
+    private void handleName(Player player, TradePointManager manager, String[] args) {
+        TradePoint point = ownedPoint(player, manager);
+        if (point == null) return;
+        if (args.length < 2) {
+            msg(player, "cmd-usage-name");
+            return;
+        }
+        String joined = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+        String res = manager.setDisplayName(point, joined);
+        if (res == null) {
+            msg(player, "name-invalid");
+        } else if (res.isEmpty()) {
+            msg(player, "name-reset");
+        } else {
+            msg(player, "name-set", "name", res);
+        }
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(MessageUtils.parse(player, "<gold>=== Управление торговой точкой ===</gold>"));
         player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint tp [uuid]</yellow> <gray>— телепортироваться к своей торговой точке</gray>"));
@@ -305,6 +324,7 @@ public final class TradePointCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint blacklist <add|remove|list></yellow> <gray>— чёрный список точки</gray>"));
         player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint discount <set|remove></yellow> <gray>— персональные скидки</gray>"));
         player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint mode [режим]</yellow> <gray>— режим торговли (BOTH, SELL_ONLY, BUY_ONLY)</gray>"));
+        player.sendMessage(MessageUtils.parse(player, "<yellow>/tradepoint name <название|сброс></yellow> <gray>— задать название точки (до 32 симв.)</gray>"));
         player.sendMessage(MessageUtils.parse(player, "<gold>====================================</gold>"));
     }
 

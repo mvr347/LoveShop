@@ -43,7 +43,7 @@ public final class FeudalGui extends MarketGui {
         // The tenant's rent card rides on the slot-0 head, so the work row holds buttons only.
         inventory.setItem(0, mine.isPresent()
                 ? tile(HeadTextures.NPC_HEADER, "gui-feudal-card-mine", "gui-feudal-card-mine-lore",
-                        "id", manager.nameOf(mine.get()), "time", rentLeft(mine.get()))
+                        "id", manager.displayNameOf(mine.get()), "time", rentLeft(mine.get()))
                 : tile(HeadTextures.NPC_HEADER, "gui-feudal-head", "gui-feudal-head-lore"));
 
         List<Control> controls = new ArrayList<>();
@@ -51,7 +51,7 @@ public final class FeudalGui extends MarketGui {
                 "free", String.valueOf(freeCount()), "total", String.valueOf(manager.all().size())),
                 e -> new FeudalListGui(plugin, viewer).open()));
         mine.ifPresent(point -> controls.add(new Control(tile(HeadTextures.BANKER_ACCOUNT, "gui-feudal-mine", "gui-feudal-mine-lore",
-                "id", manager.nameOf(point)), e -> new FeudalMyPointGui(plugin, viewer, point).open())));
+                "id", manager.displayNameOf(point)), e -> new FeudalMyPointGui(plugin, viewer, point).open())));
         // Only a couple of buttons and nothing to switch: they sit centered in the work row, the header stays glass.
         rowButtons(9, controls);
 

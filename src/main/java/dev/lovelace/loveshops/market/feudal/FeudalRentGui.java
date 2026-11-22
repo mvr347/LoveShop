@@ -50,7 +50,7 @@ public final class FeudalRentGui extends MarketGui {
     public void render() {
         frame();
         var manager = plugin.getTradePointManager();
-        String id = manager.nameOf(point);
+        String id = manager.displayNameOf(point);
         int max = claims().maxRentPeriods();
         if (weeks > max) weeks = max;
         long cost = claims().rentCost(point.claimId(), weeks);
@@ -105,7 +105,7 @@ public final class FeudalRentGui extends MarketGui {
             long quotedCost = cost;
             new dev.lovelace.loveshops.market.gui.StallConfirmGui(plugin, viewer, point.claimId(),
                     t("gui-feudal-rent-confirm-title"),
-                    List.of(t("gui-feudal-rent-confirm-summary", "id", plugin.getTradePointManager().nameOf(point),
+                    List.of(t("gui-feudal-rent-confirm-summary", "id", plugin.getTradePointManager().displayNameOf(point),
                             "weeks", String.valueOf(quotedWeeks)), plugin.getMarketStyle().money(quotedCost)),
                     () -> {
                         // Never charge a changed quote or a second click from an old inventory.
@@ -122,7 +122,7 @@ public final class FeudalRentGui extends MarketGui {
 
     private void rent() {
         if (point.hasOwner()) {
-            plugin.getMarketMessages().send(viewer, "feudal-taken", "id", plugin.getTradePointManager().nameOf(point));
+            plugin.getMarketMessages().send(viewer, "feudal-taken", "id", plugin.getTradePointManager().displayNameOf(point));
             new FeudalListGui(plugin, viewer).open();
             return;
         }
@@ -130,7 +130,7 @@ public final class FeudalRentGui extends MarketGui {
         switch (res.status()) {
             case OK -> {
                 viewer.closeInventory();
-                plugin.getMarketMessages().send(viewer, "feudal-rented", "id", plugin.getTradePointManager().nameOf(point),
+                plugin.getMarketMessages().send(viewer, "feudal-rented", "id", plugin.getTradePointManager().displayNameOf(point),
                         "weeks", String.valueOf(weeks), "cost", plugin.getMarketStyle().money(res.cost()));
             }
             case DENIED -> {

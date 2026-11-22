@@ -78,7 +78,7 @@ public final class MarketRepository {
     private static final String POINT_COLS = "claim_id, owner_uuid, owner_name, npc_citizens_id, guard_citizens_id, level, "
             + "sell_slots, buy_slots, is_open, close_reason, till_coins, revenue_total, sales_total, guard_state, "
             + "guard_paid_until, rented_at, version, trading_mode, closed_sign_world, closed_sign_x, closed_sign_y, closed_sign_z, tp_loc, id_sign_loc, "
-            + "npc_key, guard_key";
+            + "npc_key, guard_key, display_name";
 
     public List<TradePoint> loadPoints() throws SQLException {
         List<TradePoint> out = new ArrayList<>();
@@ -120,6 +120,7 @@ public final class MarketRepository {
         }
         p.teleportLocation(LocationCodec.decode(rs.getString("tp_loc")));
         p.idSignLocation(LocationCodec.decode(rs.getString("id_sign_loc")));
+        p.displayName(rs.getString("display_name"));
         return p;
     }
 
@@ -142,7 +143,7 @@ public final class MarketRepository {
     public void savePoint(Connection conn, TradePoint p) throws SQLException {
         p.version(p.version() + 1);
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "INSERT INTO trade_points (" + POINT_COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                         + "ON CONFLICT(claim_id) DO UPDATE SET owner_uuid=excluded.owner_uuid, owner_name=excluded.owner_name, "
                         + "npc_citizens_id=excluded.npc_citizens_id, guard_citizens_id=excluded.guard_citizens_id, "
                         + "npc_key=excluded.npc_key, guard_key=excluded.guard_key, "
@@ -153,7 +154,7 @@ public final class MarketRepository {
                         + "rented_at=excluded.rented_at, version=excluded.version, trading_mode=excluded.trading_mode, "
                         + "closed_sign_world=excluded.closed_sign_world, closed_sign_x=excluded.closed_sign_x, "
                         + "closed_sign_y=excluded.closed_sign_y, closed_sign_z=excluded.closed_sign_z, "
-                        + "tp_loc=excluded.tp_loc, id_sign_loc=excluded.id_sign_loc")) {
+                        + "tp_loc=excluded.tp_loc, id_sign_loc=excluded.id_sign_loc, display_name=excluded.display_name")) {
             ps.setString(1, p.claimId().toString());
             ps.setString(2, p.ownerUuid() == null ? null : p.ownerUuid().toString());
             ps.setString(3, p.ownerName());
@@ -186,6 +187,17 @@ public final class MarketRepository {
             }
             ps.setString(23, LocationCodec.encode(p.teleportLocation()));
             ps.setString(24, LocationCodec.encode(p.idSignLocation()));
+            ps.setString(27, p.displayName());
+            ps.executeUpdate();
+        }
+    }
+
+    public void updateDisplayName(UUID claimId, String displayName) throws SQLException {
+        try (Connection conn = connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE trade_points SET display_name = ?, version = version + 1 WHERE claim_id = ?")) {
+            ps.setString(1, displayName);
+            ps.setString(2, claimId.toString());
             ps.executeUpdate();
         }
     }
