@@ -48,7 +48,8 @@ public class NpcListener implements Listener {
         }
     }
 
-    @EventHandler
+    // ignoreCancelled: a dialog window of another plugin (LoveContracts) that took the click must not open this menu too
+    @EventHandler(ignoreCancelled = true)
     public void onNpcRightClick(NpcClickEvent event) {
         if (event.click() != NpcClick.RIGHT) return;
         NpcHandle npc = event.npc();
